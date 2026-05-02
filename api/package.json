@@ -1,0 +1,35 @@
+{
+  "name": "finance-api",
+  "version": "1.0.0",
+  "description": "API MVP maTontine basee sur Express, Sequelize, MySQL et Swagger",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "lint": "node -e \"console.log('No lint configured yet')\""
+  },
+  "keywords": [
+    "express",
+    "sequelize",
+    "mysql",
+    "swagger",
+    "tontine",
+    "fintech"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.3",
+    "sequelize": "^6.37.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

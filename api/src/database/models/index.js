@@ -1,0 +1,83 @@
+const sequelize = require('../../config/database');
+const User = require('./user.model');
+const UserPreference = require('./user-preference.model');
+const AuthOtp = require('./auth-otp.model');
+const AuditLog = require('./audit-log.model');
+const Wallet = require('./wallet.model');
+const TontineCycle = require('./tontine-cycle.model');
+const TontineHistory = require('./tontine-history.model');
+const TontineArchive = require('./tontine-archive.model');
+const Goal = require('./goal.model');
+const GoalTransaction = require('./goal-transaction.model');
+const AvailableBalanceHistory = require('./available-balance-history.model');
+const MarketOffer = require('./market-offer.model');
+const MarketFavorite = require('./market-favorite.model');
+const MarketOrder = require('./market-order.model');
+const Notification = require('./notification.model');
+
+User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
+UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
+AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasOne(Wallet, { foreignKey: 'userId', as: 'wallet' });
+Wallet.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(TontineCycle, { foreignKey: 'userId', as: 'tontineCycles' });
+TontineCycle.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(TontineHistory, { foreignKey: 'userId', as: 'tontineHistory' });
+TontineHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+TontineCycle.hasMany(TontineHistory, { foreignKey: 'cycleId', as: 'history' });
+TontineHistory.belongsTo(TontineCycle, { foreignKey: 'cycleId', as: 'cycle' });
+
+User.hasMany(TontineArchive, { foreignKey: 'userId', as: 'tontineArchives' });
+TontineArchive.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(Goal, { foreignKey: 'userId', as: 'goals' });
+Goal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Goal.hasMany(GoalTransaction, { foreignKey: 'goalId', as: 'transactions' });
+GoalTransaction.belongsTo(Goal, { foreignKey: 'goalId', as: 'goal' });
+
+User.hasMany(AvailableBalanceHistory, {
+  foreignKey: 'userId',
+  as: 'availableBalanceHistory',
+});
+AvailableBalanceHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+MarketOffer.hasMany(Goal, { foreignKey: 'linkedOfferId', as: 'linkedGoals' });
+Goal.belongsTo(MarketOffer, { foreignKey: 'linkedOfferId', as: 'linkedOffer' });
+
+User.hasMany(MarketFavorite, { foreignKey: 'userId', as: 'marketFavorites' });
+MarketFavorite.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+MarketOffer.hasMany(MarketFavorite, { foreignKey: 'offerId', as: 'favorites' });
+MarketFavorite.belongsTo(MarketOffer, { foreignKey: 'offerId', as: 'offer' });
+
+User.hasMany(MarketOrder, { foreignKey: 'userId', as: 'marketOrders' });
+MarketOrder.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+MarketOffer.hasMany(MarketOrder, { foreignKey: 'offerId', as: 'orders' });
+MarketOrder.belongsTo(MarketOffer, { foreignKey: 'offerId', as: 'offer' });
+
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+const models = {
+  User,
+  UserPreference,
+  AuthOtp,
+  AuditLog,
+  Wallet,
+  TontineCycle,
+  TontineHistory,
+  TontineArchive,
+  Goal,
+  GoalTransaction,
+  AvailableBalanceHistory,
+  MarketOffer,
+  MarketFavorite,
+  MarketOrder,
+  Notification,
+};
+
+module.exports = { sequelize, models };
