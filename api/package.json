@@ -4,6 +4,8 @@
   "description": "API MVP maTontine basee sur Express, Sequelize, MySQL et Swagger",
   "main": "app.js",
   "scripts": {
+    "render-build": "npm run build",
+    "build": "tsc && tsc-alias",
     "start": "node app.js",
     "dev": "nodemon app.js",
     "lint": "node -e \"console.log('No lint configured yet')\""
