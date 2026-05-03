@@ -85,6 +85,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
             _currentIndex = 3;
           });
         },
+        onOpenTontineTab: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
       ),
       const TontineDetailScreen(showBackButton: false),
       const GoalsListScreen(),

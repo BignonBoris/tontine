@@ -40,6 +40,14 @@ const TontineHistory = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: true,
     },
+    initiatedByUserId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    initiatorType: {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    },
     occurredAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -52,6 +60,7 @@ const TontineHistory = sequelize.define(
       { fields: ['user_id', 'occurred_at'] },
       { fields: ['cycle_id', 'occurred_at'] },
       { fields: ['user_id', 'type'] },
+      { fields: ['initiated_by_user_id', 'occurred_at'] },
     ],
   },
 );

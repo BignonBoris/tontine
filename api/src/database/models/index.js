@@ -3,6 +3,7 @@ const User = require('./user.model');
 const UserPreference = require('./user-preference.model');
 const AuthOtp = require('./auth-otp.model');
 const AuditLog = require('./audit-log.model');
+const AgentProfile = require('./agent-profile.model');
 const Wallet = require('./wallet.model');
 const TontineCycle = require('./tontine-cycle.model');
 const TontineHistory = require('./tontine-history.model');
@@ -14,12 +15,24 @@ const MarketOffer = require('./market-offer.model');
 const MarketFavorite = require('./market-favorite.model');
 const MarketOrder = require('./market-order.model');
 const Notification = require('./notification.model');
+const Provisioning = require('./provisioning.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
 AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasOne(AgentProfile, { foreignKey: 'userId', as: 'agentProfile' });
+AgentProfile.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+AgentProfile.hasMany(User, {
+  foreignKey: 'createdByAgentProfileId',
+  as: 'createdClients',
+});
+User.belongsTo(AgentProfile, {
+  foreignKey: 'createdByAgentProfileId',
+  as: 'creatorAgent',
+});
 
 User.hasOne(Wallet, { foreignKey: 'userId', as: 'wallet' });
 Wallet.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -62,11 +75,34 @@ MarketOrder.belongsTo(MarketOffer, { foreignKey: 'offerId', as: 'offer' });
 User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+AgentProfile.hasMany(Provisioning, {
+  foreignKey: 'agentProfileId',
+  as: 'provisionings',
+});
+Provisioning.belongsTo(AgentProfile, {
+  foreignKey: 'agentProfileId',
+  as: 'agentProfile',
+});
+User.hasMany(Provisioning, {
+  foreignKey: 'clientUserId',
+  as: 'clientProvisionings',
+});
+Provisioning.belongsTo(User, { foreignKey: 'clientUserId', as: 'client' });
+User.hasMany(Provisioning, {
+  foreignKey: 'validatedByUserId',
+  as: 'validatedProvisionings',
+});
+Provisioning.belongsTo(User, {
+  foreignKey: 'validatedByUserId',
+  as: 'validator',
+});
+
 const models = {
   User,
   UserPreference,
   AuthOtp,
   AuditLog,
+  AgentProfile,
   Wallet,
   TontineCycle,
   TontineHistory,
@@ -78,6 +114,7 @@ const models = {
   MarketFavorite,
   MarketOrder,
   Notification,
+  Provisioning,
 };
 
 module.exports = { sequelize, models };

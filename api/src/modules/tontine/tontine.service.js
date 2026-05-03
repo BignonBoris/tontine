@@ -47,6 +47,24 @@ async function getLatestCycle(userId, transaction) {
   });
 }
 
+async function getOpenCycleForFunding(userId, transaction) {
+  const cycle = await getLatestCycle(userId, transaction);
+  if (!cycle || !['active', 'enAttenteValidationFin'].includes(cycle.status)) {
+    throw new AppError('Aucune tontine active disponible.', 409);
+  }
+
+  const targetAmount = Number(cycle.stakeAmount) * 31;
+  const cumulativeAmount = Number(cycle.cumulativeAmount);
+  const remainingAmount = Math.max(targetAmount - cumulativeAmount, 0);
+
+  return {
+    cycle,
+    targetAmount,
+    cumulativeAmount,
+    remainingAmount,
+  };
+}
+
 async function appendNotification(transaction, userId, type, title, message) {
   await models.Notification.create(
     {
@@ -87,6 +105,7 @@ async function appendCycleHistory(
   amount,
   label,
   note = null,
+  actor = {},
 ) {
   await models.TontineHistory.create(
     {
@@ -96,14 +115,24 @@ async function appendCycleHistory(
       amount,
       label,
       note,
+      initiatedByUserId: actor.initiatedByUserId || null,
+      initiatorType: actor.initiatorType || null,
     },
     { transaction },
   );
 }
 
+function resolveActorForUser(userId, requestContext = {}) {
+  return {
+    initiatedByUserId: requestContext.initiatedByUserId || userId,
+    initiatorType: requestContext.initiatorType || 'client',
+  };
+}
+
 async function configureStake(userId, stakeAmount, requestContext = {}) {
   ensureStakeMultiple(stakeAmount);
   return sequelize.transaction(async (transaction) => {
+    const actor = resolveActorForUser(userId, requestContext);
     const wallet = await models.Wallet.findOne({ where: { userId }, transaction });
     const startedAt = new Date();
     await models.TontineCycle.create(
@@ -127,6 +156,7 @@ async function configureStake(userId, stakeAmount, requestContext = {}) {
       stakeAmount,
       'Mise configuree',
       `Mise ${Number(stakeAmount).toFixed(0)} F`,
+      actor,
     );
     await writeAuditLog({
       userId,
@@ -175,9 +205,26 @@ async function depositToCycle(
   }
 
   return sequelize.transaction(async (transaction) => {
-    const cycle = await getLatestCycle(userId, transaction);
-    if (!cycle || !['active', 'enAttenteValidationFin'].includes(cycle.status)) {
-      throw new AppError('Aucune tontine active disponible.', 409);
+    const actor = resolveActorForUser(userId, requestContext);
+    const {
+      cycle,
+      targetAmount,
+      cumulativeAmount,
+      remainingAmount,
+    } = await getOpenCycleForFunding(userId, transaction);
+
+    if (remainingAmount <= 0) {
+      throw new AppError(
+        "Ce cycle a deja atteint son objectif. Confirmez d'abord le reversement.",
+        409,
+      );
+    }
+
+    if (amount > remainingAmount) {
+      throw new AppError(
+        `Le montant depasse le reste a verser sur ce cycle. Reste autorise : ${remainingAmount} F.`,
+        422,
+      );
     }
 
     const wallet = await models.Wallet.findOne({ where: { userId }, transaction });
@@ -185,8 +232,7 @@ async function depositToCycle(
       throw new AppError('Solde disponible insuffisant.', 422);
     }
 
-    const targetAmount = Number(cycle.stakeAmount) * 31;
-    const nextAmount = Math.min(Number(cycle.cumulativeAmount) + amount, targetAmount);
+    const nextAmount = cumulativeAmount + amount;
     const nextStatus =
       nextAmount >= targetAmount ? 'enAttenteValidationFin' : 'active';
 
@@ -222,6 +268,8 @@ async function depositToCycle(
       'deposit',
       amount,
       source === 'wallet' ? 'Versement depuis disponible' : 'Versement tontine',
+      null,
+      actor,
     );
 
     if (nextStatus === 'enAttenteValidationFin') {
@@ -233,6 +281,7 @@ async function depositToCycle(
         Number(cycle.stakeAmount) * 30,
         'Cycle atteint',
         'En attente de confirmation',
+        actor,
       );
       await appendNotification(
         transaction,
@@ -271,8 +320,21 @@ async function depositToCycle(
   });
 }
 
+async function hasActiveOrAwaitingCycle(userId) {
+  try {
+    await getOpenCycleForFunding(userId);
+    return true;
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode === 409) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 async function confirmCyclePayout(userId, requestContext = {}) {
   return sequelize.transaction(async (transaction) => {
+    const actor = resolveActorForUser(userId, requestContext);
     const cycle = await getLatestCycle(userId, transaction);
     if (!cycle || cycle.status !== 'enAttenteValidationFin') {
       throw new AppError('Aucun cycle en attente de reversement.', 409);
@@ -303,6 +365,8 @@ async function confirmCyclePayout(userId, requestContext = {}) {
       'payoutConfirmed',
       netPayoutAmount,
       'Reversement confirme',
+      null,
+      actor,
     );
     await models.TontineArchive.create(
       {
@@ -352,6 +416,7 @@ async function confirmCyclePayout(userId, requestContext = {}) {
 
 async function stopCycleEarly(userId, requestContext = {}) {
   return sequelize.transaction(async (transaction) => {
+    const actor = resolveActorForUser(userId, requestContext);
     const cycle = await getLatestCycle(userId, transaction);
     if (!cycle || Number(cycle.cumulativeAmount) <= 0) {
       throw new AppError('Aucun cycle eligible a un arret anticipe.', 409);
@@ -385,6 +450,8 @@ async function stopCycleEarly(userId, requestContext = {}) {
       'earlyStop',
       netAmount,
       'Arret anticipe',
+      null,
+      actor,
     );
     await models.TontineArchive.create(
       {
@@ -438,6 +505,8 @@ module.exports = {
   getCycleOverview,
   configureStake,
   depositToCycle,
+  hasActiveOrAwaitingCycle,
+  getOpenCycleForFunding,
   confirmCyclePayout,
   stopCycleEarly,
 };

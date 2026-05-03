@@ -24,6 +24,14 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: 'Personnel',
     },
+    address: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    createdByAgentProfileId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
     memberSince: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -39,7 +47,14 @@ const User = sequelize.define(
       defaultValue: true,
     },
   },
-  { tableName: 'users' },
+  {
+    tableName: 'users',
+    indexes: [
+      { fields: ['account_type'] },
+      { fields: ['created_by_agent_profile_id'] },
+      { fields: ['is_active'] },
+    ],
+  },
 );
 
 module.exports = User;

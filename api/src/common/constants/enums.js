@@ -36,6 +36,15 @@ const MARKET_ORDER_STATUSES = [
   'completed',
   'cancelled',
 ];
+const PROVISIONING_STATUSES = [
+  'initiated',
+  'pending_validation',
+  'validated',
+  'rejected',
+  'cancelled',
+];
+const PROVISIONING_SOURCES = ['agent', 'mobile_money'];
+const OPERATION_ACTOR_TYPES = ['agent', 'admin', 'client', 'system'];
 
 module.exports = {
   OTP_PURPOSES,
@@ -46,4 +55,7 @@ module.exports = {
   AVAILABLE_BALANCE_HISTORY_TYPES,
   APP_NOTIFICATION_TYPES,
   MARKET_ORDER_STATUSES,
+  PROVISIONING_STATUSES,
+  PROVISIONING_SOURCES,
+  OPERATION_ACTOR_TYPES,
 };

@@ -1,0 +1,36 @@
+
+# Fichiers d'environnement
+.env
+.env.development
+.env.production
+
+# Dossiers de build
+build/
+dist/
+target/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Android
+*.apk
+*.aab
+
+# iOS
+*.ipa
+Podfile.lock

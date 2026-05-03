@@ -13,6 +13,7 @@ import 'package:mobile/features/dashboard/presentation/screens/available_balance
 import 'package:mobile/features/dashboard/presentation/screens/goal_detail_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/notifications_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/tontine_detail_screen.dart';
+import 'package:mobile/features/dashboard/presentation/utils/market_offer_detail_launcher.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/add_goal_dialog.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/balance_card_widget.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/configure_tontine_stake_modal.dart';
@@ -25,8 +26,13 @@ import 'package:mobile/features/dashboard/presentation/widgets/tontine_cycle_lis
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onOpenMarketplaceTab;
+  final VoidCallback? onOpenTontineTab;
 
-  const DashboardScreen({super.key, this.onOpenMarketplaceTab});
+  const DashboardScreen({
+    super.key,
+    this.onOpenMarketplaceTab,
+    this.onOpenTontineTab,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -177,6 +183,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       );
                     },
+                    onTontineTap: () {
+                      widget.onOpenTontineTab?.call();
+                    },
                   ),
                   const SizedBox(height: 16),
                   TontineCycleListItem(
@@ -276,9 +285,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           final offer = offers[index];
                           return Padding(
                             padding: const EdgeInsets.only(right: 12),
-                            child: MarketOfferGridCard(
-                              offer: offer,
-                              formattedPrice: formatFCFA(offer.price ?? 0),
+                            child: GestureDetector(
+                              onTap: () =>
+                                  showMarketOfferDetailLauncher(context, index),
+                              child: MarketOfferGridCard(
+                                offer: offer,
+                                formattedPrice: formatFCFA(offer.price ?? 0),
+                              ),
                             ),
                           );
                         },

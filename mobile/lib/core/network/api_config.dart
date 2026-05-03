@@ -1,11 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  static const _apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  static const _dartDefineApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
   static String get baseUrl {
-    if (_apiBaseUrl.isNotEmpty) {
-      return _apiBaseUrl;
+    if (_dartDefineApiBaseUrl.isNotEmpty) {
+      return _dartDefineApiBaseUrl;
+    }
+
+    final envApiBaseUrl = dotenv.env['API_BASE_URL']?.trim() ?? '';
+    if (envApiBaseUrl.isNotEmpty) {
+      return envApiBaseUrl;
     }
 
     if (kIsWeb) {

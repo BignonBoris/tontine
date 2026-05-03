@@ -36,6 +36,23 @@ const swaggerSpec = swaggerJsdoc({
             code: { type: 'string', example: '1234' },
           },
         },
+        AgentLoginPayload: {
+          type: 'object',
+          required: ['phoneNumber', 'pin'],
+          properties: {
+            phoneNumber: { type: 'string', example: '97000000' },
+            pin: { type: 'string', example: '1234' },
+          },
+        },
+        AgentProvisioningPayload: {
+          type: 'object',
+          required: ['clientUserId', 'amount'],
+          properties: {
+            clientUserId: { type: 'string', format: 'uuid' },
+            amount: { type: 'number', example: 5000 },
+            notes: { type: 'string', example: 'Depot terrain agence 01' },
+          },
+        },
         GoalPayload: {
           type: 'object',
           required: [

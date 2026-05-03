@@ -11,7 +11,13 @@ async function start() {
     if (env.sequelizeSync) {
       await sequelize.sync({ alter: env.nodeEnv === 'development' });
     }
-    await runSeeds(models);
+    const defaultAgent = await runSeeds(models);
+
+    if (env.nodeEnv !== 'production') {
+      console.log(
+        `Agent par defaut disponible: ${defaultAgent.phoneNumber} / PIN ${defaultAgent.pin} (${defaultAgent.agentCode})`,
+      );
+    }
 
     app.listen(env.port, () => {
       console.log(`${env.appName} demarree sur ${env.appBaseUrl}`);

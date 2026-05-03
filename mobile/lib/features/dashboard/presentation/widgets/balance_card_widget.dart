@@ -6,12 +6,14 @@ class BalanceCardWidget extends StatelessWidget {
   final double availableBalance;
   final double tontineBalance;
   final VoidCallback? onAvailableTap;
+  final VoidCallback? onTontineTap;
 
   const BalanceCardWidget({
     super.key,
     required this.availableBalance,
     required this.tontineBalance,
     this.onAvailableTap,
+    this.onTontineTap,
   });
 
   @override
@@ -56,6 +58,7 @@ class BalanceCardWidget extends StatelessWidget {
                   tontineBalance,
                   AppTheme.accentColor,
                   Icons.lock_outline_rounded,
+                  onTap: onTontineTap,
                 ),
               ],
             ),
