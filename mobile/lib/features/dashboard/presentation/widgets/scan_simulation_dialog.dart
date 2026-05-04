@@ -94,7 +94,7 @@ void showScanSimulation(BuildContext context, DashboardBloc bloc) {
           TextField(
             controller: amountController,
             keyboardType: TextInputType.number,
-            inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               labelText: "Montant a deposer (F CFA)",
               prefixIcon: const Icon(Icons.account_balance_wallet_rounded),

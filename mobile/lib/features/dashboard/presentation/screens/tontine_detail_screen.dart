@@ -63,7 +63,8 @@ class TontineDetailScreen extends StatelessWidget {
               children: [
                 _TontineHeroCard(cycle: cycle),
                 const SizedBox(height: 20),
-                if (cycle != null) _buildActionArea(context, cycle),
+                if (cycle != null)
+                  _buildActionArea(context, cycle, state.availableBalance),
                 const SizedBox(height: 24),
                 Text(
                   "Historique tontine",
@@ -97,7 +98,11 @@ class TontineDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionArea(BuildContext context, TontineCycle cycle) {
+  Widget _buildActionArea(
+    BuildContext context,
+    TontineCycle cycle,
+    double availableBalance,
+  ) {
     if (cycle.status == TontineCycleStatus.enAttenteValidationFin) {
       return _TontineInfoPanel(
         title: "Cycle atteint",
@@ -189,7 +194,7 @@ class TontineDetailScreen extends StatelessWidget {
             label: "Verser",
             icon: Icons.add_circle_outline_rounded,
             color: AppTheme.secondaryColor,
-            onTap: () => _showDepositSheet(context, cycle),
+            onTap: () => _showDepositSheet(context, cycle, availableBalance),
           ),
           const SizedBox(width: 12),
           TontineActionButton(
@@ -203,7 +208,11 @@ class TontineDetailScreen extends StatelessWidget {
     );
   }
 
-  void _showDepositSheet(BuildContext context, TontineCycle cycle) {
+  void _showDepositSheet(
+    BuildContext context,
+    TontineCycle cycle,
+    double availableBalance,
+  ) {
     final controller = TextEditingController();
 
     showModalBottomSheet(
@@ -225,7 +234,7 @@ class TontineDetailScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Faire un versement",
+                "Transferer vers la tontine",
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -233,7 +242,7 @@ class TontineDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                "Le montant doit etre un multiple de 500 et ne peut pas depasser l'objectif du cycle.",
+                "Le montant sera preleve de votre solde disponible. Il doit etre un multiple de 500 et ne peut pas depasser l'objectif du cycle.",
                 style: GoogleFonts.inter(
                   color: AppTheme.textSecondaryColor,
                   fontSize: 13,
@@ -249,7 +258,7 @@ class TontineDetailScreen extends StatelessWidget {
                   labelText: "Montant a verser",
                   suffixText: "F CFA",
                   helperText:
-                      "Reste a completer : ${formatFCFA((cycle.targetAmount - cycle.cumulativeAmount).toInt())} F",
+                      "Disponible : ${formatFCFA(availableBalance)} F • Reste : ${formatFCFA((cycle.targetAmount - cycle.cumulativeAmount).toInt())} F",
                 ),
               ),
               const SizedBox(height: 20),
@@ -280,13 +289,20 @@ class TontineDetailScreen extends StatelessWidget {
                       );
                       return;
                     }
+                    if (amount > availableBalance) {
+                      _showSnackBar(
+                        context,
+                        "Solde disponible insuffisant",
+                      );
+                      return;
+                    }
 
                     context.read<DashboardBloc>().add(
                       MakeTontineDeposit(amount),
                     );
                     Navigator.pop(modalContext);
                   },
-                  child: const Text("Confirmer le versement"),
+                  child: const Text("Confirmer le transfert"),
                 ),
               ),
             ],

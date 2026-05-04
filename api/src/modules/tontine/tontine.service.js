@@ -206,6 +206,13 @@ async function depositToCycle(
 
   return sequelize.transaction(async (transaction) => {
     const actor = resolveActorForUser(userId, requestContext);
+    if (source === 'external' && actor.initiatorType === 'client') {
+      throw new AppError(
+        "Les versements externes ne sont plus autorises depuis l'application client. Utilisez votre solde disponible.",
+        422,
+      );
+    }
+
     const {
       cycle,
       targetAmount,

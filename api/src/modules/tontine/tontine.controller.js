@@ -20,7 +20,7 @@ async function deposit(req, res) {
   const data = await service.depositToCycle(
     req.auth.userId,
     Number(req.body.amount),
-    req.body.source || 'external',
+    req.body.source || 'wallet',
     getRequestContext(req),
   );
   return ok(res, data, 'Versement enregistre.');

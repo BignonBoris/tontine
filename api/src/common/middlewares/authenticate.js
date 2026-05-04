@@ -17,7 +17,11 @@ async function authenticate(req, res, next) {
     if (!user || !user.isActive) {
       throw new AppError('Utilisateur invalide ou inactif.', 401);
     }
-    req.auth = { userId: user.id, phoneNumber: user.phoneNumber };
+    req.auth = {
+      userId: user.id,
+      phoneNumber: user.phoneNumber,
+      accountType: user.accountType,
+    };
     req.user = user;
     return next();
   } catch (error) {

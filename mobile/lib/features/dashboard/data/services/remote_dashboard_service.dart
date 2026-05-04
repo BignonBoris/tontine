@@ -114,7 +114,7 @@ class RemoteDashboardService {
   Future<void> makeTontineDeposit(double amount) {
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'external'},
+      body: {'amount': amount, 'source': 'wallet'},
     );
   }
 
