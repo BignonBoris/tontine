@@ -4,7 +4,9 @@ const UserPreference = require('./user-preference.model');
 const AuthOtp = require('./auth-otp.model');
 const AuditLog = require('./audit-log.model');
 const AgentProfile = require('./agent-profile.model');
+const AgentBalanceHistory = require('./agent-balance-history.model');
 const Wallet = require('./wallet.model');
+const Withdrawal = require('./withdrawal.model');
 const TontineCycle = require('./tontine-cycle.model');
 const TontineHistory = require('./tontine-history.model');
 const TontineArchive = require('./tontine-archive.model');
@@ -36,6 +38,9 @@ User.belongsTo(AgentProfile, {
 
 User.hasOne(Wallet, { foreignKey: 'userId', as: 'wallet' });
 Wallet.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasMany(Withdrawal, { foreignKey: 'userId', as: 'withdrawals' });
+Withdrawal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 User.hasMany(TontineCycle, { foreignKey: 'userId', as: 'tontineCycles' });
 TontineCycle.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -96,6 +101,14 @@ Provisioning.belongsTo(User, {
   foreignKey: 'validatedByUserId',
   as: 'validator',
 });
+AgentProfile.hasMany(AgentBalanceHistory, {
+  foreignKey: 'agentProfileId',
+  as: 'balanceHistory',
+});
+AgentBalanceHistory.belongsTo(AgentProfile, {
+  foreignKey: 'agentProfileId',
+  as: 'agentProfile',
+});
 
 const models = {
   User,
@@ -103,7 +116,9 @@ const models = {
   AuthOtp,
   AuditLog,
   AgentProfile,
+  AgentBalanceHistory,
   Wallet,
+  Withdrawal,
   TontineCycle,
   TontineHistory,
   TontineArchive,

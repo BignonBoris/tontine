@@ -5,10 +5,12 @@ const { models, sequelize } = require('../../database/models');
 const { displayPhone, normalizePhone } = require('../auth/auth.service');
 const {
   configureStake,
-  depositToCycle,
   getCycleOverview,
   hasActiveOrAwaitingCycle,
 } = require('../tontine/tontine.service');
+const {
+  createAgentFundingOperation,
+} = require('../agent-provisionings/agent-provisionings.service');
 
 function serializeClientBase(client, extras = {}) {
   return {
@@ -225,7 +227,15 @@ async function createClient(agentProfile, payload, requestContext = {}) {
 
   await configureStake(client.id, stakeAmount, actorContext);
   if (initialDeposit > 0) {
-    await depositToCycle(client.id, initialDeposit, 'external', actorContext);
+    await createAgentFundingOperation(
+      agentProfile,
+      {
+        clientUserId: client.id,
+        amount: initialDeposit,
+        notes: 'Premier depot a la creation client',
+      },
+      actorContext,
+    );
   }
 
   return getMyClientDetail(agentProfile.id, client.id);
@@ -273,7 +283,15 @@ async function startClientTontine(agentProfile, clientId, payload, requestContex
 
   await configureStake(client.id, stakeAmount, actorContext);
   if (initialDeposit > 0) {
-    await depositToCycle(client.id, initialDeposit, 'external', actorContext);
+    await createAgentFundingOperation(
+      agentProfile,
+      {
+        clientUserId: client.id,
+        amount: initialDeposit,
+        notes: 'Premier depot au demarrage tontine',
+      },
+      actorContext,
+    );
   }
 
   await writeAuditLog({

@@ -7,6 +7,7 @@ import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_list_tile.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_start_tontine_sheet.dart';
 import 'package:agent/features/provisioning/presentation/widgets/agent_deposit_sheet.dart';
+import 'package:agent/features/withdrawals/presentation/widgets/agent_withdrawal_payment_sheet.dart';
 import 'package:flutter/material.dart';
 
 class ProvisioningScreen extends StatefulWidget {
@@ -80,6 +81,28 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          SoftSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionTitle(
+                  title: 'Retrait client',
+                  subtitle:
+                      "Le client vous donne une reference puis un code pour finaliser le paiement.",
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openWithdrawalPaymentSheet,
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('Payer un retrait'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           SoftSectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,6 +223,21 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
       _searchError = null;
     });
     _showMessage('Depot terrain enregistre avec succes.');
+  }
+
+  Future<void> _openWithdrawalPaymentSheet() async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AgentWithdrawalPaymentSheet(),
+    );
+
+    if (!mounted || result != true) {
+      return;
+    }
+
+    _showMessage('Retrait client paye avec succes.');
   }
 
   Future<void> _handleClientSelection(AgentClient client) async {

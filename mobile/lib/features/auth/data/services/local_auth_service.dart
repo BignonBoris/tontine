@@ -1,5 +1,6 @@
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/storage/session_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalAuthResult {
   final bool isSuccess;
@@ -21,6 +22,7 @@ class LocalAuthService {
   LocalAuthService._();
 
   static final ApiClient _apiClient = ApiClient();
+  static const _suggestedPhoneKey = 'auth.suggestedPhoneNumber';
 
   static String normalizePhone(String rawPhone) {
     final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
@@ -28,6 +30,32 @@ class LocalAuthService {
       return digits.substring(digits.length - 8);
     }
     return digits;
+  }
+
+  static String formatPhoneForInput(String rawPhone) {
+    final digits = normalizePhone(rawPhone);
+    if (digits.length != 8) {
+      return digits;
+    }
+    return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)}';
+  }
+
+  static Future<String?> loadSuggestedPhoneNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedPhone = prefs.getString(_suggestedPhoneKey);
+    if (storedPhone == null || storedPhone.isEmpty) {
+      return null;
+    }
+    return formatPhoneForInput(storedPhone);
+  }
+
+  static Future<void> _saveSuggestedPhoneNumber(String rawPhoneNumber) async {
+    final normalizedPhone = normalizePhone(rawPhoneNumber);
+    if (normalizedPhone.length != 8) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_suggestedPhoneKey, normalizedPhone);
   }
 
   static Future<LocalAuthResult> requestOtp({
@@ -44,6 +72,8 @@ class LocalAuthService {
           'purpose': isRegistration ? 'register' : 'login',
         },
       ) as Map<String, dynamic>;
+
+      await _saveSuggestedPhoneNumber(normalizedPhone);
 
       return LocalAuthResult(
         isSuccess: true,
@@ -78,6 +108,7 @@ class LocalAuthService {
       }
 
       await SessionStorage.saveToken(token);
+      await _saveSuggestedPhoneNumber(normalizedPhone);
       return LocalAuthResult(
         isSuccess: true,
         message: 'Verification reussie.',
@@ -103,6 +134,8 @@ class LocalAuthService {
           'purpose': isRegistration ? 'register' : 'login',
         },
       ) as Map<String, dynamic>;
+
+      await _saveSuggestedPhoneNumber(normalizedPhone);
 
       return LocalAuthResult(
         isSuccess: true,

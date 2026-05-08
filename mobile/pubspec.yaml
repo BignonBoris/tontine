@@ -1,5 +1,5 @@
 name: mobile
-description: "A new Flutter project."
+description: "VizioBox client mobile app."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -76,6 +76,8 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/branding/viziobox-icon.png
+    - assets/onboarding/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -107,3 +109,10 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/viziobox-icon.png
+  min_sdk_android: 21
+  remove_alpha_ios: true

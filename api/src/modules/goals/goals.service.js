@@ -222,66 +222,10 @@ async function closeGoal(userId, goalId, requestContext = {}) {
   });
 }
 
-async function depositGoalDirectly(userId, goalId, amount, requestContext = {}) {
-  if (!amount || amount <= 0) {
-    throw new AppError('Montant invalide.', 422);
-  }
-
-  return sequelize.transaction(async (transaction) => {
-    const goal = await models.Goal.findOne({
-      where: { id: goalId, userId },
-      transaction,
-    });
-    if (!goal) {
-      throw new AppError('Coffre introuvable.', 404);
-    }
-    if (goal.status !== 'active') {
-      throw new AppError("Ce coffre n'est plus actif.", 409);
-    }
-
-    const remainingAmount = Number(goal.targetAmount) - Number(goal.currentAmount);
-    if (remainingAmount <= 0) {
-      throw new AppError('Ce coffre a deja atteint son objectif.', 409);
-    }
-    if (amount > remainingAmount) {
-      throw new AppError("Le montant depasse l'objectif restant.", 422);
-    }
-
-    const nextAmount = Number(goal.currentAmount) + amount;
-    await goal.update({ currentAmount: nextAmount }, { transaction });
-    await models.GoalTransaction.create(
-      {
-        goalId: goal.id,
-        title: 'Depot',
-        amount,
-        isDeposit: true,
-      },
-      { transaction },
-    );
-
-    await writeAuditLog({
-      userId,
-      action: 'goal.directDeposit',
-      entityType: 'goal',
-      entityId: goal.id,
-      ipAddress: requestContext.ipAddress,
-      userAgent: requestContext.userAgent,
-      metadata: {
-        amount,
-        nextAmount,
-      },
-      transaction,
-    });
-
-    return getGoal(userId, goalId);
-  });
-}
-
 module.exports = {
   listGoals,
   getGoal,
   createGoal,
   fundGoal,
   closeGoal,
-  depositGoalDirectly,
 };

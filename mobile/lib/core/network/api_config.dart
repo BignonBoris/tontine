@@ -9,7 +9,9 @@ class ApiConfig {
       return _dartDefineApiBaseUrl;
     }
 
-    final envApiBaseUrl = dotenv.env['API_BASE_URL']?.trim() ?? '';
+    final envApiBaseUrl =
+        dotenv.env['API_BASE_URL']?.trim() ??
+        'https://finance-tontine-api.onrender.com/api/v1';
     if (envApiBaseUrl.isNotEmpty) {
       return envApiBaseUrl;
     }

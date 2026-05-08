@@ -204,7 +204,7 @@ async function depositToCycle(
     throw new AppError('Le versement doit etre un multiple positif de 500.', 422);
   }
 
-  return sequelize.transaction(async (transaction) => {
+  const executeDeposit = async (transaction) => {
     const actor = resolveActorForUser(userId, requestContext);
     if (source === 'external' && actor.initiatorType === 'client') {
       throw new AppError(
@@ -324,7 +324,13 @@ async function depositToCycle(
     });
 
     return serializeCycle(cycle);
-  });
+  };
+
+  if (requestContext.transaction) {
+    return executeDeposit(requestContext.transaction);
+  }
+
+  return sequelize.transaction(executeDeposit);
 }
 
 async function hasActiveOrAwaitingCycle(userId) {

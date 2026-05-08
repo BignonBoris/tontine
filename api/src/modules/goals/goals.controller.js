@@ -40,21 +40,10 @@ async function closeGoal(req, res) {
   return ok(res, data, 'Coffre cloture.');
 }
 
-async function depositGoalDirectly(req, res) {
-  const data = await service.depositGoalDirectly(
-    req.auth.userId,
-    req.params.goalId,
-    Number(req.body.amount),
-    getRequestContext(req),
-  );
-  return ok(res, data, 'Depot enregistre.');
-}
-
 module.exports = {
   listGoals,
   getGoal,
   createGoal,
   fundGoal,
   closeGoal,
-  depositGoalDirectly,
 };

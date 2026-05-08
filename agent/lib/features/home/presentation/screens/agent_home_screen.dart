@@ -8,6 +8,7 @@ import 'package:agent/features/home/data/services/agent_dashboard_service.dart';
 import 'package:agent/features/home/domain/entities/agent_overview.dart';
 import 'package:agent/features/home/presentation/widgets/agent_overview_tile.dart';
 import 'package:agent/features/home/presentation/widgets/agent_quick_action_card.dart';
+import 'package:agent/features/withdrawals/presentation/widgets/agent_withdrawal_payment_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -41,6 +42,26 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     setState(() {
       _overviewFuture = _service.fetchOverview();
     });
+  }
+
+  Future<void> _openWithdrawalPaymentSheet() async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AgentWithdrawalPaymentSheet(),
+    );
+
+    if (!mounted || result != true) {
+      return;
+    }
+
+    _reload();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Retrait client paye avec succes.')),
+      );
   }
 
   @override
@@ -80,6 +101,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
           final overview =
               snapshot.data ??
               const AgentOverview(
+                agentBalance: 0,
                 operationsToday: 0,
                 pendingCount: 0,
                 totalAmountToday: 0,
@@ -134,8 +156,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                             ),
                             const SizedBox(width: 14),
                             AgentOverviewTile(
-                              label: 'Montant collecte',
-                              value: formatFcfa(overview.totalAmountToday),
+                              label: 'Caisse disponible',
+                              value: formatFcfa(overview.agentBalance),
                               onTap: widget.onOpenProvisioning,
                             ),
                           ],
@@ -168,7 +190,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                       AgentQuickActionCard(
                         icon: Icons.add_card_rounded,
                         title: 'Nouveau depot',
-                        subtitle: 'Initier un provisioning terrain',
+                        subtitle: 'Debiter la caisse pour crediter un client',
                         tint: AgentAppTheme.secondaryColor,
                         onTap: widget.onOpenProvisioning,
                       ),
@@ -180,13 +202,76 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         onTap: widget.onOpenHistory,
                       ),
                       AgentQuickActionCard(
-                        icon: Icons.sync_rounded,
-                        title: 'Synchronisation',
-                        subtitle: 'Actualiser les donnees du terrain',
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: 'Caisse admin',
+                        subtitle: "L'approvisionnement de caisse se fait desormais via l'administration",
                         tint: const Color(0xFF6B7280),
-                        onTap: _reload,
+                        onTap: () {
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "L'approvisionnement de caisse est reserve a l'administration.",
+                                ),
+                              ),
+                            );
+                        },
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 22),
+                  SectionTitle(
+                    title: 'Suivi de caisse',
+                    subtitle:
+                        'Collecte du jour: ${formatFcfa(overview.totalAmountToday)}. Les depots sont bloques si la caisse agent est insuffisante.',
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Retrait client',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AgentAppTheme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Le client vous communique une reference puis un code de confirmation pour finaliser le paiement.",
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: AgentAppTheme.textSecondaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _openWithdrawalPaymentSheet,
+                            icon: const Icon(Icons.payments_outlined),
+                            label: const Text('Payer un retrait'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 22),
                 ],

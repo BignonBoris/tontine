@@ -28,7 +28,7 @@ class NotificationService {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
           'tontine_channel',
-          'Alertes maTontine',
+          'Alertes VizioBox',
           channelDescription: 'Notifications pour les objectifs atteints',
           importance: Importance.max,
           priority: Priority.high,
@@ -60,7 +60,7 @@ class NotificationService {
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'tontine_scheduled',
-          'Rappels maTontine',
+          'Rappels VizioBox',
           channelDescription: "Notifications de rappel d'échéance",
         ),
       ),
