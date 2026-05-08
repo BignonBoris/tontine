@@ -10,7 +10,7 @@
           <div class="relative">
             <Icon icon="solar:magnifer-linear" width="18" height="18"
               class="absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input type="text" placeholder="Search..." class="rounded-xl pl-10" />
+            <Input type="text" placeholder="Recherche globale en preparation" class="rounded-xl pl-10" />
           </div>
         </div>
       </div>
@@ -64,19 +64,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { RouterLink } from 'vue-router'
-
-
 import NotificationDD from './NotificationDD.vue'
 import ProfileDD from './ProfileDD.vue'
-
 import FullLogo from '../logo/Logo.vue'
-
-import LayoutVerticalSidebar from '../vertical-sidebar/VerticalSidebar.vue'
 import MobileHeaderItems from './MobileHeaderItems.vue'
-
 import ThemeToggler from '../vertical-header/ThemeToggler.vue'
-
 import { Input } from '@/components/ui/input'
 import { Icon } from '@iconify/vue'
 import SidebarTrigger from '../../../components/ui/sidebar/SidebarTrigger.vue'

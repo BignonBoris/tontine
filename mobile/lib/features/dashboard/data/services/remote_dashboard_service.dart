@@ -10,6 +10,8 @@ import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_history_entry.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_transaction.dart';
 import 'package:mobile/features/dashboard/domain/entities/user_profile.dart';
+import 'package:mobile/features/dashboard/domain/entities/withdrawal_request_result.dart';
+import 'package:mobile/features/dashboard/domain/entities/withdrawal_summary.dart';
 
 class RemoteDashboardSnapshot {
   final List<TontineGoal> goals;
@@ -19,6 +21,7 @@ class RemoteDashboardSnapshot {
   final List<TontineHistoryEntry> tontineHistory;
   final List<TontineArchiveEntry> tontineArchives;
   final List<AvailableBalanceHistoryEntry> availableBalanceHistory;
+  final List<WithdrawalSummary> withdrawals;
   final List<MarketOrder> marketOrders;
   final List<AppNotificationItem> notifications;
   final List<String> favoriteOfferIds;
@@ -34,6 +37,7 @@ class RemoteDashboardSnapshot {
     required this.tontineHistory,
     required this.tontineArchives,
     required this.availableBalanceHistory,
+    required this.withdrawals,
     required this.marketOrders,
     required this.notifications,
     required this.favoriteOfferIds,
@@ -53,6 +57,7 @@ class RemoteDashboardService {
     final responses = await Future.wait<dynamic>([
       _apiClient.get('/goals'),
       _apiClient.get('/wallet'),
+      _apiClient.get('/withdrawals'),
       _apiClient.get('/tontine'),
       _apiClient.get('/marketplace/orders'),
       _apiClient.get('/notifications'),
@@ -63,12 +68,13 @@ class RemoteDashboardService {
 
     final goalsPayload = _asList(responses[0]);
     final walletPayload = _asMap(responses[1]);
-    final tontinePayload = _asMap(responses[2]);
-    final ordersPayload = _asList(responses[3]);
-    final notificationsPayload = _asList(responses[4]);
-    final profilePayload = _asMap(responses[5]);
-    final favoritesPayload = _asList(responses[6]);
-    final offersPayload = _asList(responses[7]);
+    final withdrawalsPayload = _asList(responses[2]);
+    final tontinePayload = _asMap(responses[3]);
+    final ordersPayload = _asList(responses[4]);
+    final notificationsPayload = _asList(responses[5]);
+    final profilePayload = _asMap(responses[6]);
+    final favoritesPayload = _asList(responses[7]);
+    final offersPayload = _asList(responses[8]);
 
     final wallet = _asMap(walletPayload['wallet']);
     final walletHistory = _asList(walletPayload['history']);
@@ -92,6 +98,7 @@ class RemoteDashboardService {
       availableBalanceHistory: walletHistory
           .map(_walletHistoryFromApi)
           .toList(),
+      withdrawals: withdrawalsPayload.map(_withdrawalFromApi).toList(),
       marketOrders: ordersPayload.map(_marketOrderFromApi).toList(),
       notifications: notificationsPayload.map(_notificationFromApi).toList(),
       favoriteOfferIds: favoritesPayload
@@ -159,15 +166,36 @@ class RemoteDashboardService {
     return _apiClient.post('/goals/$goalId/fund', body: {'amount': amount});
   }
 
-  Future<void> directDepositGoal(String goalId, double amount) {
-    return _apiClient.post(
-      '/goals/$goalId/direct-deposit',
-      body: {'amount': amount},
-    );
-  }
-
   Future<void> closeGoal(String goalId) {
     return _apiClient.post('/goals/$goalId/close');
+  }
+
+  Future<WithdrawalRequestResult> requestWithdrawal(double amount) async {
+    final data = await _apiClient.post(
+      '/withdrawals',
+      body: {'amount': amount},
+    ) as Map<dynamic, dynamic>;
+
+    return WithdrawalRequestResult.fromMap(Map<dynamic, dynamic>.from(data));
+  }
+
+  Future<WithdrawalRequestResult> regenerateWithdrawalCode(
+    String withdrawalId,
+  ) async {
+    final data = await _apiClient.post(
+      '/withdrawals/$withdrawalId/regenerate-code',
+    ) as Map<dynamic, dynamic>;
+
+    return WithdrawalRequestResult.fromMap(Map<dynamic, dynamic>.from(data));
+  }
+
+  Future<void> cancelWithdrawal(String withdrawalId, {String? reason}) {
+    return _apiClient.post(
+      '/withdrawals/$withdrawalId/cancel',
+      body: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
   }
 
   Future<void> buyMarketplaceOfferNow(MarketOffer offer, {int quantity = 1}) {
@@ -341,6 +369,11 @@ class RemoteDashboardService {
     );
   }
 
+  WithdrawalSummary _withdrawalFromApi(dynamic entry) {
+    final map = _asMap(entry);
+    return WithdrawalSummary.fromMap(map);
+  }
+
   MarketOrder _marketOrderFromApi(dynamic entry) {
     final map = _asMap(entry);
     return MarketOrder(
@@ -378,7 +411,7 @@ class RemoteDashboardService {
 
   UserProfile _profileFromApi(Map<dynamic, dynamic> map) {
     return UserProfile(
-      displayName: map['displayName'] as String? ?? 'Utilisateur maTontine',
+      displayName: map['displayName'] as String? ?? 'Utilisateur VizioBox',
       phoneNumber: map['phoneNumber'] as String? ?? '',
       accountType: map['accountType'] as String? ?? 'Personnel',
       memberSince: _toDateTime(map['memberSince']),

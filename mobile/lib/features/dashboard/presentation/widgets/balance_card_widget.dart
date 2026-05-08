@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
-import '../../../../core/theme/app_theme.dart';
 
 class BalanceCardWidget extends StatelessWidget {
   final double availableBalance;
@@ -19,48 +19,69 @@ class BalanceCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppTheme.primaryColor,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.heroGradient,
+        ),
+        child: Stack(
           children: [
-            const Text(
-              "Solde Total Estimé",
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "${formatFCFA(availableBalance + tontineBalance)} FCFA",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+            Positioned(
+              top: -20,
+              right: -12,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            const Divider(color: Colors.white12, height: 1),
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSubBalance(
-                  "Disponible",
-                  availableBalance,
-                  AppTheme.secondaryColor,
-                  Icons.lock_open_rounded,
-                  onTap: onAvailableTap,
-                ),
-                Container(width: 1, height: 30, color: Colors.white12),
-                _buildSubBalance(
-                  "En Tontine",
-                  tontineBalance,
-                  AppTheme.accentColor,
-                  Icons.lock_outline_rounded,
-                  onTap: onTontineTap,
-                ),
-              ],
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Text(
+                    "Solde total estime",
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "${formatFCFA(availableBalance + tontineBalance)} FCFA",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.white12, height: 1),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildSubBalance(
+                        "Disponible",
+                        availableBalance,
+                        AppTheme.secondaryColor,
+                        Icons.lock_open_rounded,
+                        onTap: onAvailableTap,
+                      ),
+                      Container(width: 1, height: 30, color: Colors.white12),
+                      _buildSubBalance(
+                        "En tontine",
+                        tontineBalance,
+                        AppTheme.accentColor,
+                        Icons.lock_outline_rounded,
+                        onTap: onTontineTap,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),

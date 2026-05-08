@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/security/local_security_service.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -76,8 +77,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF1A237E);
-
     final screens = <Widget>[
       DashboardScreen(
         onOpenMarketplaceTab: () {
@@ -104,7 +103,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: primaryBlue,
+          selectedItemColor: AppTheme.primaryColor,
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,
           selectedLabelStyle: const TextStyle(

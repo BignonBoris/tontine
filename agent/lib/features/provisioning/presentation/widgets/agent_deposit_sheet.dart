@@ -61,7 +61,7 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                 const SectionTitle(
                   title: 'Nouveau depot',
                   subtitle:
-                      "Le depot sera credite sur la tontine active du client.",
+                      "Le depot sera debite de votre caisse puis credite sur la tontine active du client.",
                 ),
                 const SizedBox(height: 16),
                 AgentClientListTile(

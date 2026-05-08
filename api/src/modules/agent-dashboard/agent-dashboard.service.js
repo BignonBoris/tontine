@@ -9,37 +9,40 @@ function startOfDay() {
 
 async function getOverview(agentProfileId) {
   const today = startOfDay();
-  const [operationsToday, amountRow, pendingCount, myClientsCount] = await Promise.all([
-    models.Provisioning.count({
-      where: {
-        agentProfileId,
-        createdAt: { [Op.gte]: today },
-      },
-    }),
-    models.Provisioning.findOne({
-      where: {
-        agentProfileId,
-        createdAt: { [Op.gte]: today },
-      },
-      attributes: [[fn('COALESCE', fn('SUM', col('amount')), 0), 'totalAmount']],
-      raw: true,
-    }),
-    models.Provisioning.count({
-      where: {
-        agentProfileId,
-        status: { [Op.in]: ['initiated', 'pending_validation'] },
-      },
-    }),
-    models.User.count({
-      where: {
-        createdByAgentProfileId: agentProfileId,
-        isActive: true,
-        accountType: { [Op.ne]: 'Agent' },
-      },
-    }),
-  ]);
+  const [agentProfile, operationsToday, amountRow, pendingCount, myClientsCount] =
+    await Promise.all([
+      models.AgentProfile.findByPk(agentProfileId),
+      models.Provisioning.count({
+        where: {
+          agentProfileId,
+          createdAt: { [Op.gte]: today },
+        },
+      }),
+      models.Provisioning.findOne({
+        where: {
+          agentProfileId,
+          createdAt: { [Op.gte]: today },
+        },
+        attributes: [[fn('COALESCE', fn('SUM', col('amount')), 0), 'totalAmount']],
+        raw: true,
+      }),
+      models.Provisioning.count({
+        where: {
+          agentProfileId,
+          status: { [Op.in]: ['initiated', 'pending_validation'] },
+        },
+      }),
+      models.User.count({
+        where: {
+          createdByAgentProfileId: agentProfileId,
+          isActive: true,
+          accountType: { [Op.ne]: 'Agent' },
+        },
+      }),
+    ]);
 
   return {
+    agentBalance: Number(agentProfile?.agentBalance || 0),
     operationsToday,
     pendingCount,
     totalAmountToday: Number(amountRow?.totalAmount || 0),

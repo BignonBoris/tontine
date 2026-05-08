@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 
 class AuthIdentificationScreen extends StatefulWidget {
@@ -18,23 +19,39 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   bool _isSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSuggestedPhoneNumber();
+  }
+
+  @override
   void dispose() {
     _phoneController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadSuggestedPhoneNumber() async {
+    final suggestedPhone = await LocalAuthService.loadSuggestedPhoneNumber();
+    if (!mounted || suggestedPhone == null || suggestedPhone.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _phoneController.text = suggestedPhone;
+      _isValid = LocalAuthService.normalizePhone(suggestedPhone).length == 8;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF1A237E);
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.primaryColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: primaryBlue),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -52,6 +69,57 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Center(
+                        child: Container(
+                          width: 112,
+                          height: 112,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white,
+                                AppTheme.accentColor.withValues(alpha: 0.18),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.accentDarkColor.withValues(alpha: 0.14),
+                                blurRadius: 24,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(AppTheme.brandIconAsset),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            widget.isRegistration ? 'Inscription' : 'Connexion',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
                       Text(
                         widget.isRegistration
                             ? 'Ouvrir un compte'
@@ -59,7 +127,8 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: primaryBlue,
+                          color: Colors.white,
+                          height: 1.12,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -67,25 +136,34 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         'Entrez votre numero de telephone pour recevoir votre code de verification.',
                         style: GoogleFonts.inter(
                           fontSize: 15,
-                          color: Colors.grey[600],
+                          color: Colors.white.withValues(alpha: 0.78),
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 34),
                       Text(
                         'Numero de telephone',
                         style: GoogleFonts.inter(
                           fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[800],
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F7FA),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: AppTheme.accentColor.withValues(alpha: 0.26),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.accentDarkColor.withValues(alpha: 0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -93,19 +171,29 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         ),
                         child: Row(
                           children: [
-                            Text(
-                              '+229',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: primaryBlue,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentColor.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Text(
+                                '+229',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.accentDarkColor,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Container(
                               width: 1,
                               height: 24,
-                              color: Colors.grey.shade400,
+                              color: AppTheme.borderColor,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -125,12 +213,13 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                   fontSize: 16,
                                   letterSpacing: 2,
                                   fontWeight: FontWeight.w500,
+                                  color: AppTheme.textPrimaryColor,
                                 ),
                                 decoration: const InputDecoration(
                                   hintText: '00 00 00 00',
                                   border: InputBorder.none,
                                   hintStyle: TextStyle(
-                                    color: Colors.grey,
+                                    color: AppTheme.textSecondaryColor,
                                     letterSpacing: 1,
                                   ),
                                 ),
@@ -142,7 +231,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                     ],
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 24),
+                    padding: const EdgeInsets.only(top: 24, bottom: 12),
                     child: Column(
                       children: [
                         SizedBox(
@@ -152,9 +241,9 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                 ? () => _handleContinue(context)
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
+                              backgroundColor: AppTheme.accentColor,
                               disabledBackgroundColor: Colors.grey.shade300,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              minimumSize: const Size.fromHeight(52),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -187,7 +276,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                             "Des frais de SMS peuvent s'appliquer",
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: Colors.white.withValues(alpha: 0.72),
                             ),
                           ),
                         ),

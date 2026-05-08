@@ -9,7 +9,7 @@ async function start() {
     await sequelize.authenticate();
     await runBootstrap(sequelize);
     if (env.sequelizeSync) {
-      await sequelize.sync({ alter: env.nodeEnv === 'development' });
+      await sequelize.sync();
     }
     const defaultAgent = await runSeeds(models);
 

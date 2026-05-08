@@ -7,6 +7,7 @@ const {
   getOpenCycleForFunding,
   hasActiveOrAwaitingCycle,
 } = require('../tontine/tontine.service');
+const { applyAgentBalanceChange } = require('../agent-cash/agent-cash.service');
 
 function generateReference() {
   return `PRV-${Date.now()}-${Math.floor(Math.random() * 9000)
@@ -43,18 +44,16 @@ async function listProvisionings(agentProfileId) {
   }));
 }
 
-async function createProvisioning(agentProfile, payload, requestContext = {}) {
-  const clientUserId = String(payload.clientUserId || '').trim();
-  const amount = Number(payload.amount);
-  const notes = payload.notes ? String(payload.notes).trim() : null;
-
+async function validateProvisioningRequest(clientUserId, amount) {
   if (!clientUserId) {
     throw new AppError('Le client est requis.', 422);
   }
   if (!amount || amount <= 0 || amount % 500 !== 0) {
     throw new AppError('Le montant doit etre un multiple positif de 500.', 422);
   }
+}
 
+async function loadEligibleClient(clientUserId, amount) {
   const client = await models.User.findByPk(clientUserId, {
     include: [{ model: models.AgentProfile, as: 'agentProfile', required: false }],
   });
@@ -79,6 +78,25 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
     );
   }
 
+  return client;
+}
+
+async function createAgentFundingOperation(
+  agentProfile,
+  { clientUserId, amount, notes = null },
+  requestContext = {},
+) {
+  await validateProvisioningRequest(clientUserId, amount);
+
+  if (Number(agentProfile.agentBalance || 0) < amount) {
+    throw new AppError(
+      'Solde de caisse agent insuffisant pour effectuer ce depot.',
+      422,
+    );
+  }
+
+  const client = await loadEligibleClient(clientUserId, amount);
+
   const provisioning = await sequelize.transaction(async (transaction) => {
     const created = await models.Provisioning.create(
       {
@@ -97,6 +115,33 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
       { transaction },
     );
 
+    await depositToCycle(client.id, amount, 'external', {
+      ...requestContext,
+      transaction,
+      initiatedByUserId: agentProfile.userId,
+      initiatorType: 'agent',
+    });
+
+    const cashChange = await applyAgentBalanceChange(
+      agentProfile.id,
+      {
+        amount,
+        isCredit: false,
+        type: 'clientDeposit',
+        label: `Depot client ${client.displayName}`,
+        note: notes,
+        relatedEntityType: 'provisioning',
+        relatedEntityId: created.id,
+        initiatedByUserId: agentProfile.userId,
+        initiatorType: 'agent',
+        ipAddress: requestContext.ipAddress,
+        userAgent: requestContext.userAgent,
+        auditAction: 'agent.cash_debited_for_client_deposit',
+        reference: created.reference,
+      },
+      transaction,
+    );
+
     await writeAuditLog({
       userId: agentProfile.userId,
       action: 'agent.provisioning_created',
@@ -108,32 +153,46 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
         clientUserId: client.id,
         amount,
         reference: created.reference,
+        agentBalanceBefore: cashChange.balanceBefore,
+        agentBalanceAfter: cashChange.balanceAfter,
       },
       transaction,
     });
 
-    return created;
+    return { created, agentBalanceAfter: cashChange.balanceAfter, client };
   });
 
-  await depositToCycle(client.id, amount, 'external', {
-    ipAddress: requestContext.ipAddress,
-    userAgent: requestContext.userAgent,
-    initiatedByUserId: agentProfile.userId,
-    initiatorType: 'agent',
-  });
+  return provisioning;
+}
+
+async function createProvisioning(agentProfile, payload, requestContext = {}) {
+  const clientUserId = String(payload.clientUserId || '').trim();
+  const amount = Number(payload.amount);
+  const notes = payload.notes ? String(payload.notes).trim() : null;
+
+  const provisioning = await createAgentFundingOperation(
+    agentProfile,
+    { clientUserId, amount, notes },
+    requestContext,
+  );
 
   return {
-    id: provisioning.id,
-    reference: provisioning.reference,
-    amount: Number(provisioning.amount),
-    status: provisioning.status,
+    id: provisioning.created.id,
+    reference: provisioning.created.reference,
+    amount: Number(provisioning.created.amount),
+    status: provisioning.created.status,
     client: {
-      id: client.id,
-      displayName: client.displayName,
-      phoneNumber: displayPhone(client.phoneNumber),
+      id: provisioning.client.id,
+      displayName: provisioning.client.displayName,
+      phoneNumber: displayPhone(provisioning.client.phoneNumber),
     },
-    validatedAt: provisioning.validatedAt,
+    validatedAt: provisioning.created.validatedAt,
+    agentBalance: provisioning.agentBalanceAfter,
   };
 }
 
-module.exports = { listProvisionings, createProvisioning };
+module.exports = {
+  listProvisionings,
+  createProvisioning,
+  createAgentFundingOperation,
+};

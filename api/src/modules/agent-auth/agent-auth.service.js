@@ -78,6 +78,7 @@ async function loginAgent({ phoneNumber, pin }, context = {}) {
       phoneNumber: displayPhone(user.phoneNumber),
       fullName: user.agentProfile.fullName,
       agentCode: user.agentProfile.agentCode,
+      agentBalance: Number(user.agentProfile.agentBalance || 0),
     },
   };
 }

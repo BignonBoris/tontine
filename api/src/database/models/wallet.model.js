@@ -30,6 +30,14 @@ const Wallet = sequelize.define(
         min: 0,
       },
     },
+    reservedWithdrawalBalance: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      },
+    },
   },
   {
     tableName: 'wallets',

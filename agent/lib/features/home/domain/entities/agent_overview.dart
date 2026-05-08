@@ -1,10 +1,12 @@
 class AgentOverview {
+  final double agentBalance;
   final int operationsToday;
   final int pendingCount;
   final double totalAmountToday;
   final int myClientsCount;
 
   const AgentOverview({
+    required this.agentBalance,
     required this.operationsToday,
     required this.pendingCount,
     required this.totalAmountToday,
@@ -13,6 +15,7 @@ class AgentOverview {
 
   factory AgentOverview.fromMap(Map<dynamic, dynamic> map) {
     return AgentOverview(
+      agentBalance: _toDouble(map['agentBalance']),
       operationsToday: _toInt(map['operationsToday']),
       pendingCount: _toInt(map['pendingCount']),
       totalAmountToday: _toDouble(map['totalAmountToday']),

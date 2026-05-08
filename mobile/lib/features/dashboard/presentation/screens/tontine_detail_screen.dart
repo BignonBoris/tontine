@@ -45,7 +45,7 @@ class TontineDetailScreen extends StatelessWidget {
           appBar: AppBar(
             automaticallyImplyLeading: showBackButton,
             title: Text(
-              "Ma Tontine",
+              "Tontine",
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
             actions: [
@@ -360,7 +360,6 @@ class TontineDetailScreen extends StatelessWidget {
                 }
                 context.read<DashboardBloc>().add(StopTontineEarly());
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.errorColor,

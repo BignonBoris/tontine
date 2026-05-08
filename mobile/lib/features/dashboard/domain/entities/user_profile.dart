@@ -15,7 +15,7 @@ class UserProfile {
 
   factory UserProfile.initial({required String phoneNumber}) {
     return UserProfile(
-      displayName: "Utilisateur maTontine",
+      displayName: "Utilisateur VizioBox",
       phoneNumber: phoneNumber,
       accountType: "Personnel",
       memberSince: DateTime.now(),
@@ -25,7 +25,7 @@ class UserProfile {
 
   factory UserProfile.fromMap(Map<dynamic, dynamic> map) {
     return UserProfile(
-      displayName: map['displayName'] as String? ?? "Utilisateur maTontine",
+      displayName: map['displayName'] as String? ?? "Utilisateur VizioBox",
       phoneNumber: map['phoneNumber'] as String? ?? "",
       accountType: map['accountType'] as String? ?? "Personnel",
       memberSince: DateTime.parse(

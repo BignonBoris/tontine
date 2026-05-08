@@ -1,14 +1,10 @@
 <script setup lang="ts">
-
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from '@/components/ui/dropdown-menu';
-import SimpleBar  from 'simplebar-vue'
-import { notifications } from '../../../_mockApis/headerData';
-import { Icon } from '@iconify/vue';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
+import { Icon } from "@iconify/vue";
 </script>
 
 <template>
-  <div  class="relative group/menu px-4 ">
-    <!-- Dropdown Trigger -->
+  <div class="relative group/menu px-4">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
         <div class="relative">
@@ -21,35 +17,23 @@ import { Icon } from '@iconify/vue';
         </div>
       </DropdownMenuTrigger>
 
-      <!-- Dropdown Content -->
-      <DropdownMenuContent class="w-screen sm:w-[300px] py-6 rounded-md shadow-lg z-50 ">
-        <!-- Header -->
-        <div class="flex items-center px-6 justify-between  rtl:flex-row-reverse rtl:text-end">
-          <h3 class="text-lg font-semibold text-ld ">Notifications</h3>
-         
+      <DropdownMenuContent class="z-50 w-screen rounded-md py-6 shadow-lg sm:w-[300px]">
+        <div class="flex items-center justify-between px-6 rtl:flex-row-reverse rtl:text-end">
+          <h3 class="text-lg font-semibold text-ld">
+            Notifications
+          </h3>
         </div>
 
-        <!-- Scrollable Items -->
-        <SimpleBar class="max-h-80 mt-3">
-          <div>
-            <div
-              v-for="(item, index) in notifications"
-              :key="index"
-              class="rtl:flex-row-reverse rtl:text-end   px-6 py-3 flex justify-between items-center bg-hover group/link w-full cursor-pointer hover:bg-lightprimary"
-            >
-               <div class="flex items-center">
-                <div class="ps-0">
-                  <h5 class="mb-1 text-sm  group-hover/link:text-primary">
-                   {{item.title}}
-                  </h5>
-                  <span class="text-xs block  truncate text-darklink">
-                    {{item.subtitle}}
-                  </span>
-                </div>
-              </div>
-            </div>
+        <div class="px-6 pt-6">
+          <div class="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center">
+            <p class="text-sm font-medium text-foreground">
+              Aucune notification admin
+            </p>
+            <p class="mt-2 text-xs text-muted-foreground">
+              Le centre de notification sera branche quand le module supervision sera finalise.
+            </p>
           </div>
-        </SimpleBar>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   </div>

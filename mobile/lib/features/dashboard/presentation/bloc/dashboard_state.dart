@@ -8,6 +8,7 @@ import '../../domain/entities/tontine_cycle.dart';
 import '../../domain/entities/tontine_history_entry.dart';
 import '../../domain/entities/tontine_goal.dart';
 import '../../domain/entities/user_profile.dart';
+import '../../domain/entities/withdrawal_summary.dart';
 
 abstract class DashboardState {}
 
@@ -23,6 +24,7 @@ class DashboardLoaded extends DashboardState {
   final List<TontineHistoryEntry> tontineHistory;
   final List<TontineArchiveEntry> tontineArchives;
   final List<AvailableBalanceHistoryEntry> availableBalanceHistory;
+  final List<WithdrawalSummary> withdrawals;
   final List<MarketOffer> marketOffers;
   final List<MarketOrder> marketOrders;
   final List<AppNotificationItem> notifications;
@@ -38,6 +40,7 @@ class DashboardLoaded extends DashboardState {
     required this.tontineHistory,
     required this.tontineArchives,
     required this.availableBalanceHistory,
+    required this.withdrawals,
     required this.marketOffers,
     required this.marketOrders,
     required this.notifications,
@@ -54,6 +57,7 @@ class DashboardLoaded extends DashboardState {
     List<TontineHistoryEntry>? tontineHistory,
     List<TontineArchiveEntry>? tontineArchives,
     List<AvailableBalanceHistoryEntry>? availableBalanceHistory,
+    List<WithdrawalSummary>? withdrawals,
     List<MarketOffer>? marketOffers,
     List<MarketOrder>? marketOrders,
     List<AppNotificationItem>? notifications,
@@ -70,6 +74,7 @@ class DashboardLoaded extends DashboardState {
       tontineArchives: tontineArchives ?? this.tontineArchives,
       availableBalanceHistory:
           availableBalanceHistory ?? this.availableBalanceHistory,
+      withdrawals: withdrawals ?? this.withdrawals,
       marketOffers: marketOffers ?? this.marketOffers,
       marketOrders: marketOrders ?? this.marketOrders,
       notifications: notifications ?? this.notifications,

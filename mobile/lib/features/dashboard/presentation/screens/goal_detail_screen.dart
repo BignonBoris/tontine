@@ -444,7 +444,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               }
               context.read<DashboardBloc>().add(CloseGoal(goal.id));
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
             },
             child: const Text("Confirmer"),
           ),

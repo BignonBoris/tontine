@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 
 import '../bloc/dashboard_bloc.dart';
@@ -109,7 +110,7 @@ void showScanSimulation(BuildContext context, DashboardBloc bloc) {
             height: 55,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A237E),
+                backgroundColor: AppTheme.primaryColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
