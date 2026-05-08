@@ -16,6 +16,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _service = AgentProvisioningService();
   late Future<List<AgentProvisioning>> _provisioningsFuture;
+  bool _isReversing = false;
 
   @override
   void initState() {
@@ -27,6 +28,109 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() {
       _provisioningsFuture = _service.fetchProvisionings();
     });
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _handleReverse(AgentProvisioning provisioning) async {
+    if (_isReversing) {
+      return;
+    }
+
+    final reason = await _showReverseReasonDialog(provisioning);
+    if (!mounted || reason == null) {
+      return;
+    }
+
+    setState(() {
+      _isReversing = true;
+    });
+
+    try {
+      await _service.reverseProvisioning(
+        provisioningId: provisioning.id,
+        reason: reason,
+      );
+      if (!mounted) {
+        return;
+      }
+      _reload();
+      _showMessage('Provisioning corrige avec succes.');
+    } on ApiException catch (error) {
+      _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isReversing = false;
+        });
+      }
+    }
+  }
+
+  Future<String?> _showReverseReasonDialog(AgentProvisioning provisioning) async {
+    final controller = TextEditingController();
+    String? errorText;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Corriger le depot'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cette action va annuler le provisioning ${provisioning.reference} et contrepasser ses commissions.',
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: 'Motif de correction',
+                      hintText: 'Ex: mauvais client ou montant saisi',
+                      errorText: errorText,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Fermer'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final reason = controller.text.trim();
+                    if (reason.isEmpty) {
+                      setDialogState(() {
+                        errorText = 'Le motif est requis.';
+                      });
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(reason);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    return result;
   }
 
   @override
@@ -101,6 +205,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               itemBuilder: (context, index) {
                 return AgentProvisioningListTile(
                   provisioning: provisionings[index],
+                  onReverse: _isReversing
+                      ? null
+                      : () => _handleReverse(provisionings[index]),
                 );
               },
             );

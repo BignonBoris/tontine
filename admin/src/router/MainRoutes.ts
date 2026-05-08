@@ -12,6 +12,11 @@ const MainRoutes = [
                 name: 'Modern',
                 component: () => import('../views/dashboards/Modern.vue'),
             },
+            {
+                path: '/supervision/commissions',
+                name: 'Commissions',
+                component: () => import('../views/modules/commissions.vue'),
+            },
 
             {
                 name: 'Notes',

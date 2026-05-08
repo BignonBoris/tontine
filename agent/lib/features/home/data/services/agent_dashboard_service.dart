@@ -8,8 +8,25 @@ class AgentDashboardService {
     : _apiClient = apiClient ?? ApiClient();
 
   Future<AgentOverview> fetchOverview() async {
-    final data =
+    final overviewData =
         await _apiClient.get('/agent/dashboard') as Map<dynamic, dynamic>;
-    return AgentOverview.fromMap(Map<dynamic, dynamic>.from(data));
+    final merged = Map<dynamic, dynamic>.from(overviewData);
+
+    try {
+      final commissionData =
+          await _apiClient.get('/agent/dashboard/commissions')
+              as Map<dynamic, dynamic>;
+      final wallet =
+          Map<dynamic, dynamic>.from(
+            (commissionData['wallet'] as Map?) ?? const <dynamic, dynamic>{},
+          );
+      merged['commissionBalance'] = wallet['balance'];
+      merged['commissionPayableBalance'] = wallet['payableBalance'];
+    } catch (_) {
+      merged['commissionBalance'] = 0;
+      merged['commissionPayableBalance'] = 0;
+    }
+
+    return AgentOverview.fromMap(merged);
   }
 }

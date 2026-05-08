@@ -19,6 +19,10 @@ const TONTINE_ARCHIVE_STATUSES = ['completed', 'stoppedEarly'];
 const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'tontinePayout',
   'tontineEarlyStop',
+  'tontineBonus',
+  'withdrawalRequested',
+  'withdrawalReleased',
+  'withdrawalPaid',
   'goalFunding',
   'tontineFunding',
 ];

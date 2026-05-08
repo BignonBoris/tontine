@@ -11,6 +11,9 @@ const tontineRoutes = require('../../modules/tontine/tontine.routes');
 const goalsRoutes = require('../../modules/goals/goals.routes');
 const marketplaceRoutes = require('../../modules/marketplace/marketplace.routes');
 const dashboardRoutes = require('../../modules/dashboard/dashboard.routes');
+const withdrawalsRoutes = require('../../modules/withdrawals/withdrawals.routes');
+const adminAuthRoutes = require('../../modules/admin-auth/admin-auth.routes');
+const adminCommissionsRoutes = require('../../modules/admin-commissions/admin-commissions.routes');
 
 const router = express.Router();
 
@@ -26,5 +29,8 @@ router.use('/tontine', tontineRoutes);
 router.use('/goals', goalsRoutes);
 router.use('/marketplace', marketplaceRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/withdrawals', withdrawalsRoutes);
+router.use('/admin/auth', adminAuthRoutes);
+router.use('/admin/commissions', adminCommissionsRoutes);
 
 module.exports = router;

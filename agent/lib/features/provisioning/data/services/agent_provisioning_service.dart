@@ -33,4 +33,17 @@ class AgentProvisioningService {
     ) as Map<dynamic, dynamic>;
     return AgentProvisioning.fromMap(Map<dynamic, dynamic>.from(data));
   }
+
+  Future<AgentProvisioning> reverseProvisioning({
+    required String provisioningId,
+    required String reason,
+  }) async {
+    final data = await _apiClient.post(
+      '/agent/provisionings/$provisioningId/reverse',
+      body: {
+        'reason': reason,
+      },
+    ) as Map<dynamic, dynamic>;
+    return AgentProvisioning.fromMap(Map<dynamic, dynamic>.from(data));
+  }
 }

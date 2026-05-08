@@ -84,6 +84,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                 pendingCount: 0,
                 totalAmountToday: 0,
                 myClientsCount: 0,
+                commissionBalance: 0,
+                commissionPayableBalance: 0,
               );
 
           return RefreshIndicator(
@@ -137,6 +139,20 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                               label: 'Montant collecte',
                               value: formatFcfa(overview.totalAmountToday),
                               onTap: widget.onOpenProvisioning,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            AgentOverviewTile(
+                              label: 'Commissions gagnees',
+                              value: formatFcfa(overview.commissionBalance),
+                            ),
+                            const SizedBox(width: 14),
+                            AgentOverviewTile(
+                              label: 'Operations en attente',
+                              value: '${overview.pendingCount}',
                             ),
                           ],
                         ),

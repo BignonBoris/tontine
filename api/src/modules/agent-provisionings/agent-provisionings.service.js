@@ -6,7 +6,11 @@ const {
   depositToCycle,
   getOpenCycleForFunding,
   hasActiveOrAwaitingCycle,
+  reverseProvisioningDepositOnCycle,
 } = require('../tontine/tontine.service');
+const {
+  reverseCommissionCredits,
+} = require('../commission/commission.service');
 
 function generateReference() {
   return `PRV-${Date.now()}-${Math.floor(Math.random() * 9000)
@@ -25,12 +29,16 @@ async function listProvisionings(agentProfileId) {
   return provisionings.map((item) => ({
     id: item.id,
     reference: item.reference,
+    cycleId: item.cycleId,
     amount: Number(item.amount),
     status: item.status,
     source: item.source,
     notes: item.notes,
     createdAt: item.createdAt,
     validatedAt: item.validatedAt,
+    reversedAt: item.reversedAt,
+    reversedByUserId: item.reversedByUserId,
+    reversalReason: item.reversalReason,
     initiatedByUserId: item.initiatedByUserId,
     initiatorType: item.initiatorType,
     client: item.client
@@ -71,7 +79,7 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
     );
   }
 
-  const { remainingAmount } = await getOpenCycleForFunding(client.id);
+  const { remainingAmount, cycle } = await getOpenCycleForFunding(client.id);
   if (amount > remainingAmount) {
     throw new AppError(
       `Ce client ne peut plus recevoir que ${remainingAmount} F sur son cycle en cours.`,
@@ -85,6 +93,7 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
         reference: generateReference(),
         agentProfileId: agentProfile.id,
         clientUserId: client.id,
+        cycleId: cycle.id,
         amount,
         source: 'agent',
         status: 'validated',
@@ -120,11 +129,13 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
     userAgent: requestContext.userAgent,
     initiatedByUserId: agentProfile.userId,
     initiatorType: 'agent',
+    provisioningId: provisioning.id,
   });
 
   return {
     id: provisioning.id,
     reference: provisioning.reference,
+    cycleId: provisioning.cycleId,
     amount: Number(provisioning.amount),
     status: provisioning.status,
     client: {
@@ -136,4 +147,118 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
   };
 }
 
-module.exports = { listProvisionings, createProvisioning };
+async function reverseProvisioning(
+  agentProfile,
+  provisioningId,
+  payload,
+  requestContext = {},
+) {
+  const reason = String(payload?.reason || '').trim();
+  if (!reason) {
+    throw new AppError('Le motif de correction est requis.', 422);
+  }
+
+  return sequelize.transaction(async (transaction) => {
+    const provisioning = await models.Provisioning.findOne({
+      where: {
+        id: provisioningId,
+        agentProfileId: agentProfile.id,
+      },
+      include: [{ model: models.User, as: 'client' }],
+      transaction,
+    });
+
+    if (!provisioning) {
+      throw new AppError('Provisioning introuvable.', 404);
+    }
+    if (provisioning.status !== 'validated') {
+      throw new AppError(
+        'Seul un provisioning valide peut etre contrepasse.',
+        409,
+      );
+    }
+    if (!provisioning.cycleId) {
+      throw new AppError(
+        'Ce provisioning ne contient pas de cycle lie et ne peut pas etre corrige automatiquement.',
+        409,
+      );
+    }
+
+    await reverseProvisioningDepositOnCycle({
+      transaction,
+      userId: provisioning.clientUserId,
+      cycleId: provisioning.cycleId,
+      amount: Number(provisioning.amount),
+      requestContext: {
+        ...requestContext,
+        initiatedByUserId: agentProfile.userId,
+        initiatorType: 'agent',
+      },
+      note: `Provisioning ${provisioning.reference}: ${reason}`,
+    });
+
+    const commissionReversal = await reverseCommissionCredits({
+      transaction,
+      sourceType: 'tontine_deposit',
+      sourceId: provisioning.id,
+      initiatedByUserId: agentProfile.userId,
+      initiatorType: 'agent',
+      reason,
+      requestContext,
+    });
+
+    const reversedAt = new Date();
+    await provisioning.update(
+      {
+        status: 'cancelled',
+        reversedAt,
+        reversedByUserId: agentProfile.userId,
+        reversalReason: reason,
+        notes: provisioning.notes
+          ? `${provisioning.notes} | Correction: ${reason}`
+          : `Correction: ${reason}`,
+      },
+      { transaction },
+    );
+
+    await writeAuditLog({
+      userId: agentProfile.userId,
+      action: 'agent.provisioning_reversed',
+      entityType: 'provisioning',
+      entityId: provisioning.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        reference: provisioning.reference,
+        clientUserId: provisioning.clientUserId,
+        cycleId: provisioning.cycleId,
+        amount: Number(provisioning.amount),
+        reason,
+        reversedCommissionEntriesCount:
+          commissionReversal.reversedEntriesCount,
+        reversedCommissionAmount: commissionReversal.totalReversedAmount,
+      },
+      transaction,
+    });
+
+    return {
+      id: provisioning.id,
+      reference: provisioning.reference,
+      amount: Number(provisioning.amount),
+      status: 'cancelled',
+      reversedAt,
+      reversalReason: reason,
+      client: provisioning.client
+        ? {
+            id: provisioning.client.id,
+            displayName: provisioning.client.displayName,
+            phoneNumber: displayPhone(provisioning.client.phoneNumber),
+          }
+        : null,
+      reversedCommissionEntriesCount: commissionReversal.reversedEntriesCount,
+      reversedCommissionAmount: commissionReversal.totalReversedAmount,
+    };
+  });
+}
+
+module.exports = { listProvisionings, createProvisioning, reverseProvisioning };

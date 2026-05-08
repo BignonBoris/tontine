@@ -8,10 +8,12 @@ import 'package:intl/intl.dart';
 
 class AgentProvisioningListTile extends StatelessWidget {
   final AgentProvisioning provisioning;
+  final VoidCallback? onReverse;
 
   const AgentProvisioningListTile({
     super.key,
     required this.provisioning,
+    this.onReverse,
   });
 
   @override
@@ -97,6 +99,31 @@ class AgentProvisioningListTile extends StatelessWidget {
                       fontSize: 12,
                       color: AgentAppTheme.textSecondaryColor,
                       height: 1.35,
+                    ),
+                  ),
+                ],
+                if (provisioning.reversalReason != null &&
+                    provisioning.reversalReason!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Motif: ${provisioning.reversalReason!}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AgentAppTheme.errorColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+                if (onReverse != null && provisioning.status == 'validated') ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: onReverse,
+                      icon: const Icon(Icons.undo_rounded, size: 18),
+                      label: const Text('Corriger'),
                     ),
                   ),
                 ],

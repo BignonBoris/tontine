@@ -8,5 +8,11 @@ const router = express.Router();
 
 router.get('/', authenticate, authenticateAgent, asyncHandler(controller.list));
 router.post('/', authenticate, authenticateAgent, asyncHandler(controller.create));
+router.post(
+  '/:provisioningId/reverse',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(controller.reverse),
+);
 
 module.exports = router;

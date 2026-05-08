@@ -23,6 +23,12 @@ const sidebarItem: menu[] = [
     to: "/",
     isPro: false,
   },
+  {
+    title: "Commissions",
+    icon: "wallet-money-linear",
+    to: "/supervision/commissions",
+    isPro: false,
+  },
 
 
   { header: "PAGES" },

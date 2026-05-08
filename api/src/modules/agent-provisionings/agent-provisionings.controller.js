@@ -16,4 +16,14 @@ async function create(req, res) {
   return ok(res, data, 'Provisioning enregistre.', 201);
 }
 
-module.exports = { list, create };
+async function reverse(req, res) {
+  const data = await service.reverseProvisioning(
+    req.agentProfile,
+    req.params.provisioningId,
+    req.body,
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Provisioning corrige.');
+}
+
+module.exports = { list, create, reverse };

@@ -7,5 +7,11 @@ const controller = require('./agent-dashboard.controller');
 const router = express.Router();
 
 router.get('/', authenticate, authenticateAgent, asyncHandler(controller.overview));
+router.get(
+  '/commissions',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(controller.commissions),
+);
 
 module.exports = router;

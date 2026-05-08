@@ -26,6 +26,10 @@ const Provisioning = sequelize.define(
       type: DataTypes.UUID,
       allowNull: false,
     },
+    cycleId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
     amount: {
       type: DataTypes.DECIMAL(18, 2),
       allowNull: false,
@@ -55,6 +59,18 @@ const Provisioning = sequelize.define(
       type: DataTypes.UUID,
       allowNull: true,
     },
+    reversedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    reversedByUserId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    reversalReason: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
     initiatedByUserId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -70,6 +86,7 @@ const Provisioning = sequelize.define(
       { unique: true, fields: ['reference'] },
       { fields: ['agent_profile_id', 'created_at'] },
       { fields: ['client_user_id', 'created_at'] },
+      { fields: ['cycle_id', 'created_at'] },
       { fields: ['initiated_by_user_id', 'created_at'] },
       { fields: ['status'] },
     ],
