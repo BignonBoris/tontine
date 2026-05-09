@@ -24,6 +24,7 @@ class _AgentWithdrawalPaymentSheetState
   AgentPendingWithdrawal? _withdrawal;
   bool _isSearching = false;
   bool _isPaying = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -77,6 +78,11 @@ class _AgentWithdrawalPaymentSheetState
                         : const Icon(Icons.search_rounded),
                   ),
                 ),
+                onChanged: (_) {
+                  if (_errorMessage != null) {
+                    setState(() => _errorMessage = null);
+                  }
+                },
                 onSubmitted: (_) => _isSearching ? null : _search(),
               ),
               if (_withdrawal != null) ...[
@@ -109,7 +115,16 @@ class _AgentWithdrawalPaymentSheetState
                     labelText: 'Code de confirmation client',
                     hintText: 'Code a 6 chiffres',
                   ),
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 14),
+                  _InlineErrorMessage(message: _errorMessage!),
+                ],
                 const SizedBox(height: 18),
                 ElevatedButton(
                   onPressed: _isPaying || _withdrawal!.isConfirmationCodeExpired
@@ -126,6 +141,10 @@ class _AgentWithdrawalPaymentSheetState
                         )
                       : const Text('Valider le paiement'),
                 ),
+              ],
+              if (_withdrawal == null && _errorMessage != null) ...[
+                const SizedBox(height: 14),
+                _InlineErrorMessage(message: _errorMessage!),
               ],
             ],
           ),
@@ -144,6 +163,7 @@ class _AgentWithdrawalPaymentSheetState
     setState(() {
       _isSearching = true;
       _withdrawal = null;
+      _errorMessage = null;
     });
 
     try {
@@ -183,7 +203,10 @@ class _AgentWithdrawalPaymentSheetState
       return;
     }
 
-    setState(() => _isPaying = true);
+    setState(() {
+      _isPaying = true;
+      _errorMessage = null;
+    });
     try {
       await _service.payWithdrawal(
         withdrawalId: _withdrawal!.id,
@@ -210,9 +233,35 @@ class _AgentWithdrawalPaymentSheetState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    setState(() => _errorMessage = message);
+  }
+}
+
+class _InlineErrorMessage extends StatelessWidget {
+  final String message;
+
+  const _InlineErrorMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          height: 1.4,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFFB71C1C),
+        ),
+      ),
+    );
   }
 }
 

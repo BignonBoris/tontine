@@ -1,21 +1,27 @@
 class AgentProvisioning {
   final String id;
   final String reference;
+  final String? cycleId;
   final double amount;
   final String status;
   final String? notes;
   final DateTime? createdAt;
   final DateTime? validatedAt;
+  final DateTime? reversedAt;
+  final String? reversalReason;
   final AgentProvisioningClient? client;
 
   const AgentProvisioning({
     required this.id,
     required this.reference,
+    this.cycleId,
     required this.amount,
     required this.status,
     this.notes,
     this.createdAt,
     this.validatedAt,
+    this.reversedAt,
+    this.reversalReason,
     this.client,
   });
 
@@ -23,11 +29,14 @@ class AgentProvisioning {
     return AgentProvisioning(
       id: map['id'] as String? ?? '',
       reference: map['reference'] as String? ?? '',
+      cycleId: map['cycleId'] as String?,
       amount: _toDouble(map['amount']),
       status: map['status'] as String? ?? 'validated',
       notes: map['notes'] as String?,
       createdAt: _toDate(map['createdAt']),
       validatedAt: _toDate(map['validatedAt']),
+      reversedAt: _toDate(map['reversedAt']),
+      reversalReason: map['reversalReason'] as String?,
       client: map['client'] is Map
           ? AgentProvisioningClient.fromMap(map['client'] as Map)
           : null,

@@ -21,6 +21,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
   final _searchController = TextEditingController();
   String _filter = 'all';
   DateTimeRange? _createdAtRange;
+  bool _showSearchCard = false;
   late Future<List<AgentClient>> _clientsFuture;
 
   @override
@@ -47,12 +48,19 @@ class _ClientsScreenState extends State<ClientsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Clients'),
         actions: [
           IconButton(
-            onPressed: _openCreateClientSheet,
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            tooltip: 'Ajouter un client',
+            onPressed: _toggleSearchCard,
+            icon: Icon(
+              _showSearchCard
+                  ? Icons.search_off_rounded
+                  : Icons.search_rounded,
+            ),
+            tooltip: _showSearchCard
+                ? 'Masquer la recherche'
+                : 'Rechercher un client',
           ),
           const AgentLogoutAction(),
         ],
@@ -62,86 +70,86 @@ class _ClientsScreenState extends State<ClientsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            SoftSectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // const SectionTitle(
-                  //   title: 'Mon portefeuille client',
-                  //   subtitle: " ",
-                  // ),
-                  // const SizedBox(height: 16),
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (_) => _reload(),
-                    decoration: const InputDecoration(
-                      labelText: 'Nom, telephone ou adresse',
-                      prefixIcon: Icon(Icons.search_rounded),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+            if (_showSearchCard) ...[
+              SoftSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (_) => _reload(),
+                      decoration: const InputDecoration(
+                        labelText: 'Nom, telephone ou adresse',
+                        prefixIcon: Icon(Icons.search_rounded),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _filter,
-                          decoration: const InputDecoration(
-                            labelText: 'Statut tontine',
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _filter,
+                            decoration: const InputDecoration(
+                              labelText: 'Statut tontine',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                             ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'all',
+                                child: Text('Tous'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'active',
+                                child: Text('Tontine active'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'inactive',
+                                child: Text('Sans tontine'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _filter = value ?? 'all';
+                              });
+                              _reload();
+                            },
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'all', child: Text('Tous')),
-                            DropdownMenuItem(
-                              value: 'active',
-                              child: Text('Tontine active'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'inactive',
-                              child: Text('Sans tontine'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _filter = value ?? 'all';
-                            });
-                            _reload();
-                          },
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton.outlined(
-                        onPressed: _pickCreatedAtRange,
-                        tooltip: _createdAtRange == null
-                            ? 'Filtrer par date'
-                            : 'Modifier la periode',
-                        icon: Icon(
-                          Icons.date_range_rounded,
-                          color: _createdAtRange == null
-                              ? null
-                              : Theme.of(context).colorScheme.primary,
+                        const SizedBox(width: 12),
+                        IconButton.outlined(
+                          onPressed: _pickCreatedAtRange,
+                          tooltip: _createdAtRange == null
+                              ? 'Filtrer par date'
+                              : 'Modifier la periode',
+                          icon: Icon(
+                            Icons.date_range_rounded,
+                            color: _createdAtRange == null
+                                ? null
+                                : Theme.of(context).colorScheme.primary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton.outlined(
-                      onPressed: _resetFilters,
-                        tooltip: 'Reinitialiser les filtres',
-                        icon: const Icon(Icons.restart_alt_rounded),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 4),
+                        IconButton.outlined(
+                          onPressed: _resetFilters,
+                          tooltip: 'Reinitialiser les filtres',
+                          icon: const Icon(Icons.restart_alt_rounded),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
+              const SizedBox(height: 18),
+            ],
             FutureBuilder<List<AgentClient>>(
               future: _clientsFuture,
               builder: (context, snapshot) {
@@ -239,6 +247,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
       _createdAtRange = null;
     });
     _reload();
+  }
+
+  void _toggleSearchCard() {
+    setState(() {
+      _showSearchCard = !_showSearchCard;
+    });
   }
 
   Future<void> _openCreateClientSheet() async {

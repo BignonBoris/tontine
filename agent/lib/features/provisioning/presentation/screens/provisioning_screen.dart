@@ -75,34 +75,20 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Depot'),
-        actions: const [AgentLogoutAction()],
+        automaticallyImplyLeading: false,
+        title: const Text('Operation'),
+        actions: [
+          IconButton(
+            onPressed: _openWithdrawalPaymentSheet,
+            icon: const Icon(Icons.payments_outlined),
+            tooltip: 'Payer un retrait',
+          ),
+          const AgentLogoutAction(),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          SoftSectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionTitle(
-                  title: 'Retrait client',
-                  subtitle:
-                      "Le client vous donne une reference puis un code pour finaliser le paiement.",
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _openWithdrawalPaymentSheet,
-                    icon: const Icon(Icons.payments_outlined),
-                    label: const Text('Payer un retrait'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
           SoftSectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

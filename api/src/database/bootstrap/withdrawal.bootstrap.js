@@ -30,6 +30,12 @@ async function ensureWithdrawalCompatibility(sequelize) {
   await ensureColumn(
     sequelize,
     columns,
+    'channel',
+    "`channel` VARCHAR(32) NOT NULL DEFAULT 'agent_cash'",
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
     'confirmation_code_hash',
     "`confirmation_code_hash` VARCHAR(128) NOT NULL DEFAULT 'legacy-withdrawal-code'",
   );
@@ -45,6 +51,18 @@ async function ensureWithdrawalCompatibility(sequelize) {
     'confirmation_code_attempts',
     '`confirmation_code_attempts` INT NOT NULL DEFAULT 0',
   );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'rejected_at',
+    '`rejected_at` DATETIME NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'cancellation_reason',
+    '`cancellation_reason` VARCHAR(255) NULL',
+  );
 
   await sequelize.query(
     "UPDATE withdrawals SET confirmation_code_hash = 'legacy-withdrawal-code' WHERE confirmation_code_hash IS NULL OR confirmation_code_hash = ''",
@@ -54,6 +72,9 @@ async function ensureWithdrawalCompatibility(sequelize) {
   );
   await sequelize.query(
     'UPDATE withdrawals SET confirmation_code_attempts = 0 WHERE confirmation_code_attempts IS NULL',
+  );
+  await sequelize.query(
+    "UPDATE withdrawals SET channel = 'agent_cash' WHERE channel IS NULL OR channel = ''",
   );
 }
 

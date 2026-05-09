@@ -12,15 +12,26 @@ function authenticateAdmin(req, res, next) {
 
   try {
     const payload = jwt.verify(token, env.jwtSecret);
-    if (payload.type !== 'admin' || payload.role !== 'admin') {
-      throw new AppError('Jeton admin invalide.', 401);
+    const isLegacyToken =
+      payload.type === 'admin' && payload.role === 'admin';
+    const isCurrentToken =
+      payload.kind === 'admin' && payload.username === env.adminUsername;
+
+    if (!isLegacyToken && !isCurrentToken) {
+      throw new AppError('Jeton admin invalide ou expire.', 401);
     }
 
-    req.admin = {
-      username: payload.sub,
-      role: payload.role,
-    };
+    const username =
+      payload.username || payload.sub || env.adminUsername;
 
+    req.admin = {
+      username,
+      role: 'admin',
+    };
+    req.adminAuth = {
+      kind: 'admin',
+      username,
+    };
     return next();
   } catch (error) {
     return next(

@@ -290,7 +290,7 @@ export interface WithdrawalDetail {
       agentCode: string | null;
     } | null;
     initiatedByUserId: string | null;
-    paidByUserId: string | null;
+    paidByAgentProfileId: string | null;
     confirmationCodeExpiresAt: string;
     confirmationCodeAttempts: number;
     isConfirmationCodeExpired: boolean;

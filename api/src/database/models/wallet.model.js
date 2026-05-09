@@ -22,7 +22,7 @@ const Wallet = sequelize.define(
         min: 0,
       },
     },
-    tontineBalance: {
+    reservedWithdrawalBalance: {
       type: DataTypes.DECIMAL(18, 2),
       allowNull: false,
       defaultValue: 0,
@@ -30,7 +30,7 @@ const Wallet = sequelize.define(
         min: 0,
       },
     },
-    reservedWithdrawalBalance: {
+    tontineBalance: {
       type: DataTypes.DECIMAL(18, 2),
       allowNull: false,
       defaultValue: 0,

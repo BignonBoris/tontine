@@ -9,18 +9,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
-<<<<<<< HEAD
-    "lib": [
-      "esnext"
-    ]
-  },
-  "include": [
-    "src/**/*.js"
-  ]
-}
-=======
     "lib": ["esnext"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.js"]
 }
->>>>>>> 3e6d144aeca02adfd588ecbf9a53be47479762a4

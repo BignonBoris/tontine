@@ -54,27 +54,26 @@ class RemoteDashboardService {
     : _apiClient = apiClient ?? ApiClient();
 
   Future<RemoteDashboardSnapshot> fetchDashboardSnapshot() async {
-    final responses = await Future.wait<dynamic>([
-      _apiClient.get('/goals'),
-      _apiClient.get('/wallet'),
-      _apiClient.get('/withdrawals'),
-      _apiClient.get('/tontine'),
-      _apiClient.get('/marketplace/orders'),
-      _apiClient.get('/notifications'),
-      _apiClient.get('/profile'),
-      _apiClient.get('/marketplace/favorites'),
-      _apiClient.get('/marketplace/offers'),
-    ]);
+    final goalsPayload = _asList(await _apiClient.get('/goals'));
+    final walletPayload = _asMap(await _apiClient.get('/wallet'));
+    final tontinePayload = _asMap(await _apiClient.get('/tontine'));
+    final profilePayload = _asMap(await _apiClient.get('/profile'));
 
-    final goalsPayload = _asList(responses[0]);
-    final walletPayload = _asMap(responses[1]);
-    final withdrawalsPayload = _asList(responses[2]);
-    final tontinePayload = _asMap(responses[3]);
-    final ordersPayload = _asList(responses[4]);
-    final notificationsPayload = _asList(responses[5]);
-    final profilePayload = _asMap(responses[6]);
-    final favoritesPayload = _asList(responses[7]);
-    final offersPayload = _asList(responses[8]);
+    final withdrawalsPayload = _asList(
+      await _safeGet('/withdrawals', fallback: const <dynamic>[]),
+    );
+    final ordersPayload = _asList(
+      await _safeGet('/marketplace/orders', fallback: const <dynamic>[]),
+    );
+    final notificationsPayload = _asList(
+      await _safeGet('/notifications', fallback: const <dynamic>[]),
+    );
+    final favoritesPayload = _asList(
+      await _safeGet('/marketplace/favorites', fallback: const <dynamic>[]),
+    );
+    final offersPayload = _asList(
+      await _safeGet('/marketplace/offers', fallback: const <dynamic>[]),
+    );
 
     final wallet = _asMap(walletPayload['wallet']);
     final walletHistory = _asList(walletPayload['history']);
@@ -109,6 +108,22 @@ class RemoteDashboardService {
       profile: _profileFromApi(profilePayload),
       preferences: _preferencesFromApi(profilePreferences),
     );
+  }
+
+  Future<dynamic> _safeGet(
+    String path, {
+    required dynamic fallback,
+  }) async {
+    try {
+      return await _apiClient.get(path);
+    } on ApiException catch (error) {
+      if (error.type == ApiErrorType.sessionExpired ||
+          error.type == ApiErrorType.unauthorized ||
+          error.type == ApiErrorType.network) {
+        rethrow;
+      }
+      return fallback;
+    }
   }
 
   Future<void> configureStake(double stakeAmount) {
