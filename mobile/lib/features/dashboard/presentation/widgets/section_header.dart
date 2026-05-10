@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 
 class SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback onActionPressed;
-  final String actionLabel; // Paramètre ajouté pour personnaliser le texte
-  final IconData? icon; // Paramètre optionnel pour changer l'icône
+  final String actionLabel;
+  final IconData? icon;
 
   const SectionHeader({
     super.key,
     required this.title,
     required this.onActionPressed,
-    this.actionLabel = "Faire un dépôt", // Valeur par défaut
-    this.icon, // Optionnel
+    this.actionLabel = 'Faire un depot',
+    this.icon,
   });
 
   @override
@@ -25,21 +26,20 @@ class SectionHeader extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF1A237E),
+            color: AppTheme.primaryColor,
           ),
         ),
         TextButton.icon(
           onPressed: onActionPressed,
-          // Utilise l'icône fournie, sinon utilise l'icône par défaut
           icon: Icon(
             icon ?? Icons.add_circle_outline,
             size: 18,
-            color: const Color(0xFFFFAB00),
+            color: AppTheme.accentColor,
           ),
           label: Text(
-            actionLabel, // Utilise le label passé en paramètre
+            actionLabel,
             style: GoogleFonts.inter(
-              color: const Color(0xFFFFAB00),
+              color: AppTheme.accentDarkColor,
               fontWeight: FontWeight.w600,
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/storage/session_storage.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
@@ -27,6 +29,10 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _scaleAnimation = Tween<double>(
+      begin: 0.92,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _controller.forward();
 
     _navigateToNext();
@@ -64,62 +70,70 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF1A237E);
-    const accentOrange = Color(0xFFFFAB00);
-
     return Scaffold(
-      backgroundColor: primaryBlue,
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.heroGradient,
+        ),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 132,
+                    height: 132,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.96),
+                      borderRadius: BorderRadius.circular(34),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.16),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  size: 70,
-                  color: primaryBlue,
-                ),
+                    child: Image.asset(
+                      AppTheme.brandIconAsset,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'VizioBox',
+                    style: GoogleFonts.poppins(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "L'epargne qui construit vos projets",
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: 44),
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+                      strokeWidth: 2.8,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 30),
-              Text(
-                'MA TONTINE',
-                style: GoogleFonts.poppins(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "L'epargne en toute confiance",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              const SizedBox(height: 50),
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(accentOrange),
-                strokeWidth: 3,
-              ),
-            ],
+            ),
           ),
         ),
       ),

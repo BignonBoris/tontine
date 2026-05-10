@@ -23,6 +23,7 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
   final _notesController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -61,7 +62,7 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                 const SectionTitle(
                   title: 'Nouveau depot',
                   subtitle:
-                      "Le depot sera credite sur la tontine active du client.",
+                      "Le depot sera debite de votre caisse puis credite sur la tontine active du client.",
                 ),
                 const SizedBox(height: 16),
                 AgentClientListTile(
@@ -79,6 +80,11 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                     labelText: 'Montant',
                     suffixText: 'F CFA',
                   ),
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                   validator: (value) {
                     final digits =
                         value?.replaceAll(RegExp(r'[^0-9]'), '') ?? '';
@@ -101,6 +107,10 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                     labelText: 'Commentaire / reference',
                   ),
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 14),
+                  _SheetErrorMessage(message: _errorMessage!),
+                ],
                 const SizedBox(height: 18),
                 ElevatedButton(
                   onPressed: _isSubmitting ? null : _submit,
@@ -136,7 +146,10 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
     try {
       await _service.createProvisioning(
         clientUserId: widget.client.id,
@@ -166,8 +179,34 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    setState(() => _errorMessage = message);
+  }
+}
+
+class _SheetErrorMessage extends StatelessWidget {
+  final String message;
+
+  const _SheetErrorMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+      ),
+    );
   }
 }

@@ -49,7 +49,7 @@ class _AgentMainShellState extends State<AgentMainShell> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.add_card_rounded),
-            label: 'Depot',
+            label: 'Opérations',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long_outlined),

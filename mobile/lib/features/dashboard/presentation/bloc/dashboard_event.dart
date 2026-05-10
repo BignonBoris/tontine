@@ -12,12 +12,6 @@ class AddGoal extends DashboardEvent {
   AddGoal(this.goal);
 }
 
-class MakeDeposit extends DashboardEvent {
-  final String goalId;
-  final double amount;
-  MakeDeposit({required this.goalId, required this.amount});
-}
-
 class TogglePriority extends DashboardEvent {
   final String goalId;
   TogglePriority(this.goalId);

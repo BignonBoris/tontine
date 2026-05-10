@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
@@ -59,15 +60,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF1A237E);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
-          "maTontine",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Image.asset(AppTheme.brandIconAsset),
+            ),
+            const SizedBox(width: 10),
+            const _DashboardWordmark(),
+          ],
         ),
         actions: [
           BlocBuilder<DashboardBloc, DashboardState>(
@@ -84,7 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     IconButton(
                       icon: const Icon(
                         Icons.notifications_none_rounded,
-                        color: primaryBlue,
+                        color: AppTheme.primaryColor,
                       ),
                       onPressed: () {
                         final bloc = context.read<DashboardBloc>();
@@ -157,7 +175,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final offers = state.marketOffers;
 
           return RefreshIndicator(
-            color: primaryBlue,
+            color: AppTheme.primaryColor,
             onRefresh: () async {
               context.read<DashboardBloc>().add(LoadDashboardData());
             },
@@ -191,16 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   TontineCycleListItem(
                     cycle: state.tontineCycle,
                     onTap: () {
-                      final bloc = context.read<DashboardBloc>();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => BlocProvider.value(
-                            value: bloc,
-                            child: const TontineDetailScreen(),
-                          ),
-                        ),
-                      );
+                      widget.onOpenTontineTab?.call();
                     },
                     onRestartPressed: () {
                       _showStakeConfigurationModal(context);
@@ -408,9 +417,9 @@ class MarketOfferGridCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -469,7 +478,7 @@ class MarketOfferGridCard extends StatelessWidget {
                 Text(
                   "$formattedPrice F CFA",
                   style: const TextStyle(
-                    color: Colors.green,
+                    color: AppTheme.secondaryVariantColor,
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
@@ -497,9 +506,9 @@ class AddGoalPlaceholder extends StatelessWidget {
         height: 128,
         margin: const EdgeInsets.only(right: 12, bottom: 2),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.shade200, width: 1.5),
+          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 1.2),
         ),
         child: InkWell(
           onTap: () {
@@ -512,14 +521,14 @@ class AddGoalPlaceholder extends StatelessWidget {
             children: [
               Icon(
                 Icons.add_circle_outline_rounded,
-                color: Colors.grey.shade400,
+                color: AppTheme.accentColor,
                 size: 34,
               ),
               const SizedBox(height: 6),
               Text(
                 "Nouveau",
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: AppTheme.primaryColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
@@ -530,4 +539,78 @@ class AddGoalPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashboardWordmark extends StatelessWidget {
+  const _DashboardWordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: GoogleFonts.poppins(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
+        ),
+        children: [
+          const TextSpan(
+            text: 'V',
+            style: TextStyle(color: AppTheme.primaryColor),
+          ),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Text(
+                    'i',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  Positioned(
+                    top: -1,
+                    left: 4,
+                    child: CustomPaint(
+                      size: const Size(7, 5),
+                      painter: _InvertedTrianglePainter(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const TextSpan(
+            text: 'zio',
+            style: TextStyle(color: AppTheme.primaryColor),
+          ),
+          const TextSpan(
+            text: 'Box',
+            style: TextStyle(color: AppTheme.accentColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvertedTrianglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = AppTheme.accentColor;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

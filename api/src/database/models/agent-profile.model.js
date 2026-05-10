@@ -27,6 +27,14 @@ const AgentProfile = sequelize.define(
       type: DataTypes.STRING(160),
       allowNull: false,
     },
+    agentBalance: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      },
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -38,6 +46,7 @@ const AgentProfile = sequelize.define(
     indexes: [
       { unique: true, fields: ['user_id'] },
       { unique: true, fields: ['agent_code'] },
+      { fields: ['agent_balance'] },
       { fields: ['is_active'] },
     ],
   },

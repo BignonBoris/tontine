@@ -14,7 +14,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       super(DashboardInitial()) {
     on<LoadDashboardData>(_onLoadDashboardData);
     on<AddGoal>(_onAddGoal);
-    on<MakeDeposit>(_onMakeDeposit);
     on<CloseGoal>(_onCloseGoal);
     on<AddFundsToGoal>(_onAddFundsToGoal);
     on<TransferToTontine>(_onTransferToTontine);
@@ -52,6 +51,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           tontineHistory: snapshot.tontineHistory,
           tontineArchives: snapshot.tontineArchives,
           availableBalanceHistory: snapshot.availableBalanceHistory,
+          withdrawals: snapshot.withdrawals,
           marketOffers: snapshot.marketOffers,
           marketOrders: snapshot.marketOrders,
           notifications: snapshot.notifications,
@@ -75,17 +75,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     await _runMutation(
       emit,
       () => _remoteDashboardService.createGoal(event.goal),
-    );
-  }
-
-  Future<void> _onMakeDeposit(
-    MakeDeposit event,
-    Emitter<DashboardState> emit,
-  ) async {
-    await _runMutation(
-      emit,
-      () =>
-          _remoteDashboardService.directDepositGoal(event.goalId, event.amount),
     );
   }
 
@@ -282,6 +271,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           tontineHistory: snapshot.tontineHistory,
           tontineArchives: snapshot.tontineArchives,
           availableBalanceHistory: snapshot.availableBalanceHistory,
+          withdrawals: snapshot.withdrawals,
           marketOffers: snapshot.marketOffers,
           marketOrders: snapshot.marketOrders,
           notifications: snapshot.notifications,

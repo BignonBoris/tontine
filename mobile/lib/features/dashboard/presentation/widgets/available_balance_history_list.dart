@@ -7,8 +7,13 @@ import 'package:mobile/features/dashboard/domain/entities/available_balance_hist
 
 class AvailableBalanceHistoryList extends StatelessWidget {
   final List<AvailableBalanceHistoryEntry> history;
+  final ValueChanged<AvailableBalanceHistoryEntry>? onTap;
 
-  const AvailableBalanceHistoryList({super.key, required this.history});
+  const AvailableBalanceHistoryList({
+    super.key,
+    required this.history,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +44,7 @@ class AvailableBalanceHistoryList extends StatelessWidget {
             : AppTheme.errorColor;
 
         return ListTile(
+          onTap: onTap == null ? null : () => onTap!(entry),
           contentPadding: const EdgeInsets.symmetric(vertical: 6),
           leading: CircleAvatar(
             backgroundColor: color.withOpacity(0.12),

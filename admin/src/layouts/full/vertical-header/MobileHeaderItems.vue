@@ -12,8 +12,6 @@
 </template>
 
 <script setup>
-import { inject } from 'vue'
-import { Icon as IconifyIcon } from '@iconify/vue'
 import ThemeToggler from './ThemeToggler.vue'
 import NotificationDD from './NotificationDD.vue';
 import ProfileDD from './ProfileDD.vue';

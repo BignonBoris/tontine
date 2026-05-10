@@ -9,6 +9,7 @@ import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/screens/auth_choice_screen.dart';
 import 'package:mobile/features/auth/screens/auth_identification_screen.dart';
 import 'package:mobile/features/auth/screens/auth_otp_screen.dart';
+import 'package:mobile/features/auth/screens/auth_pin_setup_screen.dart';
 import 'package:mobile/features/dashboard/data/services/notification_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_transaction.dart';
@@ -42,7 +43,7 @@ class MaTontineApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ma Tontine',
+      title: 'VizioBox',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       localizationsDelegates: const [
@@ -65,6 +66,7 @@ class MaTontineApp extends StatelessWidget {
         '/register': (context) =>
             const AuthIdentificationScreen(isRegistration: true),
         '/auth_otp': (context) => const AuthOtpScreen(),
+        '/auth_pin_setup': (context) => const AuthPinSetupScreen(),
         '/unlock': (context) => const AppUnlockScreen(),
         '/dashboard': (context) => BlocProvider(
           create: (context) => NavigationBloc(),

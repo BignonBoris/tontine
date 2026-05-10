@@ -26,11 +26,7 @@ class TontineCycleCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A237E), Color(0xFF26359C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppTheme.heroGradient,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
@@ -97,6 +93,7 @@ class TontineCycleCard extends StatelessWidget {
                 child: _MetricBlock(
                   label: "Objectif cycle",
                   value: "${formatFCFA(activeCycle.targetAmount)} F",
+                  valueColor: AppTheme.secondaryColor,
                 ),
               ),
             ],
@@ -156,13 +153,13 @@ class _EmptyTontineState extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE1E6F2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.08)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),

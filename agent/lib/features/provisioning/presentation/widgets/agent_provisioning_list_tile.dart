@@ -100,6 +100,20 @@ class AgentProvisioningListTile extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (provisioning.reversalReason != null &&
+                    provisioning.reversalReason!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Motif: ${provisioning.reversalReason!}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AgentAppTheme.errorColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

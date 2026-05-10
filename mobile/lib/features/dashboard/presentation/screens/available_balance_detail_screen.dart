@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
+import 'package:mobile/features/dashboard/domain/entities/available_balance_history_entry.dart';
+import 'package:mobile/features/dashboard/domain/entities/withdrawal_summary.dart';
+import 'package:mobile/features/dashboard/domain/entities/withdrawal_request_result.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
@@ -96,29 +101,22 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                       Row(
                         children: [
                           TontineActionButton(
-                            label: "Historique",
-                            icon: Icons.history_rounded,
+                            label: "Retirer",
+                            icon: Icons.payments_outlined,
                             color: const Color(0xFF00897B),
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "L'historique du disponible est affiche plus bas.",
-                                  ),
-                                ),
-                              );
-                            },
+                            onTap: () =>
+                                _showWithdrawalSheet(context, state),
                           ),
                           const SizedBox(width: 12),
                           TontineActionButton(
-                            label: "Acheter",
-                            icon: Icons.shopping_bag_outlined,
+                            label: "Historique",
+                            icon: Icons.history_rounded,
                             color: AppTheme.secondaryColor,
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    "Le flux achat marketplace arrive dans l'etape suivante.",
+                                    "L'historique du disponible est affiche plus bas.",
                                   ),
                                 ),
                               );
@@ -154,6 +152,11 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   ),
                   child: AvailableBalanceHistoryList(
                     history: state.availableBalanceHistory,
+                    onTap: (entry) => _showHistoryDetailDialog(
+                      context,
+                      entry,
+                      state.withdrawals,
+                    ),
                   ),
                 ),
               ],
@@ -180,6 +183,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
 
     final controller = TextEditingController();
     TontineGoal? selectedGoal = goals.first;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -223,6 +227,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                       if (goal != null) {
                         setModalState(() {
                           selectedGoal = goal;
+                          errorMessage = null;
                         });
                       }
                     },
@@ -234,6 +239,11 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: "Montant",
                       suffixText: "F CFA",
@@ -241,6 +251,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           "Disponible : ${formatFCFA(availableBalance)} F",
                     ),
                   ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -251,11 +265,15 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                         if (selectedGoal == null ||
                             amount == null ||
                             amount <= 0) {
-                          _showSnackBar(context, "Montant invalide");
+                          setModalState(
+                            () => errorMessage = "Montant invalide",
+                          );
                           return;
                         }
                         if (amount > availableBalance) {
-                          _showSnackBar(context, "Solde insuffisant");
+                          setModalState(
+                            () => errorMessage = "Solde insuffisant",
+                          );
                           return;
                         }
 
@@ -263,9 +281,9 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                             selectedGoal!.targetAmount -
                             selectedGoal!.currentAmount;
                         if (amount > remaining) {
-                          _showSnackBar(
-                            context,
-                            "Le montant depasse l'objectif du coffre",
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant depasse l'objectif du coffre",
                           );
                           return;
                         }
@@ -293,6 +311,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
   ) {
     final dashboardBloc = context.read<DashboardBloc>();
     final controller = TextEditingController();
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -301,107 +320,624 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (modalContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-          ),
-          child: Column(
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Retour vers la tontine",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.tontineCycle == null ||
+                            state.tontineCycle!.status !=
+                                TontineCycleStatus.active
+                        ? "Aucune tontine active disponible pour recevoir ce montant."
+                        : "Le montant doit etre un multiple de 500.",
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: "Montant",
+                      suffixText: "F CFA",
+                      helperText:
+                          "Disponible : ${formatFCFA(state.availableBalance)} F",
+                    ),
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (state.tontineCycle == null ||
+                            state.tontineCycle!.status !=
+                                TontineCycleStatus.active) {
+                          setModalState(
+                            () => errorMessage =
+                                "Aucune tontine active pour ce transfert",
+                          );
+                          return;
+                        }
+
+                        final amount = double.tryParse(controller.text);
+                        if (amount == null || amount <= 0) {
+                          setModalState(
+                            () => errorMessage = "Montant invalide",
+                          );
+                          return;
+                        }
+                        if (amount % 500 != 0) {
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant doit etre un multiple de 500",
+                          );
+                          return;
+                        }
+                        if (amount > state.availableBalance) {
+                          setModalState(
+                            () => errorMessage = "Solde insuffisant",
+                          );
+                          return;
+                        }
+
+                        final remaining =
+                            state.tontineCycle!.targetAmount -
+                            state.tontineCycle!.cumulativeAmount;
+                        if (amount > remaining) {
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant depasse l'objectif restant",
+                          );
+                          return;
+                        }
+
+                        dashboardBloc.add(TransferToTontine(amount));
+                        Navigator.pop(modalContext);
+                      },
+                      child: const Text("Confirmer"),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showWithdrawalSheet(
+    BuildContext context,
+    DashboardLoaded state,
+  ) async {
+    final dashboardBloc = context.read<DashboardBloc>();
+    final service = RemoteDashboardService();
+    final controller = TextEditingController();
+    bool isSubmitting = false;
+    String? errorMessage;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Demander un retrait",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Le montant sera reserve, puis un agent vous paiera apres verification de la reference et du code de confirmation.",
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: "Montant",
+                      suffixText: "F CFA",
+                      helperText:
+                          "Disponible : ${formatFCFA(state.availableBalance)} F",
+                    ),
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final amount = double.tryParse(controller.text);
+                              if (amount == null || amount <= 0) {
+                                setModalState(
+                                  () => errorMessage = "Montant invalide",
+                                );
+                                return;
+                              }
+                              if (amount % 500 != 0) {
+                                setModalState(
+                                  () => errorMessage =
+                                      "Le montant doit etre un multiple de 500",
+                                );
+                                return;
+                              }
+                              if (amount > state.availableBalance) {
+                                setModalState(
+                                  () => errorMessage =
+                                      "Solde disponible insuffisant",
+                                );
+                                return;
+                              }
+
+                              setModalState(() {
+                                isSubmitting = true;
+                                errorMessage = null;
+                              });
+                              try {
+                                final result = await service.requestWithdrawal(
+                                  amount,
+                                );
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                Navigator.pop(modalContext);
+                                dashboardBloc.add(LoadDashboardData());
+                                await _showWithdrawalSummaryDialog(
+                                  context,
+                                  result,
+                                );
+                              } catch (error) {
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                final message = error is Exception
+                                    ? error.toString().replaceFirst(
+                                          'Exception: ',
+                                          '',
+                                        )
+                                    : "Le retrait n'a pas pu etre initie.";
+                                setModalState(() {
+                                  errorMessage = message;
+                                  isSubmitting = false;
+                                });
+                              }
+                            },
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text("Generer ma reference"),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showWithdrawalSummaryDialog(
+    BuildContext context,
+    WithdrawalRequestResult result,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Retrait initialise'),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Retour vers la tontine",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              _InfoLine(
+                label: 'Montant',
+                value: '${formatFCFA(result.amount)} F',
+                isHighlighted: true,
               ),
-              const SizedBox(height: 8),
+              _InfoLine(label: 'Reference', value: result.reference),
+              _InfoLine(
+                label: 'Code client',
+                value: result.confirmationCode,
+                isHighlighted: true,
+              ),
+              _InfoLine(
+                label: 'Valable jusqu au',
+                value: _formatDate(result.confirmationCodeExpiresAt),
+              ),
+              const SizedBox(height: 12),
               Text(
-                state.tontineCycle == null ||
-                        state.tontineCycle!.status != TontineCycleStatus.active
-                    ? "Aucune tontine active disponible pour recevoir ce montant."
-                    : "Le montant doit etre un multiple de 500.",
+                "Communiquez la reference a l'agent, puis gardez ce code pour confirmer le paiement.",
                 style: GoogleFonts.inter(
+                  fontSize: 12,
+                  height: 1.4,
                   color: AppTheme.textSecondaryColor,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: "Montant",
-                  suffixText: "F CFA",
-                  helperText:
-                      "Disponible : ${formatFCFA(state.availableBalance)} F",
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (state.tontineCycle == null ||
-                        state.tontineCycle!.status !=
-                            TontineCycleStatus.active) {
-                      _showSnackBar(
-                        context,
-                        "Aucune tontine active pour ce transfert",
-                      );
-                      return;
-                    }
-
-                    final amount = double.tryParse(controller.text);
-                    if (amount == null || amount <= 0) {
-                      _showSnackBar(context, "Montant invalide");
-                      return;
-                    }
-                    if (amount % 500 != 0) {
-                      _showSnackBar(
-                        context,
-                        "Le montant doit etre un multiple de 500",
-                      );
-                      return;
-                    }
-                    if (amount > state.availableBalance) {
-                      _showSnackBar(context, "Solde insuffisant");
-                      return;
-                    }
-
-                    final remaining =
-                        state.tontineCycle!.targetAmount -
-                        state.tontineCycle!.cumulativeAmount;
-                    if (amount > remaining) {
-                      _showSnackBar(
-                        context,
-                        "Le montant depasse l'objectif restant",
-                      );
-                      return;
-                    }
-
-                    dashboardBloc.add(TransferToTontine(amount));
-                    Navigator.pop(modalContext);
-                  },
-                  child: const Text("Confirmer"),
                 ),
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(
+                    text:
+                        'Reference: ${result.reference} | Code: ${result.confirmationCode}',
+                  ),
+                );
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Reference et code copies.'),
+                      ),
+                    );
+                }
+              },
+              child: const Text('Copier'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fermer'),
+            ),
+          ],
         );
       },
     );
+  }
+
+  Future<void> _showHistoryDetailDialog(
+    BuildContext context,
+    AvailableBalanceHistoryEntry entry,
+    List<WithdrawalSummary> withdrawals,
+  ) async {
+    final linkedWithdrawal = _findLinkedWithdrawal(entry, withdrawals);
+    final dashboardBloc = context.read<DashboardBloc>();
+    final service = RemoteDashboardService();
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Detail operation'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _InfoLine(label: 'Libelle', value: entry.label),
+                  _InfoLine(
+                    label: 'Montant',
+                    value:
+                        '${entry.isCredit ? '+' : '-'} ${formatFCFA(entry.amount)} F',
+                    isHighlighted: true,
+                  ),
+                  _InfoLine(label: 'Date', value: _formatDate(entry.date)),
+                  _InfoLine(
+                    label: 'Sens',
+                    value: entry.isCredit ? 'Credit' : 'Debit',
+                  ),
+                  if (linkedWithdrawal != null) ...[
+                    _InfoLine(
+                      label: 'Reference',
+                      value: linkedWithdrawal.reference,
+                    ),
+                    _InfoLine(
+                      label: 'Statut retrait',
+                      value: _withdrawalStatusLabel(linkedWithdrawal.status),
+                      isHighlighted: linkedWithdrawal.status == 'paid',
+                    ),
+                    if (linkedWithdrawal.confirmationCodeExpiresAt != null)
+                      _InfoLine(
+                        label: 'Code',
+                        value: linkedWithdrawal.isConfirmationCodeExpired
+                            ? 'Expire'
+                            : 'Deja genere',
+                      ),
+                    if (linkedWithdrawal.confirmationCodeExpiresAt != null)
+                      _InfoLine(
+                        label: 'Valable jusqu au',
+                        value: _formatDate(
+                          linkedWithdrawal.confirmationCodeExpiresAt!,
+                        ),
+                      ),
+                    if (!linkedWithdrawal.isConfirmationCodeExpired &&
+                        linkedWithdrawal.status == 'requested')
+                      Text(
+                        "Le code actif a deja ete genere. Si vous ne l'avez plus, attendez son expiration puis generez-en un nouveau.",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: AppTheme.textSecondaryColor,
+                        ),
+                      ),
+                    if (linkedWithdrawal.paidAt != null)
+                      _InfoLine(
+                        label: 'Paye le',
+                        value: _formatDate(linkedWithdrawal.paidAt!),
+                      ),
+                    if (linkedWithdrawal.cancelledAt != null)
+                      _InfoLine(
+                        label: 'Annule le',
+                        value: _formatDate(linkedWithdrawal.cancelledAt!),
+                      ),
+                    if ((linkedWithdrawal.cancellationReason ?? '').isNotEmpty)
+                      _InfoLine(
+                        label: 'Motif',
+                        value: linkedWithdrawal.cancellationReason!,
+                      ),
+                  ],
+                ],
+              ),
+              actions: [
+                if (linkedWithdrawal != null &&
+                    linkedWithdrawal.status == 'requested' &&
+                    linkedWithdrawal.isConfirmationCodeExpired)
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            setDialogState(() => isSubmitting = true);
+                            try {
+                              final result = await service
+                                  .regenerateWithdrawalCode(linkedWithdrawal.id);
+                              if (!context.mounted) {
+                                return;
+                              }
+                              Navigator.pop(dialogContext);
+                              dashboardBloc.add(LoadDashboardData());
+                              await _showWithdrawalSummaryDialog(
+                                context,
+                                result,
+                              );
+                            } catch (error) {
+                              if (!context.mounted) {
+                                return;
+                              }
+                              final message = error is Exception
+                                  ? error.toString().replaceFirst(
+                                        'Exception: ',
+                                        '',
+                                      )
+                                  : "Le nouveau code n'a pas pu etre genere.";
+                              _showSnackBar(context, message);
+                              setDialogState(() => isSubmitting = false);
+                            }
+                          },
+                    child: const Text('Generer un nouveau code'),
+                  ),
+                if (linkedWithdrawal != null &&
+                    linkedWithdrawal.status == 'requested')
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            setDialogState(() => isSubmitting = true);
+                            try {
+                              await service.cancelWithdrawal(linkedWithdrawal.id);
+                              if (!context.mounted) {
+                                return;
+                              }
+                              Navigator.pop(dialogContext);
+                              dashboardBloc.add(LoadDashboardData());
+                              _showSnackBar(context, 'Retrait annule.');
+                            } catch (error) {
+                              if (!context.mounted) {
+                                return;
+                              }
+                              final message = error is Exception
+                                  ? error.toString().replaceFirst(
+                                        'Exception: ',
+                                        '',
+                                      )
+                                  : "Le retrait n'a pas pu etre annule.";
+                              _showSnackBar(context, message);
+                              setDialogState(() => isSubmitting = false);
+                            }
+                          },
+                    child: const Text('Annuler le retrait'),
+                  ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatDate(DateTime value) {
+    return '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  }
+
+  WithdrawalSummary? _findLinkedWithdrawal(
+    AvailableBalanceHistoryEntry entry,
+    List<WithdrawalSummary> withdrawals,
+  ) {
+    final match = RegExp(r'WDR-[A-Z0-9-]+').firstMatch(entry.label);
+    if (match == null) {
+      return null;
+    }
+
+    final reference = match.group(0);
+    if (reference == null) {
+      return null;
+    }
+
+    for (final withdrawal in withdrawals) {
+      if (withdrawal.reference == reference) {
+        return withdrawal;
+      }
+    }
+
+    return null;
+  }
+
+  String _withdrawalStatusLabel(String status) {
+    switch (status) {
+      case 'requested':
+        return 'En attente de paiement';
+      case 'paid':
+        return 'Paye';
+      case 'cancelled':
+        return 'Annule';
+      default:
+        return status;
+    }
   }
 
   void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _InlineSheetError extends StatelessWidget {
+  final String message;
+
+  const _InlineSheetError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(
+          color: const Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isHighlighted;
+
+  const _InfoLine({
+    required this.label,
+    required this.value,
+    this.isHighlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppTheme.textSecondaryColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: isHighlighted ? AppTheme.secondaryColor : Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -45,7 +45,7 @@ class TontineDetailScreen extends StatelessWidget {
           appBar: AppBar(
             automaticallyImplyLeading: showBackButton,
             title: Text(
-              "Ma Tontine",
+              "Tontine",
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
             actions: [
@@ -214,6 +214,7 @@ class TontineDetailScreen extends StatelessWidget {
     double availableBalance,
   ) {
     final controller = TextEditingController();
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -222,17 +223,19 @@ class TontineDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (modalContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 "Transferer vers la tontine",
                 style: GoogleFonts.poppins(
@@ -249,11 +252,20 @@ class TontineDetailScreen extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 14),
+                _InlineSheetError(message: errorMessage!),
+              ],
               const SizedBox(height: 20),
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
                 autofocus: true,
+                onChanged: (_) {
+                  if (errorMessage != null) {
+                    setSheetState(() => errorMessage = null);
+                  }
+                },
                 decoration: InputDecoration(
                   labelText: "Montant a verser",
                   suffixText: "F CFA",
@@ -272,27 +284,27 @@ class TontineDetailScreen extends StatelessWidget {
                         cycle.targetAmount - cycle.cumulativeAmount;
 
                     if (amount == null || amount <= 0) {
-                      _showSnackBar(context, "Montant invalide");
+                      setSheetState(() => errorMessage = "Montant invalide");
                       return;
                     }
                     if (amount % 500 != 0) {
-                      _showSnackBar(
-                        context,
-                        "Le montant doit etre un multiple de 500",
+                      setSheetState(
+                        () => errorMessage =
+                            "Le montant doit etre un multiple de 500",
                       );
                       return;
                     }
                     if (amount > remaining) {
-                      _showSnackBar(
-                        context,
-                        "Le montant depasse l'objectif restant",
+                      setSheetState(
+                        () => errorMessage =
+                            "Le montant depasse l'objectif restant",
                       );
                       return;
                     }
                     if (amount > availableBalance) {
-                      _showSnackBar(
-                        context,
-                        "Solde disponible insuffisant",
+                      setSheetState(
+                        () => errorMessage =
+                            "Solde disponible insuffisant",
                       );
                       return;
                     }
@@ -305,8 +317,10 @@ class TontineDetailScreen extends StatelessWidget {
                   child: const Text("Confirmer le transfert"),
                 ),
               ),
-            ],
-          ),
+              ],
+            ),
+          );
+          },
         );
       },
     );
@@ -360,7 +374,6 @@ class TontineDetailScreen extends StatelessWidget {
                 }
                 context.read<DashboardBloc>().add(StopTontineEarly());
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.errorColor,
@@ -782,6 +795,34 @@ class _AmountLine extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InlineSheetError extends StatelessWidget {
+  final String message;
+
+  const _InlineSheetError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(
+          color: const Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
       ),
     );
   }

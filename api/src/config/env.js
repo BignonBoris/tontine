@@ -9,6 +9,9 @@ const env = {
   appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
   jwtSecret: process.env.JWT_SECRET || 'change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  adminUsername: process.env.ADMIN_USERNAME || 'admin',
+  adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
+  adminJwtExpiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
   otpExpiresInMinutes: Number(process.env.OTP_EXPIRES_IN_MINUTES || 2),
   otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 5),
   otpMaxResends: Number(process.env.OTP_MAX_RESENDS || 3),
@@ -17,7 +20,7 @@ const env = {
     process.env.OTP_RESEND_COOLDOWN_SECONDS || 30,
   ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
-  sequelizeSync: process.env.SEQUELIZE_SYNC !== 'false',
+  sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),

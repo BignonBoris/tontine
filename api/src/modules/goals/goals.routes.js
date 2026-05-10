@@ -29,11 +29,6 @@ router.get('/', authenticate, asyncHandler(controller.listGoals));
 router.post('/', authenticate, asyncHandler(controller.createGoal));
 router.get('/:goalId', authenticate, asyncHandler(controller.getGoal));
 router.post('/:goalId/fund', authenticate, asyncHandler(controller.fundGoal));
-router.post(
-  '/:goalId/direct-deposit',
-  authenticate,
-  asyncHandler(controller.depositGoalDirectly),
-);
 router.post('/:goalId/close', authenticate, asyncHandler(controller.closeGoal));
 
 module.exports = router;

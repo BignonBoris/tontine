@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/security/local_security_service.dart';
+import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 
 class AuthOtpScreen extends StatefulWidget {
@@ -69,29 +71,30 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF1A237E);
     final canSubmit = _controllers.every(
       (controller) => controller.text.isNotEmpty,
     );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.primaryColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: primaryBlue),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.all(30),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 760;
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(30, compact ? 12 : 20, 30, 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -99,47 +102,137 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Center(
+                        child: Container(
+                          width: compact ? 82 : 96,
+                          height: compact ? 82 : 96,
+                          padding: EdgeInsets.all(compact ? 12 : 14),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white,
+                                AppTheme.accentColor.withValues(alpha: 0.18),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.accentDarkColor.withValues(alpha: 0.14),
+                                blurRadius: 24,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(AppTheme.brandIconAsset),
+                        ),
+                      ),
+                      SizedBox(height: compact ? 14 : 18),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            _isRegistration ? 'Inscription' : 'Connexion',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: compact ? 14 : 18),
                       Text(
                         'Verification',
                         style: GoogleFonts.poppins(
-                          fontSize: 24,
+                          fontSize: compact ? 24 : 26,
                           fontWeight: FontWeight.bold,
-                          color: primaryBlue,
+                          color: Colors.white,
+                          height: 1.12,
                         ),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         'Saisissez le code a 4 chiffres envoye au numero ci-dessous.',
                         style: GoogleFonts.inter(
-                          fontSize: 15,
-                          color: Colors.grey[600],
-                          height: 1.4,
+                          fontSize: compact ? 14 : 15,
+                          color: Colors.white.withValues(alpha: 0.78),
+                          height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _phoneNumber,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
+                      SizedBox(height: compact ? 20 : 26),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(
+                          18,
+                          compact ? 16 : 18,
+                          18,
+                          compact ? 16 : 20,
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      _OtpDemoBanner(code: _demoOtpCode),
-                      const SizedBox(height: 28),
-                      Center(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: List.generate(
-                            4,
-                            (index) => _buildOtpBox(index, primaryBlue),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: AppTheme.accentColor.withValues(alpha: 0.26),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.accentDarkColor.withValues(alpha: 0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Numero verifie',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _phoneNumber,
+                              style: GoogleFonts.poppins(
+                                fontSize: compact ? 15 : 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimaryColor,
+                              ),
+                            ),
+                            SizedBox(height: compact ? 14 : 18),
+                            _OtpDemoBanner(code: _demoOtpCode),
+                            SizedBox(height: compact ? 16 : 22),
+                            Center(
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: compact ? 10 : 12,
+                                runSpacing: compact ? 10 : 12,
+                                children: List.generate(
+                                  4,
+                                  (index) =>
+                                      _buildOtpBox(index, AppTheme.accentColor),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: compact ? 14 : 20),
                       Center(
                         child: TextButton(
                           onPressed: _secondsRemaining == 0 && !_isSubmitting
@@ -150,7 +243,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                 ? 'Renvoyer le code'
                                 : 'Renvoyer le code (00:${_secondsRemaining.toString().padLeft(2, '0')})',
                             style: GoogleFonts.inter(
-                              color: primaryBlue,
+                              color: Colors.white,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -159,7 +252,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                     ],
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 24),
+                    padding: EdgeInsets.only(top: compact ? 16 : 22, bottom: 6),
                     child: Column(
                       children: [
                         SizedBox(
@@ -169,9 +262,9 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                 ? _handleVerification
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryBlue,
+                              backgroundColor: AppTheme.accentColor,
                               disabledBackgroundColor: Colors.grey.shade300,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              minimumSize: const Size.fromHeight(52),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -197,14 +290,15 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: compact ? 8 : 12),
                       ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -212,8 +306,8 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
 
   Widget _buildOtpBox(int index, Color primaryColor) {
     return SizedBox(
-      width: 65,
-      height: 70,
+      width: 60,
+      height: 64,
       child: TextFormField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -250,14 +344,16 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
         ),
         decoration: InputDecoration(
           filled: true,
-          fillColor: const Color(0xFFF5F7FA),
+          fillColor: const Color(0xFFFBFCFE),
           contentPadding: EdgeInsets.zero,
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: AppTheme.primaryColor.withValues(alpha: 0.08),
+            ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(color: primaryColor, width: 2),
           ),
         ),
@@ -292,7 +388,34 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
-    Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
+    final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
+    if (!mounted) {
+      return;
+    }
+
+    if (_isRegistration) {
+      if (appLockEnabled) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false,
+        );
+        return;
+      }
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/auth_pin_setup',
+        (route) => false,
+      );
+      return;
+    }
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      appLockEnabled ? '/unlock' : '/dashboard',
+      (route) => false,
+    );
   }
 
   Future<void> _handleResendCode() async {
@@ -354,12 +477,13 @@ class _OtpDemoBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F8FE),
+        color: AppTheme.accentColor.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.28)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.sms_outlined, color: Color(0xFF1A237E)),
+          const Icon(Icons.sms_outlined, color: AppTheme.accentDarkColor),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -367,7 +491,7 @@ class _OtpDemoBanner extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A237E),
+                color: AppTheme.accentDarkColor,
               ),
             ),
           ),

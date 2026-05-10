@@ -23,6 +23,7 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
   final _initialDepositController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -70,6 +71,11 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
                     labelText: 'Mise initiale',
                     suffixText: 'F CFA',
                   ),
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                   validator: _amountValidator,
                 ),
                 const SizedBox(height: 12),
@@ -80,8 +86,17 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
                     labelText: 'Premier depot (facultatif)',
                     suffixText: 'F CFA',
                   ),
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                   validator: _optionalAmountValidator,
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 14),
+                  _SheetErrorMessage(message: _errorMessage!),
+                ],
                 const SizedBox(height: 18),
                 ElevatedButton(
                   onPressed: _isSubmitting ? null : _submit,
@@ -146,7 +161,10 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
         ? 0
         : double.parse(initialDigits);
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
     try {
       final client = await _service.startTontine(
         clientId: widget.client.id,
@@ -174,8 +192,34 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    setState(() => _errorMessage = message);
+  }
+}
+
+class _SheetErrorMessage extends StatelessWidget {
+  final String message;
+
+  const _SheetErrorMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+      ),
+    );
   }
 }

@@ -72,6 +72,8 @@ class TontineGoal extends HiveObject {
   });
 
   // Getters pour reconstruire les objets Flutter à partir des données Hive
+  // Les icônes sont dynamiques (stockées dans Hive), donc le tree-shaking
+  // d'icônes doit être désactivé via --no-tree-shake-icons au build.
   IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
   Color get color => Color(colorValue);
 

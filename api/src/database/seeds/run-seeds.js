@@ -16,6 +16,7 @@ async function runSeeds(models) {
   const defaultAgentPin = process.env.AGENT_DEFAULT_PIN || '1234';
   const defaultAgentCode = process.env.AGENT_DEFAULT_CODE || 'AGT-001';
   const defaultAgentName = process.env.AGENT_DEFAULT_NAME || 'Agent Demo';
+  const defaultAgentBalance = Number(process.env.AGENT_DEFAULT_BALANCE || 0);
 
   const [user] = await User.findOrCreate({
     where: { phoneNumber: defaultAgentPhone },
@@ -47,6 +48,9 @@ async function runSeeds(models) {
     agentCode: defaultAgentCode,
     pinHash: hashPin(defaultAgentPin),
     fullName: defaultAgentName,
+    agentBalance: Number.isFinite(defaultAgentBalance)
+      ? Math.max(defaultAgentBalance, 0)
+      : 0,
     isActive: true,
   });
 

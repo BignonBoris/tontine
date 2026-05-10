@@ -8,7 +8,8 @@
     "build": "tsc && tsc-alias",
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "lint": "node -e \"console.log('No lint configured yet')\""
+    "lint": "node -e \"console.log('No lint configured yet')\"",
+    "test:commission": "node scripts/test-commission-calculator.js"
   },
   "keywords": [
     "express",

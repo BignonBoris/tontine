@@ -19,6 +19,10 @@ const TONTINE_ARCHIVE_STATUSES = ['completed', 'stoppedEarly'];
 const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'tontinePayout',
   'tontineEarlyStop',
+  'tontineBonus',
+  'withdrawalRequested',
+  'withdrawalReleased',
+  'withdrawalPaid',
   'goalFunding',
   'tontineFunding',
 ];
@@ -45,6 +49,14 @@ const PROVISIONING_STATUSES = [
 ];
 const PROVISIONING_SOURCES = ['agent', 'mobile_money'];
 const OPERATION_ACTOR_TYPES = ['agent', 'admin', 'client', 'system'];
+const WITHDRAWAL_STATUSES = ['requested', 'paid', 'cancelled', 'rejected'];
+const WITHDRAWAL_CHANNELS = ['agent_cash'];
+const AGENT_BALANCE_HISTORY_TYPES = [
+  'topUp',
+  'clientDeposit',
+  'clientWithdrawal',
+  'adjustment',
+];
 
 module.exports = {
   OTP_PURPOSES,
@@ -58,4 +70,7 @@ module.exports = {
   PROVISIONING_STATUSES,
   PROVISIONING_SOURCES,
   OPERATION_ACTOR_TYPES,
+  WITHDRAWAL_STATUSES,
+  WITHDRAWAL_CHANNELS,
+  AGENT_BALANCE_HISTORY_TYPES,
 };

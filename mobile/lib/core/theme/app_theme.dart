@@ -4,15 +4,32 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color primaryColor = Color(0xFF1A237E);
-  static const Color secondaryColor = Color(0xFF00C853);
-  static const Color accentColor = Color(0xFFFFAB00);
-  static const Color backgroundColor = Color(0xFFF5F7FA);
+  static const String brandIconAsset = 'assets/branding/viziobox-icon.png';
+
+  static const Color primaryColor = Color(0xFF082040);
+  static const Color primaryVariantColor = Color(0xFF183860);
+  static const Color secondaryColor = Color(0xFF78B860);
+  static const Color secondaryVariantColor = Color(0xFF409848);
+  static const Color accentColor = Color(0xFFC89818);
+  static const Color accentDarkColor = Color(0xFF805808);
+  static const Color backgroundColor = Color(0xFFF4F7FA);
   static const Color errorColor = Color(0xFFD32F2F);
   static const Color borderColor = Color(0xFFD0D5DD);
   static const Color surfaceColor = Colors.white;
   static const Color textPrimaryColor = Color(0xFF111827);
   static const Color textSecondaryColor = Color(0xFF667085);
+
+  static const LinearGradient heroGradient = LinearGradient(
+    colors: [primaryColor, primaryVariantColor],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient accentGradient = LinearGradient(
+    colors: [accentColor, Color(0xFFB08010)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   static ThemeData get lightTheme {
     const colorScheme = ColorScheme(
@@ -120,11 +137,12 @@ class AppTheme {
       textTheme: textTheme,
       cardTheme: CardThemeData(
         color: surfaceColor,
-        elevation: 2,
-        shadowColor: primaryColor.withValues(alpha: 0.10),
+        elevation: 0,
+        shadowColor: primaryColor.withValues(alpha: 0.08),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: primaryColor.withValues(alpha: 0.05)),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -146,9 +164,24 @@ class AppTheme {
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          minimumSize: const Size(64, 52),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          side: BorderSide(color: primaryColor.withValues(alpha: 0.18), width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceColor,
+        fillColor: const Color(0xFFFBFCFE),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
@@ -189,7 +222,7 @@ class AppTheme {
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: accentColor,
-        foregroundColor: Colors.black,
+        foregroundColor: Colors.white,
       ),
       chipTheme: ChipThemeData(
         backgroundColor: secondaryColor.withValues(alpha: 0.12),
