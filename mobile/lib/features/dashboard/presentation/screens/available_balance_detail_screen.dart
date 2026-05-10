@@ -183,6 +183,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
 
     final controller = TextEditingController();
     TontineGoal? selectedGoal = goals.first;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -226,6 +227,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                       if (goal != null) {
                         setModalState(() {
                           selectedGoal = goal;
+                          errorMessage = null;
                         });
                       }
                     },
@@ -237,6 +239,11 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: "Montant",
                       suffixText: "F CFA",
@@ -244,6 +251,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           "Disponible : ${formatFCFA(availableBalance)} F",
                     ),
                   ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -254,11 +265,15 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                         if (selectedGoal == null ||
                             amount == null ||
                             amount <= 0) {
-                          _showSnackBar(context, "Montant invalide");
+                          setModalState(
+                            () => errorMessage = "Montant invalide",
+                          );
                           return;
                         }
                         if (amount > availableBalance) {
-                          _showSnackBar(context, "Solde insuffisant");
+                          setModalState(
+                            () => errorMessage = "Solde insuffisant",
+                          );
                           return;
                         }
 
@@ -266,9 +281,9 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                             selectedGoal!.targetAmount -
                             selectedGoal!.currentAmount;
                         if (amount > remaining) {
-                          _showSnackBar(
-                            context,
-                            "Le montant depasse l'objectif du coffre",
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant depasse l'objectif du coffre",
                           );
                           return;
                         }
@@ -296,6 +311,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
   ) {
     final dashboardBloc = context.read<DashboardBloc>();
     final controller = TextEditingController();
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -304,98 +320,116 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (modalContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Retour vers la tontine",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 8),
-              Text(
-                state.tontineCycle == null ||
-                        state.tontineCycle!.status != TontineCycleStatus.active
-                    ? "Aucune tontine active disponible pour recevoir ce montant."
-                    : "Le montant doit etre un multiple de 500.",
-                style: GoogleFonts.inter(
-                  color: AppTheme.textSecondaryColor,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: "Montant",
-                  suffixText: "F CFA",
-                  helperText:
-                      "Disponible : ${formatFCFA(state.availableBalance)} F",
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (state.tontineCycle == null ||
-                        state.tontineCycle!.status !=
-                            TontineCycleStatus.active) {
-                      _showSnackBar(
-                        context,
-                        "Aucune tontine active pour ce transfert",
-                      );
-                      return;
-                    }
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Retour vers la tontine",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.tontineCycle == null ||
+                            state.tontineCycle!.status !=
+                                TontineCycleStatus.active
+                        ? "Aucune tontine active disponible pour recevoir ce montant."
+                        : "Le montant doit etre un multiple de 500.",
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: "Montant",
+                      suffixText: "F CFA",
+                      helperText:
+                          "Disponible : ${formatFCFA(state.availableBalance)} F",
+                    ),
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (state.tontineCycle == null ||
+                            state.tontineCycle!.status !=
+                                TontineCycleStatus.active) {
+                          setModalState(
+                            () => errorMessage =
+                                "Aucune tontine active pour ce transfert",
+                          );
+                          return;
+                        }
 
-                    final amount = double.tryParse(controller.text);
-                    if (amount == null || amount <= 0) {
-                      _showSnackBar(context, "Montant invalide");
-                      return;
-                    }
-                    if (amount % 500 != 0) {
-                      _showSnackBar(
-                        context,
-                        "Le montant doit etre un multiple de 500",
-                      );
-                      return;
-                    }
-                    if (amount > state.availableBalance) {
-                      _showSnackBar(context, "Solde insuffisant");
-                      return;
-                    }
+                        final amount = double.tryParse(controller.text);
+                        if (amount == null || amount <= 0) {
+                          setModalState(
+                            () => errorMessage = "Montant invalide",
+                          );
+                          return;
+                        }
+                        if (amount % 500 != 0) {
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant doit etre un multiple de 500",
+                          );
+                          return;
+                        }
+                        if (amount > state.availableBalance) {
+                          setModalState(
+                            () => errorMessage = "Solde insuffisant",
+                          );
+                          return;
+                        }
 
-                    final remaining =
-                        state.tontineCycle!.targetAmount -
-                        state.tontineCycle!.cumulativeAmount;
-                    if (amount > remaining) {
-                      _showSnackBar(
-                        context,
-                        "Le montant depasse l'objectif restant",
-                      );
-                      return;
-                    }
+                        final remaining =
+                            state.tontineCycle!.targetAmount -
+                            state.tontineCycle!.cumulativeAmount;
+                        if (amount > remaining) {
+                          setModalState(
+                            () => errorMessage =
+                                "Le montant depasse l'objectif restant",
+                          );
+                          return;
+                        }
 
-                    dashboardBloc.add(TransferToTontine(amount));
-                    Navigator.pop(modalContext);
-                  },
-                  child: const Text("Confirmer"),
-                ),
+                        dashboardBloc.add(TransferToTontine(amount));
+                        Navigator.pop(modalContext);
+                      },
+                      child: const Text("Confirmer"),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -409,6 +443,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
     final service = RemoteDashboardService();
     final controller = TextEditingController();
     bool isSubmitting = false;
+    String? errorMessage;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -450,6 +485,11 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setModalState(() => errorMessage = null);
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: "Montant",
                       suffixText: "F CFA",
@@ -457,6 +497,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           "Disponible : ${formatFCFA(state.availableBalance)} F",
                     ),
                   ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 14),
+                    _InlineSheetError(message: errorMessage!),
+                  ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -467,25 +511,30 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           : () async {
                               final amount = double.tryParse(controller.text);
                               if (amount == null || amount <= 0) {
-                                _showSnackBar(context, "Montant invalide");
+                                setModalState(
+                                  () => errorMessage = "Montant invalide",
+                                );
                                 return;
                               }
                               if (amount % 500 != 0) {
-                                _showSnackBar(
-                                  context,
-                                  "Le montant doit etre un multiple de 500",
+                                setModalState(
+                                  () => errorMessage =
+                                      "Le montant doit etre un multiple de 500",
                                 );
                                 return;
                               }
                               if (amount > state.availableBalance) {
-                                _showSnackBar(
-                                  context,
-                                  "Solde disponible insuffisant",
+                                setModalState(
+                                  () => errorMessage =
+                                      "Solde disponible insuffisant",
                                 );
                                 return;
                               }
 
-                              setModalState(() => isSubmitting = true);
+                              setModalState(() {
+                                isSubmitting = true;
+                                errorMessage = null;
+                              });
                               try {
                                 final result = await service.requestWithdrawal(
                                   amount,
@@ -509,8 +558,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                                           '',
                                         )
                                     : "Le retrait n'a pas pu etre initie.";
-                                _showSnackBar(context, message);
-                                setModalState(() => isSubmitting = false);
+                                setModalState(() {
+                                  errorMessage = message;
+                                  isSubmitting = false;
+                                });
                               }
                             },
                       child: isSubmitting
@@ -815,6 +866,34 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _InlineSheetError extends StatelessWidget {
+  final String message;
+
+  const _InlineSheetError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(
+          color: const Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+      ),
+    );
   }
 }
 

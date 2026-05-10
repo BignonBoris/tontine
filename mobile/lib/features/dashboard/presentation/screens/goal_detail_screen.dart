@@ -257,6 +257,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   ) {
     final amountController = TextEditingController();
     final remaining = goal.targetAmount - goal.currentAmount;
+    String? errorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -264,89 +265,102 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-          left: 24,
-          right: 24,
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Effectuer un depot",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              left: 24,
+              right: 24,
+              top: 24,
             ),
-            const SizedBox(height: 8),
-            Text(
-              "Le montant viendra du solde disponible et ne peut pas depasser l'objectif restant.",
-              style: GoogleFonts.inter(
-                color: AppTheme.textSecondaryColor,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: "Montant a deposer",
-                suffixText: "F CFA",
-                helperText:
-                    "Reste a completer : ${formatFCFA(remaining.toInt())} F",
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  final amount = double.tryParse(amountController.text);
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Effectuer un depot",
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Le montant viendra du solde disponible et ne peut pas depasser l'objectif restant.",
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textSecondaryColor,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  onChanged: (_) {
+                    if (errorMessage != null) {
+                      setSheetState(() => errorMessage = null);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: "Montant a deposer",
+                    suffixText: "F CFA",
+                    helperText:
+                        "Reste a completer : ${formatFCFA(remaining.toInt())} F",
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 14),
+                  _InlineSheetError(message: errorMessage!),
+                ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final amount = double.tryParse(amountController.text);
 
-                  if (amount == null || amount <= 0) {
-                    _showSnackBar(context, "Montant invalide", isError: true);
-                    return;
-                  }
-                  if (amount > state.availableBalance) {
-                    _showSnackBar(
-                      context,
-                      "Solde insuffisant (${state.availableBalance.toInt()} F)",
-                      isError: true,
-                    );
-                    return;
-                  }
-                  if (amount > remaining) {
-                    _showSnackBar(
-                      context,
-                      "Le montant depasse l'objectif",
-                      isError: true,
-                    );
-                    return;
-                  }
+                      if (amount == null || amount <= 0) {
+                        setSheetState(
+                          () => errorMessage = "Montant invalide",
+                        );
+                        return;
+                      }
+                      if (amount > state.availableBalance) {
+                        setSheetState(
+                          () => errorMessage =
+                              "Solde insuffisant (${state.availableBalance.toInt()} F)",
+                        );
+                        return;
+                      }
+                      if (amount > remaining) {
+                        setSheetState(
+                          () => errorMessage =
+                              "Le montant depasse l'objectif",
+                        );
+                        return;
+                      }
 
-                  context.read<DashboardBloc>().add(
-                    AddFundsToGoal(goal.id, amount),
-                  );
-                  Navigator.pop(sheetContext);
-                  _confettiController.play();
-                  _showSnackBar(
-                    context,
-                    "Depot de ${amount.toInt()} F effectue",
-                  );
-                },
-                child: const Text("Confirmer le depot"),
-              ),
+                      context.read<DashboardBloc>().add(
+                        AddFundsToGoal(goal.id, amount),
+                      );
+                      Navigator.pop(sheetContext);
+                      _confettiController.play();
+                      _showSnackBar(
+                        context,
+                        "Depot de ${amount.toInt()} F effectue",
+                      );
+                    },
+                    child: const Text("Confirmer le depot"),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -448,6 +462,34 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             child: const Text("Confirmer"),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InlineSheetError extends StatelessWidget {
+  final String message;
+
+  const _InlineSheetError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE57373)),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.inter(
+          color: const Color(0xFFB71C1C),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
       ),
     );
   }

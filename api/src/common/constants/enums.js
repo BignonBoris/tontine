@@ -19,10 +19,12 @@ const TONTINE_ARCHIVE_STATUSES = ['completed', 'stoppedEarly'];
 const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'tontinePayout',
   'tontineEarlyStop',
+  'tontineBonus',
+  'withdrawalRequested',
+  'withdrawalReleased',
+  'withdrawalPaid',
   'goalFunding',
   'tontineFunding',
-  'withdrawalRequested',
-  'withdrawalCancelled',
 ];
 const APP_NOTIFICATION_TYPES = [
   'deposit',
@@ -47,7 +49,7 @@ const PROVISIONING_STATUSES = [
 ];
 const PROVISIONING_SOURCES = ['agent', 'mobile_money'];
 const OPERATION_ACTOR_TYPES = ['agent', 'admin', 'client', 'system'];
-const WITHDRAWAL_STATUSES = ['requested', 'paid', 'cancelled'];
+const WITHDRAWAL_STATUSES = ['requested', 'paid', 'cancelled', 'rejected'];
 const WITHDRAWAL_CHANNELS = ['agent_cash'];
 const AGENT_BALANCE_HISTORY_TYPES = [
   'topUp',

@@ -4,6 +4,10 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const { displayPhone } = require('../auth/auth.service');
 const { applyAgentBalanceChange } = require('../agent-cash/agent-cash.service');
+const {
+  consumeWithdrawalCommissionReserves,
+  postWithdrawalCommissions,
+} = require('../commission/commission.service');
 
 const WITHDRAWAL_CONFIRMATION_TTL_MINUTES = 15;
 const WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS = 5;
@@ -21,7 +25,7 @@ function generateConfirmationCode() {
 function hashConfirmationCode(code) {
   return crypto
     .createHash('sha256')
-    .update(String(code).trim())
+    .update(String(code || '').trim())
     .digest('hex');
 }
 
@@ -41,6 +45,10 @@ function isConfirmationCodeExpired(withdrawal) {
 }
 
 function serializeWithdrawal(withdrawal, extras = {}) {
+  if (!withdrawal) {
+    return null;
+  }
+
   return {
     id: withdrawal.id,
     reference: withdrawal.reference,
@@ -50,9 +58,18 @@ function serializeWithdrawal(withdrawal, extras = {}) {
     requestedAt: withdrawal.requestedAt,
     paidAt: withdrawal.paidAt,
     cancelledAt: withdrawal.cancelledAt,
+    rejectedAt: withdrawal.rejectedAt,
+    notes: withdrawal.notes,
     cancellationReason: withdrawal.cancellationReason,
     confirmationCodeExpiresAt: withdrawal.confirmationCodeExpiresAt,
     isConfirmationCodeExpired: isConfirmationCodeExpired(withdrawal),
+    payingAgent: withdrawal.payingAgent
+      ? {
+          id: withdrawal.payingAgent.id,
+          agentCode: withdrawal.payingAgent.agentCode,
+          fullName: withdrawal.payingAgent.fullName,
+        }
+      : null,
     ...extras,
   };
 }
@@ -98,7 +115,7 @@ async function releaseRequestedWithdrawal(
   await models.AvailableBalanceHistory.create(
     {
       userId: withdrawal.userId,
-      type: 'withdrawalCancelled',
+      type: 'withdrawalReleased',
       amount,
       label: `Retrait annule ${withdrawal.reference}`,
       isCredit: true,
@@ -132,9 +149,10 @@ async function releaseRequestedWithdrawal(
   });
 }
 
-async function listWithdrawals(userId) {
+async function listClientWithdrawals(userId) {
   const withdrawals = await models.Withdrawal.findAll({
     where: { userId },
+    include: [{ model: models.AgentProfile, as: 'payingAgent', required: false }],
     order: [['createdAt', 'DESC']],
     limit: 50,
   });
@@ -143,15 +161,15 @@ async function listWithdrawals(userId) {
 }
 
 async function createWithdrawal(userId, payload, requestContext = {}) {
-  const amount = Number(payload.amount);
-
+  const amount = Number(payload?.amount);
   if (!amount || amount <= 0 || amount % 500 !== 0) {
-    throw new AppError('Le retrait doit etre un multiple positif de 500.', 422);
+    throw new AppError(
+      'Le montant du retrait doit etre un multiple positif de 500.',
+      422,
+    );
   }
 
   const result = await sequelize.transaction(async (transaction) => {
-    const confirmationCode = generateConfirmationCode();
-    const confirmationCodeExpiresAt = computeConfirmationCodeExpiresAt();
     const wallet = await models.Wallet.findOne({
       where: { userId },
       transaction,
@@ -161,13 +179,13 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
     if (!wallet) {
       throw new AppError('Portefeuille introuvable.', 404);
     }
-
-    const availableBalance = Number(wallet.availableBalance || 0);
-    if (availableBalance < amount) {
+    if (Number(wallet.availableBalance || 0) < amount) {
       throw new AppError('Solde disponible insuffisant.', 422);
     }
 
-    const created = await models.Withdrawal.create(
+    const confirmationCode = generateConfirmationCode();
+    const confirmationCodeExpiresAt = computeConfirmationCodeExpiresAt();
+    const withdrawal = await models.Withdrawal.create(
       {
         reference: generateWithdrawalReference(),
         userId,
@@ -186,7 +204,7 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
 
     await wallet.update(
       {
-        availableBalance: availableBalance - amount,
+        availableBalance: Number(wallet.availableBalance || 0) - amount,
         reservedWithdrawalBalance:
           Number(wallet.reservedWithdrawalBalance || 0) + amount,
       },
@@ -198,7 +216,7 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
         userId,
         type: 'withdrawalRequested',
         amount,
-        label: `Retrait demande ${created.reference}`,
+        label: `Retrait demande ${withdrawal.reference}`,
         isCredit: false,
       },
       { transaction },
@@ -209,7 +227,7 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
         userId,
         type: 'system',
         title: 'Retrait demande',
-        message: `${amount} F reserves. Reference ${created.reference}. Code de validation genere.`,
+        message: `${amount} F reserves. Reference ${withdrawal.reference}. Code de validation genere.`,
       },
       { transaction },
     );
@@ -218,19 +236,19 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
       userId,
       action: 'withdrawal.requested',
       entityType: 'withdrawal',
-      entityId: created.id,
+      entityId: withdrawal.id,
       ipAddress: requestContext.ipAddress,
       userAgent: requestContext.userAgent,
       metadata: {
         amount,
-        reference: created.reference,
+        reference: withdrawal.reference,
         confirmationCodeExpiresAt,
       },
       transaction,
     });
 
     return {
-      withdrawal: created,
+      withdrawal,
       confirmationCode,
       confirmationCodeExpiresAt,
     };
@@ -242,8 +260,13 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
   });
 }
 
-async function cancelWithdrawal(userId, withdrawalId, payload, requestContext = {}) {
-  const cancellationReason = payload.reason
+async function cancelWithdrawal(
+  userId,
+  withdrawalId,
+  payload = {},
+  requestContext = {},
+) {
+  const cancellationReason = payload?.reason
     ? String(payload.reason).trim()
     : 'Annulation client';
 
@@ -260,13 +283,13 @@ async function cancelWithdrawal(userId, withdrawalId, payload, requestContext = 
     if (withdrawal.status !== 'requested') {
       throw new AppError("Seul un retrait en attente peut etre annule.", 409);
     }
+
     await releaseRequestedWithdrawal(
       withdrawal,
       {
         reason: cancellationReason,
         notificationTitle: 'Retrait annule',
-        notificationMessage:
-          '${Number(withdrawal.amount)} F restitues a votre solde disponible.',
+        notificationMessage: `${Number(withdrawal.amount)} F restitues a votre solde disponible.`,
         auditAction: 'withdrawal.cancelled',
         requestContext,
       },
@@ -358,23 +381,14 @@ async function findPendingWithdrawalByReference(reference) {
     throw new AppError('La reference du retrait est requise.', 422);
   }
 
-  const withdrawal = await sequelize.transaction(async (transaction) => {
-    const pendingWithdrawal = await models.Withdrawal.findOne({
-      where: {
-        reference: normalizedReference,
-        status: 'requested',
-      },
-      include: [{ model: models.User, as: 'user' }],
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!pendingWithdrawal) {
-      throw new AppError('Aucun retrait en attente pour cette reference.', 404);
-    }
-
-    return pendingWithdrawal;
+  const withdrawal = await models.Withdrawal.findOne({
+    where: { reference: normalizedReference, status: 'requested' },
+    include: [{ model: models.User, as: 'user' }],
   });
+
+  if (!withdrawal) {
+    throw new AppError('Aucun retrait en attente pour cette reference.', 404);
+  }
 
   return serializeWithdrawal(withdrawal, {
     client: withdrawal.user
@@ -390,17 +404,20 @@ async function findPendingWithdrawalByReference(reference) {
 async function payWithdrawal(
   agentProfile,
   withdrawalId,
-  payload,
+  payload = {},
   requestContext = {},
 ) {
-  const confirmationCode = String(payload.confirmationCode || '').trim();
+  const confirmationCode = String(payload?.confirmationCode || '').trim();
   if (confirmationCode.length < 4) {
     throw new AppError('Le code de confirmation est requis.', 422);
   }
 
   const result = await sequelize.transaction(async (transaction) => {
     const withdrawal = await models.Withdrawal.findByPk(withdrawalId, {
-      include: [{ model: models.User, as: 'user' }],
+      include: [
+        { model: models.User, as: 'user' },
+        { model: models.AgentProfile, as: 'payingAgent', required: false },
+      ],
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
@@ -411,6 +428,7 @@ async function payWithdrawal(
     if (withdrawal.status !== 'requested') {
       throw new AppError("Ce retrait n'est plus en attente.", 409);
     }
+
     if (isConfirmationCodeExpired(withdrawal)) {
       await writeAuditLog({
         userId: agentProfile.userId,
@@ -424,11 +442,13 @@ async function payWithdrawal(
         },
         transaction,
       });
+
       throw new AppError(
         "Le code de confirmation a expire. Demandez au client d'en generer un nouveau.",
         409,
       );
     }
+
     if (
       Number(withdrawal.confirmationCodeAttempts || 0) >=
       WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS
@@ -445,6 +465,7 @@ async function payWithdrawal(
         },
         transaction,
       );
+
       throw new AppError(
         'Ce retrait a ete annule apres trop de tentatives. Le client doit refaire sa demande.',
         422,
@@ -454,6 +475,7 @@ async function payWithdrawal(
     const receivedCodeHash = hashConfirmationCode(confirmationCode);
     if (receivedCodeHash !== withdrawal.confirmationCodeHash) {
       const nextAttempts = Number(withdrawal.confirmationCodeAttempts || 0) + 1;
+
       if (nextAttempts >= WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS) {
         await releaseRequestedWithdrawal(
           withdrawal,
@@ -507,12 +529,35 @@ async function payWithdrawal(
 
     const amount = Number(withdrawal.amount);
     const reservedBalance = Number(wallet?.reservedWithdrawalBalance || 0);
-    if (reservedBalance < amount) {
+    if (!wallet || reservedBalance < amount) {
       throw new AppError(
         'Le solde reserve du client est incoherent pour ce retrait.',
         409,
       );
     }
+
+    const reserveConsumption = await consumeWithdrawalCommissionReserves({
+      transaction,
+      clientId: withdrawal.userId,
+      withdrawalId: withdrawal.id,
+      withdrawalAmount: amount,
+      agentProfileId: agentProfile.id,
+      initiatedByUserId: agentProfile.userId,
+      initiatorType: 'agent',
+    });
+
+    const commissionPosting = await postWithdrawalCommissions({
+      transaction,
+      clientId: withdrawal.userId,
+      withdrawalId: withdrawal.id,
+      sourceType: 'withdrawal',
+      sourceId: withdrawal.id,
+      agentProfileId: agentProfile.id,
+      consumptions: reserveConsumption.consumptions,
+      initiatedByUserId: agentProfile.userId,
+      initiatorType: 'agent',
+      requestContext,
+    });
 
     await wallet.update(
       {
@@ -525,8 +570,10 @@ async function payWithdrawal(
       {
         status: 'paid',
         paidAt: new Date(),
-        paidByUserId: agentProfile.userId,
-        confirmationCodeAttempts: Number(withdrawal.confirmationCodeAttempts || 0),
+        paidByAgentProfileId: agentProfile.id,
+        confirmationCodeAttempts: Number(
+          withdrawal.confirmationCodeAttempts || 0,
+        ),
       },
       { transaction },
     );
@@ -551,6 +598,17 @@ async function payWithdrawal(
       transaction,
     );
 
+    await models.AvailableBalanceHistory.create(
+      {
+        userId: withdrawal.userId,
+        type: 'withdrawalPaid',
+        amount,
+        label: `Retrait paye ${withdrawal.reference}`,
+        isCredit: false,
+      },
+      { transaction },
+    );
+
     await models.Notification.create(
       {
         userId: withdrawal.userId,
@@ -569,8 +627,12 @@ async function payWithdrawal(
       ipAddress: requestContext.ipAddress,
       userAgent: requestContext.userAgent,
       metadata: {
-        reference: withdrawal.reference,
         amount,
+        reference: withdrawal.reference,
+        reserveCovered: reserveConsumption.fullyCovered,
+        uncoveredAmount: reserveConsumption.remainingPrincipal,
+        agentCommissionAmount: commissionPosting.agentCommissionAmount,
+        platformCommissionAmount: commissionPosting.platformCommissionAmount,
         agentBalanceAfter: cashChange.balanceAfter,
       },
       transaction,
@@ -579,16 +641,22 @@ async function payWithdrawal(
     return {
       withdrawal,
       agentBalance: cashChange.balanceAfter,
+      commission: {
+        agent: commissionPosting.agentCommissionAmount,
+        platform: commissionPosting.platformCommissionAmount,
+        uncoveredPrincipal: reserveConsumption.remainingPrincipal,
+      },
     };
   });
 
   return serializeWithdrawal(result.withdrawal, {
     agentBalance: result.agentBalance,
+    commission: result.commission,
   });
 }
 
 module.exports = {
-  listWithdrawals,
+  listClientWithdrawals,
   createWithdrawal,
   cancelWithdrawal,
   regenerateWithdrawalCode,

@@ -15,12 +15,14 @@ async function getOverview(agentProfileId) {
       models.Provisioning.count({
         where: {
           agentProfileId,
+          status: 'validated',
           createdAt: { [Op.gte]: today },
         },
       }),
       models.Provisioning.findOne({
         where: {
           agentProfileId,
+          status: 'validated',
           createdAt: { [Op.gte]: today },
         },
         attributes: [[fn('COALESCE', fn('SUM', col('amount')), 0), 'totalAmount']],

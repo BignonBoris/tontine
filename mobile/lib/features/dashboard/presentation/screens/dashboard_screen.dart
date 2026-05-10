@@ -84,10 +84,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Image.asset(AppTheme.brandIconAsset),
             ),
             const SizedBox(width: 10),
-            Text(
-              "VizioBox",
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
+            const _DashboardWordmark(),
           ],
         ),
         actions: [
@@ -542,4 +539,78 @@ class AddGoalPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashboardWordmark extends StatelessWidget {
+  const _DashboardWordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: GoogleFonts.poppins(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
+        ),
+        children: [
+          const TextSpan(
+            text: 'V',
+            style: TextStyle(color: AppTheme.primaryColor),
+          ),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Text(
+                    'i',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  Positioned(
+                    top: -1,
+                    left: 4,
+                    child: CustomPaint(
+                      size: const Size(7, 5),
+                      painter: _InvertedTrianglePainter(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const TextSpan(
+            text: 'zio',
+            style: TextStyle(color: AppTheme.primaryColor),
+          ),
+          const TextSpan(
+            text: 'Box',
+            style: TextStyle(color: AppTheme.accentColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvertedTrianglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = AppTheme.accentColor;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

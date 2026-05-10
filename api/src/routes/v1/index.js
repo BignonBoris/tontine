@@ -2,6 +2,7 @@ const express = require('express');
 const authRoutes = require('../../modules/auth/auth.routes');
 const adminAuthRoutes = require('../../modules/admin-auth/admin-auth.routes');
 const adminRoutes = require('../../modules/admin/admin.routes');
+const adminCommissionsRoutes = require('../../modules/admin-commissions/admin-commissions.routes');
 const agentAuthRoutes = require('../../modules/agent-auth/agent-auth.routes');
 const agentClientsRoutes = require('../../modules/agent-clients/agent-clients.routes');
 const agentDashboardRoutes = require('../../modules/agent-dashboard/agent-dashboard.routes');
@@ -36,5 +37,6 @@ router.use('/tontine', tontineRoutes);
 router.use('/goals', goalsRoutes);
 router.use('/marketplace', marketplaceRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/admin/commissions', adminCommissionsRoutes);
 
 module.exports = router;

@@ -10,6 +10,22 @@ export const router = createRouter({
       component: () => import("@/views/authentication/auth2/Login.vue"),
       meta: { requiresAuth: false },
     },
+
+    {
+      path: "/auth/register2",
+      component: () => import("@/views/authentication/auth2/Register.vue"),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: "/auth/admin-login",
+      component: () => import("@/views/modules/auth/admin-login.vue"),
+      meta: { requiresAuth: false },
+    },
+
+
+
+
+
     ...MainRoutes,
   ],
 });

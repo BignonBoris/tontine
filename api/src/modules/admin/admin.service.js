@@ -5,6 +5,9 @@ const {
   applyAgentBalanceChange,
   generateCashReference,
 } = require('../agent-cash/agent-cash.service');
+const {
+  reverseProvisioningByAdmin,
+} = require('../agent-provisionings/agent-provisionings.service');
 
 function parsePagination(query = {}) {
   const page = Math.max(Number(query.page || 1), 1);
@@ -655,6 +658,14 @@ async function getAgentCashHistory(agentId, query = {}) {
   };
 }
 
+async function reverseProvisioningForAdmin(
+  provisioningId,
+  payload,
+  requestContext = {},
+) {
+  return reverseProvisioningByAdmin(provisioningId, payload, requestContext);
+}
+
 async function listWithdrawals(query = {}) {
   const { page, pageSize, offset, limit } = parsePagination(query);
   const status = String(query.status || '').trim();
@@ -716,14 +727,11 @@ async function getWithdrawalDetail(withdrawalId) {
     throw new AppError('Retrait introuvable.', 404);
   }
 
-  const [wallet, payer, payerAgentProfile, auditLogs] = await Promise.all([
+  const [wallet, payerAgentProfile, auditLogs] = await Promise.all([
     models.Wallet.findOne({ where: { userId: withdrawal.userId } }),
-    withdrawal.paidByUserId
-      ? models.User.findByPk(withdrawal.paidByUserId)
-      : Promise.resolve(null),
-    withdrawal.paidByUserId
-      ? models.AgentProfile.findOne({
-          where: { userId: withdrawal.paidByUserId },
+    withdrawal.paidByAgentProfileId
+      ? models.AgentProfile.findByPk(withdrawal.paidByAgentProfileId, {
+          include: [{ model: models.User, as: 'user', required: false }],
         })
       : Promise.resolve(null),
     models.AuditLog.findAll({
@@ -740,16 +748,17 @@ async function getWithdrawalDetail(withdrawalId) {
   return {
     withdrawal: {
       ...serializeWithdrawalEntry(withdrawal),
-      paidBy: payer
+      paidBy: payerAgentProfile
         ? {
-            id: payer.id,
-            displayName: payer.displayName,
-            phoneNumber: payer.phoneNumber,
-            agentCode: payerAgentProfile?.agentCode || null,
+            id: payerAgentProfile.user?.id || payerAgentProfile.id,
+            displayName:
+              payerAgentProfile.user?.displayName || payerAgentProfile.fullName,
+            phoneNumber: payerAgentProfile.user?.phoneNumber || null,
+            agentCode: payerAgentProfile.agentCode || null,
           }
         : null,
       initiatedByUserId: withdrawal.initiatedByUserId,
-      paidByUserId: withdrawal.paidByUserId,
+      paidByAgentProfileId: withdrawal.paidByAgentProfileId,
       confirmationCodeExpiresAt: withdrawal.confirmationCodeExpiresAt,
       confirmationCodeAttempts: Number(
         withdrawal.confirmationCodeAttempts || 0,
@@ -989,6 +998,7 @@ module.exports = {
   updateAgentStatus,
   topUpAgentCash,
   getAgentCashHistory,
+  reverseProvisioningForAdmin,
   listWithdrawals,
   getWithdrawalDetail,
   getOperationalAnomalies,

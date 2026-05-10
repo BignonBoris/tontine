@@ -3,7 +3,7 @@ const { getRequestContext } = require('../../common/utils/request-context');
 const service = require('./withdrawals.service');
 
 async function list(req, res) {
-  const data = await service.listWithdrawals(req.auth.userId);
+  const data = await service.listClientWithdrawals(req.auth.userId);
   return ok(res, data, 'Retraits charges.');
 }
 

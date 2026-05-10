@@ -22,6 +22,37 @@ const sidebarItem: menu[] = [
     icon: "home-smile-linear",
     to: "/dashboard",
     subCaption: "KPI et tendances",
+    // to: "/",
+    isPro: false,
+  },
+  {
+    title: "Commissions",
+    icon: "wallet-money-linear",
+    to: "/supervision/commissions",
+    isPro: false,
+  },
+
+
+  { header: "PAGES" },
+  {
+    title: "Tables",
+    icon: "tablet-linear",
+    to: "#",
+
+    children: [
+      {
+        title: 'Basic Table',
+        to: '/shadcn-table/basic',
+        isPro: false,
+      },
+      {
+        title: 'Hover Table',
+        to: '/shadcn-table/hover',
+        isPro: false,
+      },
+
+    ]
+
   },
   {
     title: "Clients",

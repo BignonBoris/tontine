@@ -68,7 +68,7 @@ void showAddGoalDialog(BuildContext context, DashboardBloc bloc) {
                   context: context,
                   initialDate: selectedEndDate,
                   firstDate: DateTime.now().add(const Duration(days: 1)),
-                  lastDate: DateTime.now().add(const Duration(days: 3650)),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
                   locale: const Locale("fr", "FR"),
                 );
                 if (picked != null) {

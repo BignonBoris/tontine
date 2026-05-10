@@ -11,7 +11,7 @@ class AgentApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'maTontine Agent',
+      title: 'VizioBox Agent',
       debugShowCheckedModeBanner: false,
       theme: AgentAppTheme.lightTheme,
       locale: const Locale('fr', 'FR'),

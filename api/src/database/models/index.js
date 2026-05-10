@@ -18,6 +18,12 @@ const MarketFavorite = require('./market-favorite.model');
 const MarketOrder = require('./market-order.model');
 const Notification = require('./notification.model');
 const Provisioning = require('./provisioning.model');
+const CommissionRule = require('./commission-rule.model');
+const CycleCommissionSnapshot = require('./cycle-commission-snapshot.model');
+const CommissionWallet = require('./commission-wallet.model');
+const CommissionLedgerEntry = require('./commission-ledger-entry.model');
+const WithdrawalCommissionReserve = require('./withdrawal-commission-reserve.model');
+const WithdrawalCommissionConsumption = require('./withdrawal-commission-consumption.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -41,6 +47,14 @@ Wallet.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 User.hasMany(Withdrawal, { foreignKey: 'userId', as: 'withdrawals' });
 Withdrawal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+AgentProfile.hasMany(Withdrawal, {
+  foreignKey: 'paidByAgentProfileId',
+  as: 'paidWithdrawals',
+});
+Withdrawal.belongsTo(AgentProfile, {
+  foreignKey: 'paidByAgentProfileId',
+  as: 'payingAgent',
+});
 
 User.hasMany(TontineCycle, { foreignKey: 'userId', as: 'tontineCycles' });
 TontineCycle.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -101,6 +115,7 @@ Provisioning.belongsTo(User, {
   foreignKey: 'validatedByUserId',
   as: 'validator',
 });
+
 AgentProfile.hasMany(AgentBalanceHistory, {
   foreignKey: 'agentProfileId',
   as: 'balanceHistory',
@@ -108,6 +123,71 @@ AgentProfile.hasMany(AgentBalanceHistory, {
 AgentBalanceHistory.belongsTo(AgentProfile, {
   foreignKey: 'agentProfileId',
   as: 'agentProfile',
+});
+
+User.hasMany(CycleCommissionSnapshot, {
+  foreignKey: 'userId',
+  as: 'commissionSnapshots',
+});
+CycleCommissionSnapshot.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+TontineCycle.hasOne(CycleCommissionSnapshot, {
+  foreignKey: 'tontineCycleId',
+  as: 'commissionSnapshot',
+});
+CycleCommissionSnapshot.belongsTo(TontineCycle, {
+  foreignKey: 'tontineCycleId',
+  as: 'cycle',
+});
+CommissionRule.hasMany(CycleCommissionSnapshot, {
+  foreignKey: 'commissionRuleId',
+  as: 'snapshots',
+});
+CycleCommissionSnapshot.belongsTo(CommissionRule, {
+  foreignKey: 'commissionRuleId',
+  as: 'rule',
+});
+
+CommissionWallet.hasMany(CommissionLedgerEntry, {
+  foreignKey: 'walletId',
+  as: 'entries',
+});
+CommissionLedgerEntry.belongsTo(CommissionWallet, {
+  foreignKey: 'walletId',
+  as: 'wallet',
+});
+
+User.hasMany(WithdrawalCommissionReserve, {
+  foreignKey: 'clientId',
+  as: 'withdrawalCommissionReserves',
+});
+WithdrawalCommissionReserve.belongsTo(User, {
+  foreignKey: 'clientId',
+  as: 'client',
+});
+TontineCycle.hasMany(WithdrawalCommissionReserve, {
+  foreignKey: 'cycleId',
+  as: 'withdrawalCommissionReserves',
+});
+WithdrawalCommissionReserve.belongsTo(TontineCycle, {
+  foreignKey: 'cycleId',
+  as: 'cycle',
+});
+CycleCommissionSnapshot.hasMany(WithdrawalCommissionReserve, {
+  foreignKey: 'snapshotId',
+  as: 'withdrawalCommissionReserves',
+});
+WithdrawalCommissionReserve.belongsTo(CycleCommissionSnapshot, {
+  foreignKey: 'snapshotId',
+  as: 'snapshot',
+});
+
+WithdrawalCommissionReserve.hasMany(WithdrawalCommissionConsumption, {
+  foreignKey: 'reserveId',
+  as: 'consumptions',
+});
+WithdrawalCommissionConsumption.belongsTo(WithdrawalCommissionReserve, {
+  foreignKey: 'reserveId',
+  as: 'reserve',
 });
 
 const models = {
@@ -130,6 +210,12 @@ const models = {
   MarketOrder,
   Notification,
   Provisioning,
+  CommissionRule,
+  CycleCommissionSnapshot,
+  CommissionWallet,
+  CommissionLedgerEntry,
+  WithdrawalCommissionReserve,
+  WithdrawalCommissionConsumption,
 };
 
 module.exports = { sequelize, models };

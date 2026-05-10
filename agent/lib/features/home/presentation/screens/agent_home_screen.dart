@@ -68,7 +68,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('maTontine Agent'),
+        automaticallyImplyLeading: false,
+        title: const Text('VizioBox Agent'),
         actions: [
           IconButton(
             onPressed: widget.onOpenHistory,
@@ -106,6 +107,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                 pendingCount: 0,
                 totalAmountToday: 0,
                 myClientsCount: 0,
+                commissionBalance: 0,
+                commissionPayableBalance: 0,
               );
 
           return RefreshIndicator(
@@ -159,6 +162,20 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                               label: 'Caisse disponible',
                               value: formatFcfa(overview.agentBalance),
                               onTap: widget.onOpenProvisioning,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            AgentOverviewTile(
+                              label: 'Commissions gagnees',
+                              value: formatFcfa(overview.commissionBalance),
+                            ),
+                            const SizedBox(width: 14),
+                            AgentOverviewTile(
+                              label: 'Operations en attente',
+                              value: '${overview.pendingCount}',
                             ),
                           ],
                         ),

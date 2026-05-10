@@ -45,6 +45,19 @@ async function agentCashHistory(req, res) {
   return ok(res, data, 'Historique de caisse agent charge.');
 }
 
+async function reverseProvisioning(req, res) {
+  const data = await service.reverseProvisioningForAdmin(
+    req.params.provisioningId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Provisioning corrige par admin.');
+}
+
 async function withdrawals(req, res) {
   const data = await service.listWithdrawals(req.query);
   return ok(res, data, 'Retraits charges.');
@@ -74,6 +87,7 @@ module.exports = {
   updateAgentStatus,
   topUpAgentCash,
   agentCashHistory,
+  reverseProvisioning,
   withdrawals,
   withdrawalDetail,
   anomalies,

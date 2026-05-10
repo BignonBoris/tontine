@@ -65,7 +65,11 @@ const Withdrawal = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
-    paidByUserId: {
+    rejectedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    paidByAgentProfileId: {
       type: DataTypes.UUID,
       allowNull: true,
     },
@@ -81,14 +85,19 @@ const Withdrawal = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: true,
     },
+    notes: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
   },
   {
     tableName: 'withdrawals',
     indexes: [
       { unique: true, fields: ['reference'] },
-      { fields: ['user_id', 'status', 'created_at'] },
+      { fields: ['user_id', 'created_at'] },
+      { fields: ['status', 'created_at'] },
       { fields: ['reference', 'status'] },
-      { fields: ['paid_by_user_id', 'created_at'] },
+      { fields: ['paid_by_agent_profile_id', 'created_at'] },
     ],
   },
 );

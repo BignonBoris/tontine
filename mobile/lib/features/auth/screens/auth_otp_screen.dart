@@ -393,14 +393,27 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
-    if (appLockEnabled) {
-      Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
+    if (_isRegistration) {
+      if (appLockEnabled) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false,
+        );
+        return;
+      }
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/auth_pin_setup',
+        (route) => false,
+      );
       return;
     }
 
     Navigator.pushNamedAndRemoveUntil(
       context,
-      '/auth_pin_setup',
+      appLockEnabled ? '/unlock' : '/dashboard',
       (route) => false,
     );
   }
