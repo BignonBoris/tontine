@@ -73,6 +73,12 @@ const sidebarItem: menu[] = [
     subCaption: "Suivi decaissements",
   },
   {
+    title: "Marketplace",
+    icon: "bag-smile-linear",
+    to: "/marketplace",
+    subCaption: "Demandes produits et coffres",
+  },
+  {
     title: "Audit",
     icon: "document-text-linear",
     to: "/audit",

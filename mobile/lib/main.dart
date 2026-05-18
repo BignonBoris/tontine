@@ -33,7 +33,7 @@ void main() async {
 
   await Hive.openBox<TontineGoal>('goals_box');
   await Hive.openBox('wallet_box');
-
+  await dotenv.load(fileName: ".env");
   runApp(const MaTontineApp());
 }
 
@@ -51,10 +51,7 @@ class MaTontineApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('fr', 'FR'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
       locale: const Locale('fr', 'FR'),
       initialRoute: '/',
       routes: {

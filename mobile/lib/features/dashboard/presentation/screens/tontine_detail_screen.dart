@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_archive_entry.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
@@ -260,6 +261,7 @@ class TontineDetailScreen extends StatelessWidget {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
+                inputFormatters: AppInputRules.amountFormatters,
                 autofocus: true,
                 onChanged: (_) {
                   if (errorMessage != null) {
@@ -278,7 +280,7 @@ class TontineDetailScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final amount = double.tryParse(controller.text);
                     final remaining =
                         cycle.targetAmount - cycle.cumulativeAmount;
@@ -306,6 +308,17 @@ class TontineDetailScreen extends StatelessWidget {
                         () => errorMessage =
                             "Solde disponible insuffisant",
                       );
+                      return;
+                    }
+
+                    final authorized =
+                        await LocalSecurityService.authorizeIfEnabled(
+                          context,
+                          title: 'Transferer vers la tontine',
+                          message:
+                              "Entrez votre PIN pour confirmer ce versement dans votre tontine.",
+                        );
+                    if (!context.mounted || !authorized) {
                       return;
                     }
 

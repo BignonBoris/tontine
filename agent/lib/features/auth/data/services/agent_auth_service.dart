@@ -1,5 +1,6 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/storage/session_storage.dart';
+import 'package:agent/core/utils/input_rules.dart';
 
 class AgentAuthService {
   final ApiClient _apiClient;
@@ -15,7 +16,7 @@ class AgentAuthService {
       '/agent/auth/login',
       authenticated: false,
       body: {
-        'phoneNumber': phoneNumber.replaceAll(RegExp(r'\D'), ''),
+        'phoneNumber': AgentInputRules.normalizePhone(phoneNumber),
         'pin': pin,
       },
     ) as Map<String, dynamic>;

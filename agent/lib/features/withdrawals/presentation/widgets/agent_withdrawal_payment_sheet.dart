@@ -1,6 +1,7 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/withdrawals/data/services/agent_withdrawal_service.dart';
 import 'package:agent/features/withdrawals/domain/entities/agent_pending_withdrawal.dart';
@@ -64,6 +65,7 @@ class _AgentWithdrawalPaymentSheetState
               TextField(
                 controller: _referenceController,
                 textCapitalization: TextCapitalization.characters,
+                inputFormatters: AgentInputRules.withdrawalReferenceFormatters,
                 decoration: InputDecoration(
                   labelText: 'Reference retrait',
                   hintText: 'Ex. WDR-...',
@@ -111,6 +113,8 @@ class _AgentWithdrawalPaymentSheetState
                 TextField(
                   controller: _confirmationCodeController,
                   keyboardType: TextInputType.number,
+                  inputFormatters:
+                      AgentInputRules.confirmationCodeFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Code de confirmation client',
                     hintText: 'Code a 6 chiffres',
@@ -154,7 +158,9 @@ class _AgentWithdrawalPaymentSheetState
   }
 
   Future<void> _search() async {
-    final reference = _referenceController.text.trim();
+    final reference = AgentInputRules.normalizeReference(
+      _referenceController.text,
+    );
     if (reference.isEmpty) {
       _showError('Entrez une reference de retrait.');
       return;

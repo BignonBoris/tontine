@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
@@ -64,6 +65,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _displayNameController,
+                  inputFormatters: AgentInputRules.personNameFormatters,
                   decoration: const InputDecoration(labelText: 'Nom complet'),
                   onChanged: (_) {
                     if (_errorMessage != null) {
@@ -71,7 +73,8 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                     }
                   },
                   validator: (value) {
-                    if (value == null || value.trim().length < 3) {
+                    if (value == null ||
+                        !AgentInputRules.isValidPersonName(value)) {
                       return 'Entrez le nom du client';
                     }
                     return null;
@@ -81,6 +84,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: AgentInputRules.phoneFormatters,
                   decoration: const InputDecoration(labelText: 'Telephone'),
                   onChanged: (_) {
                     if (_errorMessage != null) {
@@ -88,8 +92,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                     }
                   },
                   validator: (value) {
-                    final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
-                    if (digits.length != 8) {
+                    if (value == null || !AgentInputRules.isValidPhone(value)) {
                       return 'Entrez un numero valide';
                     }
                     return null;
@@ -117,6 +120,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                 TextFormField(
                   controller: _stakeController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AgentInputRules.amountFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Mise initiale',
                     suffixText: 'F CFA',
@@ -132,6 +136,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                 TextFormField(
                   controller: _initialDepositController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AgentInputRules.amountFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Premier depot (facultatif)',
                     suffixText: 'F CFA',
@@ -217,8 +222,10 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     });
     try {
       final client = await _service.createClient(
-        displayName: _displayNameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
+        displayName: AgentInputRules.normalizePersonName(
+          _displayNameController.text,
+        ),
+        phoneNumber: AgentInputRules.normalizePhone(_phoneController.text),
         address: _addressController.text.trim(),
         stakeAmount: stakeAmount,
         initialDeposit: initialDeposit,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 
 class ConfigureTontineStakeModal extends StatefulWidget {
   final Future<void> Function(double amount) onSubmit;
@@ -103,7 +104,7 @@ class _ConfigureTontineStakeModalState
                   TextFormField(
                     controller: _amountController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: AppInputRules.amountFormatters,
                     decoration: const InputDecoration(
                       labelText: "Mise par cycle",
                       hintText: "Ex: 1 000",

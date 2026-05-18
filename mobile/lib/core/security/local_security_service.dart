@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalSecuritySettings {
@@ -135,6 +137,7 @@ class _LocalPinDialogState extends State<_LocalPinDialog> {
             keyboardType: TextInputType.number,
             obscureText: true,
             maxLength: 4,
+            inputFormatters: AppInputRules.pinFormatters,
             decoration: InputDecoration(
               labelText: 'Code PIN',
               errorText: _error,

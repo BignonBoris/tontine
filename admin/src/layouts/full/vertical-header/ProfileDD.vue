@@ -38,7 +38,7 @@ const profileItems = computed(() => [
 
 async function handleLogout() {
   authStore.logout();
-  await router.push("/auth/login2");
+  await router.push("/auth/admin-login");
 }
 </script>
 

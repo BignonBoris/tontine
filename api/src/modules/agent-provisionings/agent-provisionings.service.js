@@ -281,7 +281,7 @@ async function reverseProvisioningCore(
       {
         status: 'cancelled',
         reversedAt,
-        reversedByUserId: agentProfile.userId,
+        reversedByUserId: actorUserId,
         reversalReason: reason,
         notes: provisioning.notes
           ? `${provisioning.notes} | Correction: ${reason}`

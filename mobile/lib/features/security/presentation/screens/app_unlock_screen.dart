@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 
 class AppUnlockScreen extends StatefulWidget {
   final bool replaceStack;
@@ -163,8 +164,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                                 }
                               },
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                                LengthLimitingTextInputFormatter(4),
+                                ...AppInputRules.pinFormatters,
                               ],
                               decoration: InputDecoration(
                                 labelText: 'Code PIN',

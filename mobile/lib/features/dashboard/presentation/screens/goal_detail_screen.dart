@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -298,6 +299,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 TextField(
                   controller: amountController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AppInputRules.amountFormatters,
                   autofocus: true,
                   onChanged: (_) {
                     if (errorMessage != null) {
@@ -320,7 +322,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final amount = double.tryParse(amountController.text);
 
                       if (amount == null || amount <= 0) {
@@ -341,6 +343,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           () => errorMessage =
                               "Le montant depasse l'objectif",
                         );
+                        return;
+                      }
+
+                      final authorized =
+                          await LocalSecurityService.authorizeIfEnabled(
+                            context,
+                            title: 'Effectuer un depot',
+                            message:
+                                "Entrez votre PIN pour confirmer le depot vers ${goal.title}.",
+                          );
+                      if (!context.mounted || !authorized) {
                         return;
                       }
 

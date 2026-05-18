@@ -1,13 +1,19 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { dashboardService } from "@/services/dashboard/dashboardService";
-import type { OperationalAnomalies, OverviewData } from "@/types/platform";
+import type {
+  MarketplaceOverviewData,
+  OperationalAnomalies,
+  OverviewData,
+} from "@/types/platform";
 
 export const useDashboardStore = defineStore("dashboard", () => {
   const overview = ref<OverviewData | null>(null);
   const anomalies = ref<OperationalAnomalies | null>(null);
+  const marketplaceOverview = ref<MarketplaceOverviewData | null>(null);
   const isLoading = ref(false);
   const isAnomaliesLoading = ref(false);
+  const isMarketplaceLoading = ref(false);
 
   async function fetchOverview() {
     isLoading.value = true;
@@ -29,12 +35,25 @@ export const useDashboardStore = defineStore("dashboard", () => {
     }
   }
 
+  async function fetchMarketplaceOverview() {
+    isMarketplaceLoading.value = true;
+    try {
+      marketplaceOverview.value = await dashboardService.getMarketplaceOverview();
+      return marketplaceOverview.value;
+    } finally {
+      isMarketplaceLoading.value = false;
+    }
+  }
+
   return {
     overview,
     anomalies,
+    marketplaceOverview,
     isLoading,
     isAnomaliesLoading,
+    isMarketplaceLoading,
     fetchOverview,
     fetchAnomalies,
+    fetchMarketplaceOverview,
   };
 });

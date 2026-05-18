@@ -9,6 +9,13 @@ function errorHandler(error, req, res, next) {
     });
   }
 
+  console.error('Unhandled API error', {
+    method: req.method,
+    path: req.originalUrl,
+    message: error?.message,
+    stack: error?.stack,
+  });
+
   return res.status(500).json({
     success: false,
     message: 'Une erreur interne est survenue.',

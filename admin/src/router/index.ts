@@ -32,23 +32,25 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
+  const isAdminLoginRoute =
+    to.path === "/auth/admin-login" || to.path === "/auth/login2";
 
   if (!to.meta.requiresAuth) {
-    if (to.path === "/auth/login2" && authStore.isAuthenticated) {
+    if (isAdminLoginRoute && authStore.isAuthenticated) {
       return { path: "/dashboard" };
     }
     return true;
   }
 
   if (!authStore.token) {
-    return { path: "/auth/login2" };
+    return { path: "/auth/admin-login" };
   }
 
   if (!authStore.admin) {
     try {
       await authStore.hydrateSession();
     } catch {
-      return { path: "/auth/login2" };
+      return { path: "/auth/admin-login" };
     }
   }
 

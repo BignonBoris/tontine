@@ -1,7 +1,12 @@
 const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models } = require('../../database/models');
-const { displayPhone, normalizePhone } = require('../auth/auth.service');
+const {
+  displayPhone,
+  normalizePhone,
+  normalizeDisplayName,
+  isValidDisplayName,
+} = require('../auth/auth.service');
 
 async function getProfile(userId) {
   const user = await models.User.findByPk(userId, {
@@ -29,9 +34,21 @@ async function updateProfile(userId, payload, requestContext = {}) {
   }
 
   const updates = {};
-  if (payload.displayName) updates.displayName = payload.displayName;
+  if (payload.displayName != null) {
+    const displayName = normalizeDisplayName(payload.displayName);
+    if (!isValidDisplayName(displayName)) {
+      throw new AppError('Le nom affiche est invalide.', 422);
+    }
+    updates.displayName = displayName;
+  }
   if (payload.accountType) updates.accountType = payload.accountType;
-  if (payload.phoneNumber) updates.phoneNumber = normalizePhone(payload.phoneNumber);
+  if (payload.phoneNumber != null) {
+    const phoneNumber = normalizePhone(payload.phoneNumber);
+    if (phoneNumber.length !== 10) {
+      throw new AppError('Le numero de telephone est invalide.', 422);
+    }
+    updates.phoneNumber = phoneNumber;
+  }
 
   await user.update(updates);
   await writeAuditLog({

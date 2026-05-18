@@ -8,6 +8,13 @@ const router = express.Router();
 router.use(authenticateAdmin);
 
 router.get('/overview', asyncHandler(controller.overview));
+router.get('/marketplace/overview', asyncHandler(controller.marketplaceOverview));
+router.get('/marketplace/offers', asyncHandler(controller.marketplaceOffers));
+router.post('/marketplace/offers', asyncHandler(controller.createMarketplaceOffer));
+router.patch('/marketplace/offers/:offerId', asyncHandler(controller.updateMarketplaceOffer));
+router.patch('/marketplace/offers/:offerId/status', asyncHandler(controller.updateMarketplaceOfferStatus));
+router.get('/marketplace/orders', asyncHandler(controller.marketplaceOrders));
+router.get('/marketplace/goals', asyncHandler(controller.marketplaceGoals));
 router.get('/anomalies', asyncHandler(controller.anomalies));
 router.get('/clients', asyncHandler(controller.clients));
 router.get('/clients/:userId', asyncHandler(controller.clientDetail));

@@ -20,10 +20,10 @@ function signAgentToken(user) {
 
 async function loginAgent({ phoneNumber, pin }, context = {}) {
   const normalizedPhone = normalizePhone(phoneNumber);
-  if (normalizedPhone.length !== 8) {
+  if (normalizedPhone.length !== 10) {
     throw new AppError('Le numero agent est invalide.', 422);
   }
-  if (!pin || String(pin).trim().length < 4) {
+  if (!pin || !/^\d{4}$/.test(String(pin).trim())) {
     throw new AppError('Le code PIN agent est invalide.', 422);
   }
 

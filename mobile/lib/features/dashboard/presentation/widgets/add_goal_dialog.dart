@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
@@ -51,7 +51,7 @@ void showAddGoalDialog(BuildContext context, DashboardBloc bloc) {
             TextField(
               controller: targetController,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: AppInputRules.amountFormatters,
               decoration: InputDecoration(
                 labelText: "Montant cible (F CFA)",
                 border: OutlineInputBorder(

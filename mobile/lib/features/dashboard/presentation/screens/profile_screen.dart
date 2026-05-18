@@ -7,6 +7,7 @@ import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/user_profile.dart';
@@ -305,12 +306,14 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 18),
               TextFormField(
                 controller: nameController,
+                inputFormatters: AppInputRules.personNameFormatters,
                 decoration: const InputDecoration(
                   labelText: "Nom affiche",
                   hintText: "Votre nom visible dans l'application",
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().length < 3) {
+                  if (value == null ||
+                      !AppInputRules.isValidPersonName(value)) {
                     return "Entrez un nom valide";
                   }
                   return null;
@@ -320,12 +323,13 @@ class ProfileScreen extends StatelessWidget {
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
+                inputFormatters: AppInputRules.phoneFormatters,
                 decoration: const InputDecoration(
                   labelText: "Numero de telephone",
-                  hintText: "+229 00 00 00 00",
+                  hintText: "+229 00 00 00 00 00",
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().length < 8) {
+                  if (value == null || !AppInputRules.isValidPhone(value)) {
                     return "Entrez un numero valide";
                   }
                   return null;
@@ -369,8 +373,12 @@ class ProfileScreen extends StatelessWidget {
                     }
 
                     final updatedProfile = state.profile.copyWith(
-                      displayName: nameController.text.trim(),
-                      phoneNumber: phoneController.text.trim(),
+                      displayName: AppInputRules.normalizePersonName(
+                        nameController.text,
+                      ),
+                      phoneNumber: AppInputRules.normalizePhone(
+                        phoneController.text,
+                      ),
                     );
                     context.read<DashboardBloc>().add(
                       SaveUserProfile(updatedProfile),
@@ -486,7 +494,7 @@ class ProfileScreen extends StatelessWidget {
       return;
     }
 
-    var pinEnabled = localSettings.pinEnabled;
+    var pinEnabled = true;
     var biometricEnabled = localSettings.biometricEnabled;
     final pinController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -521,14 +529,11 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 _PreferenceSwitchTile(
-                  title: "Activer un code PIN",
-                  subtitle: "Ajouter un code local pour proteger l'acces",
+                  title: "Code PIN obligatoire",
+                  subtitle:
+                      "Le code PIN local reste actif pour proteger l'acces a l'application",
                   value: pinEnabled,
-                  onChanged: (value) {
-                    setModalState(() {
-                      pinEnabled = value;
-                    });
-                  },
+                  onChanged: (_) {},
                 ),
                 if (pinEnabled) ...[
                   const SizedBox(height: 10),
@@ -536,23 +541,29 @@ class ProfileScreen extends StatelessWidget {
                     controller: pinController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
+                      ...AppInputRules.pinFormatters,
                     ],
                     decoration: const InputDecoration(
                       labelText: "Code PIN",
                       hintText: "4 chiffres",
                     ),
                     validator: (value) {
-                      if (!pinEnabled) {
-                        return null;
-                      }
                       if (!localSettings.pinEnabled &&
                           (value == null || value.trim().length != 4)) {
                         return "Entrez un PIN a 4 chiffres";
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    localSettings.pinEnabled
+                        ? "Laissez le champ vide pour conserver votre PIN actuel."
+                        : "Definissez maintenant votre PIN local a 4 chiffres.",
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppTheme.textSecondaryColor,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 10),
@@ -590,14 +601,16 @@ class ProfileScreen extends StatelessWidget {
                       }
 
                       await LocalSecurityService.saveSettings(
-                        pinEnabled: pinEnabled,
+                        pinEnabled: true,
                         biometricEnabled: biometricEnabled,
-                        pinCode: pinController.text.trim(),
-                        clearPin: !pinEnabled,
+                        pinCode: pinController.text.trim().isEmpty
+                            ? null
+                            : pinController.text.trim(),
+                        clearPin: false,
                       );
 
                       final updatedPreferences = state.preferences.copyWith(
-                        pinEnabled: pinEnabled,
+                        pinEnabled: true,
                         biometricEnabled: biometricEnabled,
                         clearPinCode: true,
                       );

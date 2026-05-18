@@ -2,6 +2,7 @@ const MainRoutes = [
   {
     path: '/',
     component: () => import('../layouts/full/FullLayout.vue'),
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',
@@ -31,6 +32,11 @@ const MainRoutes = [
         name: "Withdrawals",
         path: "/withdrawals",
         component: () => import("../views/platform/WithdrawalsView.vue"),
+      },
+      {
+        name: "Marketplace",
+        path: "/marketplace",
+        component: () => import("../views/platform/MarketplaceView.vue"),
       },
       {
         name: "Audit",

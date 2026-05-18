@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 
 class AuthPinSetupScreen extends StatefulWidget {
   const AuthPinSetupScreen({super.key});
@@ -110,7 +111,7 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          "Ce code PIN vous servira a deverrouiller rapidement l'application sur cet appareil.",
+                          "Ce code PIN est obligatoire pour proteger l'acces a votre espace sur cet appareil.",
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             color: Colors.white.withValues(alpha: 0.78),
@@ -141,6 +142,27 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            "Sans ce PIN, l'application ne permettra plus l'acces au tableau de bord.",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.90),
+                              height: 1.45,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -241,8 +263,7 @@ class _PinInputCard extends StatelessWidget {
         keyboardType: TextInputType.number,
         obscureText: true,
         inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(4),
+          ...AppInputRules.pinFormatters,
         ],
         decoration: InputDecoration(
           labelText: label,

@@ -16,6 +16,10 @@ const MarketOffer = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    descriptionHtml: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     imageUrl: {
       type: DataTypes.STRING(255),
       allowNull: false,

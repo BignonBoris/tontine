@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 
 class AuthIdentificationScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   final TextEditingController _phoneController = TextEditingController();
   bool _isValid = false;
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -38,7 +40,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
 
     setState(() {
       _phoneController.text = suggestedPhone;
-      _isValid = LocalAuthService.normalizePhone(suggestedPhone).length == 8;
+      _isValid = LocalAuthService.normalizePhone(suggestedPhone).length == 10;
     });
   }
 
@@ -201,12 +203,14 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                 controller: _phoneController,
                                 keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.done,
+                                inputFormatters: AppInputRules.phoneFormatters,
                                 onChanged: (value) {
                                   setState(() {
+                                    _errorMessage = null;
                                     _isValid =
                                         LocalAuthService.normalizePhone(value)
                                             .length ==
-                                        8;
+                                        10;
                                   });
                                 },
                                 style: GoogleFonts.poppins(
@@ -216,7 +220,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                   color: AppTheme.textPrimaryColor,
                                 ),
                                 decoration: const InputDecoration(
-                                  hintText: '00 00 00 00',
+                                  hintText: '00 00 00 00 00',
                                   border: InputBorder.none,
                                   hintStyle: TextStyle(
                                     color: AppTheme.textSecondaryColor,
@@ -228,6 +232,65 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                           ],
                         ),
                       ),
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F2),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: const Color(0xFFFECACA),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.error_outline_rounded,
+                                  color: Color(0xFFB91C1C),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFFB91C1C),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _errorMessage = null;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(999),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    color: Color(0xFFB91C1C),
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   Padding(
@@ -296,6 +359,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     FocusScope.of(context).unfocus();
     setState(() {
       _isSubmitting = true;
+      _errorMessage = null;
     });
 
     final result = await LocalAuthService.requestOtp(
@@ -312,9 +376,9 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     });
 
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message)));
+      setState(() {
+        _errorMessage = result.message;
+      });
       return;
     }
 

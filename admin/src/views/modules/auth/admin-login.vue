@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { adminLogin } from '@/lib/admin-api'
+import { useAuthStore } from '@/stores/auth'
+import { getErrorMessage } from '@/services/http/errors'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const username = ref('admin')
 const password = ref('')
 const isSubmitting = ref(false)
@@ -14,10 +16,10 @@ async function submit() {
   isSubmitting.value = true
 
   try {
-    await adminLogin(username.value, password.value)
+    await authStore.login(username.value, password.value)
     await router.push('/supervision/commissions')
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Connexion impossible.'
+    errorMessage.value = getErrorMessage(error, 'Connexion impossible.')
   } finally {
     isSubmitting.value = false
   }
