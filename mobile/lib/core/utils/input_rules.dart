@@ -20,7 +20,7 @@ class AppInputRules {
 
   static final List<TextInputFormatter> otpFormatters = [
     FilteringTextInputFormatter.digitsOnly,
-    LengthLimitingTextInputFormatter(1),
+    LengthLimitingTextInputFormatter(4),
   ];
 
   static final List<TextInputFormatter> personNameFormatters = [
