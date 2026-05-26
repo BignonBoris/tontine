@@ -28,6 +28,7 @@ class AgentGroupContribution {
   });
 
   bool get isPaid => status == 'paid';
+  bool get isMissed => status == 'missed';
 
   factory AgentGroupContribution.fromMap(Map<dynamic, dynamic> map) {
     return AgentGroupContribution(
@@ -97,29 +98,44 @@ class AgentGroupContributionParty {
 }
 
 class AgentGroupTurn {
+  final String id;
   final int turnNumber;
   final DateTime? dueDate;
   final double amount;
+  final String status;
+  final String? payoutMethod;
+  final DateTime? payoutAt;
   final AgentGroupContributionParty? beneficiary;
   final List<AgentGroupContribution> contributions;
 
   const AgentGroupTurn({
+    required this.id,
     required this.turnNumber,
     required this.dueDate,
     required this.amount,
+    required this.status,
+    required this.payoutMethod,
+    required this.payoutAt,
     required this.beneficiary,
     required this.contributions,
   });
 
   int get paidCount => contributions.where((item) => item.isPaid).length;
   int get totalCount => contributions.length;
+  bool get isReadyForPayout => status == 'ready';
+  bool get isPaidOut => status == 'paid';
+  bool get isBlocked => status == 'blocked';
 
   factory AgentGroupTurn.fromMap(Map<dynamic, dynamic> map) {
     final items = map['contributions'] as List<dynamic>? ?? const [];
     return AgentGroupTurn(
+      id: '${map['id'] ?? ''}',
       turnNumber: AgentGroupContribution._toInt(map['turnNumber']),
       dueDate: AgentGroupContribution._toDate(map['dueDate']),
       amount: AgentGroupContribution._toDouble(map['amount']),
+      status: '${map['status'] ?? 'collecting'}',
+      payoutMethod: map['payoutMethod']?.toString(),
+      payoutAt: AgentGroupContribution._toDate(map['payoutAt']),
       beneficiary: map['beneficiary'] is Map
           ? AgentGroupContributionParty.fromMap(
               Map<dynamic, dynamic>.from(map['beneficiary'] as Map),

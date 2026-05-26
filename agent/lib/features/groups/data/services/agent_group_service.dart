@@ -311,6 +311,29 @@ class AgentGroupService {
             as Map<dynamic, dynamic>;
     return AgentGroupContribution.fromMap(Map<dynamic, dynamic>.from(data));
   }
+
+  Future<AgentGroupContribution> markContributionMissed({
+    required String groupId,
+    required String contributionId,
+    String? reason,
+  }) async {
+    final data = await _apiClient.post(
+          '/agent/groups/$groupId/contributions/$contributionId/missed',
+          body: reason == null || reason.trim().isEmpty ? null : {'reason': reason},
+        )
+        as Map<dynamic, dynamic>;
+    return AgentGroupContribution.fromMap(Map<dynamic, dynamic>.from(data));
+  }
+
+  Future<AgentGroupTurn> payoutTurn({
+    required String groupId,
+    required String turnId,
+  }) async {
+    final data =
+        await _apiClient.post('/agent/groups/$groupId/turns/$turnId/payout')
+            as Map<dynamic, dynamic>;
+    return AgentGroupTurn.fromMap(Map<dynamic, dynamic>.from(data));
+  }
 }
 
 class AgentGroupMemberMutationResult {

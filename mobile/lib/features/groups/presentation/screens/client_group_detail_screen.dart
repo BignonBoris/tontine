@@ -139,7 +139,11 @@ class _ClientGroupDetailScreenState extends State<ClientGroupDetailScreen> {
                           const SizedBox(height: 10),
                           _FactRow(
                             label: 'Statut',
-                            value: nextContribution.isPaid ? 'Payee' : 'En attente',
+                            value: nextContribution.isPaid
+                                ? 'Payee'
+                                : nextContribution.isMissed
+                                ? 'Impayee'
+                                : 'En attente',
                           ),
                           if (!nextContribution.isPaid) ...[
                             const SizedBox(height: 16),

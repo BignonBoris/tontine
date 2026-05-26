@@ -224,6 +224,32 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Text(
                     'Cotisations: ${currentTurn.paidCount}/${currentTurn.totalCount} | Montant: ${currentTurn.amount.toStringAsFixed(0)} F',
                   ),
+                  if (currentTurn.isBlocked) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Ce tour est bloque par au moins une cotisation impayee.',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFB42318),
+                      ),
+                    ),
+                  ],
+                  if (currentTurn.isReadyForPayout) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _payoutTurn(group, currentTurn),
+                        child: const Text('Verser le beneficiaire du tour'),
+                      ),
+                    ),
+                  ] else if (currentTurn.isPaidOut) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Beneficiaire deja verse pour ce tour.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   ...currentTurn.contributions.map(
                     (contribution) => ListTile(
@@ -234,16 +260,31 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       subtitle: Text(
                         contribution.isPaid
                             ? 'Reglee'
+                            : contribution.isMissed
+                            ? 'Impayee'
                             : 'En attente',
                       ),
                       trailing: contribution.isPaid
                           ? const Icon(Icons.check_circle, color: Color(0xFF067647))
-                          : TextButton(
-                              onPressed: () => _collectContribution(
-                                group,
-                                contribution,
-                              ),
-                              child: const Text('Encaisser'),
+                          : Wrap(
+                              spacing: 4,
+                              children: [
+                                TextButton(
+                                  onPressed: () => _collectContribution(
+                                    group,
+                                    contribution,
+                                  ),
+                                  child: const Text('Encaisser'),
+                                ),
+                                if (!contribution.isMissed)
+                                  TextButton(
+                                    onPressed: () => _markContributionMissed(
+                                      group,
+                                      contribution,
+                                    ),
+                                    child: const Text('Impaye'),
+                                  ),
+                              ],
                             ),
                     ),
                   ),
@@ -834,6 +875,74 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       }
       _reload();
       _showMessage('Cotisation de groupe enregistree avec succes.');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(error.message);
+    }
+  }
+
+  Future<void> _payoutTurn(
+    AgentGroup group,
+    AgentGroupTurn turn,
+  ) async {
+    try {
+      await _service.payoutTurn(
+        groupId: group.id,
+        turnId: turn.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      _reload();
+      _showMessage('Beneficiaire du tour verse avec succes.');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(error.message);
+    }
+  }
+
+  Future<void> _markContributionMissed(
+    AgentGroup group,
+    AgentGroupContribution contribution,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Marquer en impaye'),
+        content: Text(
+          'Confirmer l impaye pour ${contribution.member?.displayName ?? 'ce participant'} sur le tour ${contribution.turnNumber} ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _service.markContributionMissed(
+        groupId: group.id,
+        contributionId: contribution.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      _reload();
+      _showMessage('Cotisation marquee en impaye.');
     } on ApiException catch (error) {
       if (!mounted) {
         return;
