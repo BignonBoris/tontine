@@ -7,6 +7,7 @@ const agentAuthRoutes = require('../../modules/agent-auth/agent-auth.routes');
 const agentClientsRoutes = require('../../modules/agent-clients/agent-clients.routes');
 const agentDashboardRoutes = require('../../modules/agent-dashboard/agent-dashboard.routes');
 const agentCashRoutes = require('../../modules/agent-cash/agent-cash.routes');
+const agentGroupsRoutes = require('../../modules/agent-groups/agent-groups.routes');
 const agentProvisioningsRoutes = require('../../modules/agent-provisionings/agent-provisionings.routes');
 const agentWithdrawalsRoutes = require('../../modules/agent-withdrawals/agent-withdrawals.routes');
 const profileRoutes = require('../../modules/profile/profile.routes');
@@ -17,6 +18,9 @@ const tontineRoutes = require('../../modules/tontine/tontine.routes');
 const goalsRoutes = require('../../modules/goals/goals.routes');
 const marketplaceRoutes = require('../../modules/marketplace/marketplace.routes');
 const dashboardRoutes = require('../../modules/dashboard/dashboard.routes');
+const clientGroupsRoutes = require('../../modules/client-groups/client-groups.routes');
+const clientGroupInvitationsRoutes = require('../../modules/client-group-invitations/client-group-invitations.routes');
+const groupInvitationsRoutes = require('../../modules/group-invitations/group-invitations.routes');
 
 const router = express.Router();
 
@@ -27,6 +31,7 @@ router.use('/agent/auth', agentAuthRoutes);
 router.use('/agent/clients', agentClientsRoutes);
 router.use('/agent/dashboard', agentDashboardRoutes);
 router.use('/agent/cash', agentCashRoutes);
+router.use('/agent/groups', agentGroupsRoutes);
 router.use('/agent/provisionings', agentProvisioningsRoutes);
 router.use('/agent/withdrawals', agentWithdrawalsRoutes);
 router.use('/profile', profileRoutes);
@@ -37,6 +42,9 @@ router.use('/tontine', tontineRoutes);
 router.use('/goals', goalsRoutes);
 router.use('/marketplace', marketplaceRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/client/groups', clientGroupsRoutes);
+router.use('/client/group-invitations', clientGroupInvitationsRoutes);
 router.use('/admin/commissions', adminCommissionsRoutes);
+router.use('/group-invitations', groupInvitationsRoutes);
 
 module.exports = router;

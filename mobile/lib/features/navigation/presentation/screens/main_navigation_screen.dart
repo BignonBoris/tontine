@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
+import 'package:mobile/features/groups/presentation/screens/group_invitation_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/goals_list_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/marketplace_screen.dart';
@@ -28,6 +30,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openPendingInvitationIfNeeded();
+    });
   }
 
   @override
@@ -73,6 +78,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       ),
     );
     _unlockRouteOpen = false;
+  }
+
+  Future<void> _openPendingInvitationIfNeeded() async {
+    if (!mounted) {
+      return;
+    }
+    final token = await SessionStorage.getPendingGroupInvitationToken();
+    if (!mounted || token == null || token.isEmpty) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => GroupInvitationScreen(
+          token: token,
+          launchedFromPending: true,
+        ),
+      ),
+    );
   }
 
   @override

@@ -13,6 +13,8 @@ import 'package:mobile/features/auth/screens/auth_pin_setup_screen.dart';
 import 'package:mobile/features/dashboard/data/services/notification_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_transaction.dart';
+import 'package:mobile/features/groups/presentation/screens/group_invitation_screen.dart';
+import 'package:mobile/features/groups/presentation/screens/group_qr_scanner_screen.dart';
 import 'package:mobile/features/navigation/presentation/bloc/navigation_bloc.dart';
 import 'package:mobile/features/navigation/presentation/screens/main_navigation_screen.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
@@ -54,6 +56,20 @@ class MaTontineApp extends StatelessWidget {
       supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
       locale: const Locale('fr', 'FR'),
       initialRoute: '/',
+      onGenerateRoute: (settings) {
+        final routeName = settings.name ?? '';
+        final uri = Uri.tryParse(routeName);
+        if (uri != null &&
+            uri.pathSegments.length == 2 &&
+            uri.pathSegments[0] == 'group-invitations') {
+          final token = uri.pathSegments[1];
+          return MaterialPageRoute<void>(
+            builder: (_) => GroupInvitationScreen(token: token),
+            settings: settings,
+          );
+        }
+        return null;
+      },
       routes: {
         '/': (context) => const SplashScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
@@ -65,6 +81,7 @@ class MaTontineApp extends StatelessWidget {
         '/auth_otp': (context) => const AuthOtpScreen(),
         '/auth_pin_setup': (context) => const AuthPinSetupScreen(),
         '/unlock': (context) => const AppUnlockScreen(),
+        '/group-scanner': (context) => const GroupQrScannerScreen(),
         '/dashboard': (context) => BlocProvider(
           create: (context) => NavigationBloc(),
           child: const MainNavigationScreen(),

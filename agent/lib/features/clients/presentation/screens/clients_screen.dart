@@ -213,6 +213,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'clients_add_fab',
         onPressed: _openCreateClientSheet,
         label: const Text('Ajouter'),
         icon: const Icon(Icons.person_add_alt_1_rounded),

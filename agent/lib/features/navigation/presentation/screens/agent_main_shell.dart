@@ -1,8 +1,9 @@
+import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/features/clients/presentation/screens/clients_screen.dart';
+import 'package:agent/features/groups/presentation/screens/groups_screen.dart';
 import 'package:agent/features/history/presentation/screens/history_screen.dart';
 import 'package:agent/features/home/presentation/screens/agent_home_screen.dart';
 import 'package:agent/features/provisioning/presentation/screens/provisioning_screen.dart';
-import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:flutter/material.dart';
 
 class AgentMainShell extends StatefulWidget {
@@ -27,10 +28,11 @@ class _AgentMainShellState extends State<AgentMainShell> {
       AgentHomeScreen(
         onOpenClients: () => _goToTab(1),
         onOpenProvisioning: () => _goToTab(2),
-        onOpenHistory: () => _goToTab(3),
+        onOpenHistory: () => _goToTab(4),
       ),
       const ClientsScreen(),
       const ProvisioningScreen(),
+      const GroupsScreen(),
       const HistoryScreen(),
     ];
 
@@ -57,7 +59,11 @@ class _AgentMainShellState extends State<AgentMainShell> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.add_card_rounded),
-            label: 'Opérations',
+            label: 'Operations',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.groups_2_outlined),
+            label: 'Groupes',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long_outlined),

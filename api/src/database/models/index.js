@@ -5,6 +5,9 @@ const AuthOtp = require('./auth-otp.model');
 const AuditLog = require('./audit-log.model');
 const AgentProfile = require('./agent-profile.model');
 const AgentBalanceHistory = require('./agent-balance-history.model');
+const AgentGroup = require('./agent-group.model');
+const AgentGroupMember = require('./agent-group-member.model');
+const AgentGroupContribution = require('./agent-group-contribution.model');
 const Wallet = require('./wallet.model');
 const Withdrawal = require('./withdrawal.model');
 const TontineCycle = require('./tontine-cycle.model');
@@ -124,6 +127,54 @@ AgentBalanceHistory.belongsTo(AgentProfile, {
   foreignKey: 'agentProfileId',
   as: 'agentProfile',
 });
+AgentProfile.hasMany(AgentGroup, {
+  foreignKey: 'agentProfileId',
+  as: 'groups',
+});
+AgentGroup.belongsTo(AgentProfile, {
+  foreignKey: 'agentProfileId',
+  as: 'agentProfile',
+});
+AgentGroup.hasMany(AgentGroupMember, {
+  foreignKey: 'groupId',
+  as: 'members',
+});
+AgentGroupMember.belongsTo(AgentGroup, {
+  foreignKey: 'groupId',
+  as: 'group',
+});
+User.hasMany(AgentGroupMember, {
+  foreignKey: 'clientUserId',
+  as: 'groupMemberships',
+});
+AgentGroupMember.belongsTo(User, {
+  foreignKey: 'clientUserId',
+  as: 'client',
+});
+AgentGroup.hasMany(AgentGroupContribution, {
+  foreignKey: 'groupId',
+  as: 'contributions',
+});
+AgentGroupContribution.belongsTo(AgentGroup, {
+  foreignKey: 'groupId',
+  as: 'group',
+});
+AgentGroupMember.hasMany(AgentGroupContribution, {
+  foreignKey: 'memberId',
+  as: 'contributions',
+});
+AgentGroupContribution.belongsTo(AgentGroupMember, {
+  foreignKey: 'memberId',
+  as: 'member',
+});
+AgentGroupMember.hasMany(AgentGroupContribution, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryTurns',
+});
+AgentGroupContribution.belongsTo(AgentGroupMember, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryMember',
+});
 
 User.hasMany(CycleCommissionSnapshot, {
   foreignKey: 'userId',
@@ -197,6 +248,9 @@ const models = {
   AuditLog,
   AgentProfile,
   AgentBalanceHistory,
+  AgentGroup,
+  AgentGroupMember,
+  AgentGroupContribution,
   Wallet,
   Withdrawal,
   TontineCycle,

@@ -47,6 +47,22 @@ class ApiClient {
     return _extractData(response);
   }
 
+  Future<dynamic> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+  }) async {
+    print(Uri.parse('${ApiConfig.baseUrl}$path'));
+    final response = await _sendRequest(
+      () async => _client.patch(
+        Uri.parse('${ApiConfig.baseUrl}$path'),
+        headers: await _headers(authenticated),
+        body: jsonEncode(body ?? <String, dynamic>{}),
+      ),
+    );
+    return _extractData(response);
+  }
+
   Future<Map<String, String>> _headers(bool authenticated) async {
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (authenticated) {

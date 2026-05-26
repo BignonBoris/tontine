@@ -7,6 +7,10 @@ const env = {
   port: Number(process.env.PORT || 3000),
   appName: process.env.APP_NAME || 'maTontine API',
   appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+  clientAppBaseUrl:
+    process.env.CLIENT_APP_BASE_URL ||
+    process.env.APP_BASE_URL ||
+    'http://localhost:3000',
   jwtSecret: process.env.JWT_SECRET || 'change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
