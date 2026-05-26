@@ -8,6 +8,7 @@ const { ensureCommissionCompatibility } = require('./commission.bootstrap');
 const { ensureMarketOfferCompatibility } = require('./market-offer.bootstrap');
 const { ensureAgentGroupCompatibility } = require('./agent-group.bootstrap');
 const { ensureAgentGroupMemberCompatibility } = require('./agent-group-member.bootstrap');
+const { ensureAgentGroupTurnCompatibility } = require('./agent-group-turn.bootstrap');
 const { ensureAgentGroupContributionCompatibility } = require('./agent-group-contribution.bootstrap');
 const { models } = require('../models');
 
@@ -22,6 +23,7 @@ async function runBootstrap(sequelize) {
   await ensureWithdrawalCompatibility(sequelize);
   await ensureAgentGroupCompatibility(sequelize);
   await ensureAgentGroupMemberCompatibility(sequelize);
+  await ensureAgentGroupTurnCompatibility(sequelize);
   await ensureAgentGroupContributionCompatibility(sequelize);
 }
 

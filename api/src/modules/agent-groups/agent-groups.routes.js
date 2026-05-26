@@ -76,6 +76,18 @@ router.post(
   authenticateAgent,
   asyncHandler(membersController.payContribution),
 );
+router.post(
+  '/:groupId/contributions/:contributionId/missed',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(membersController.markContributionMissed),
+);
+router.post(
+  '/:groupId/turns/:turnId/payout',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(membersController.payoutTurn),
+);
 router.patch('/:groupId', authenticate, authenticateAgent, asyncHandler(controller.update));
 router.post(
   '/:groupId/launch',

@@ -7,6 +7,7 @@ const AgentProfile = require('./agent-profile.model');
 const AgentBalanceHistory = require('./agent-balance-history.model');
 const AgentGroup = require('./agent-group.model');
 const AgentGroupMember = require('./agent-group-member.model');
+const AgentGroupTurn = require('./agent-group-turn.model');
 const AgentGroupContribution = require('./agent-group-contribution.model');
 const Wallet = require('./wallet.model');
 const Withdrawal = require('./withdrawal.model');
@@ -151,6 +152,22 @@ AgentGroupMember.belongsTo(User, {
   foreignKey: 'clientUserId',
   as: 'client',
 });
+AgentGroup.hasMany(AgentGroupTurn, {
+  foreignKey: 'groupId',
+  as: 'turns',
+});
+AgentGroupTurn.belongsTo(AgentGroup, {
+  foreignKey: 'groupId',
+  as: 'group',
+});
+AgentGroupMember.hasMany(AgentGroupTurn, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'turnsAsBeneficiary',
+});
+AgentGroupTurn.belongsTo(AgentGroupMember, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryMember',
+});
 AgentGroup.hasMany(AgentGroupContribution, {
   foreignKey: 'groupId',
   as: 'contributions',
@@ -250,6 +267,7 @@ const models = {
   AgentBalanceHistory,
   AgentGroup,
   AgentGroupMember,
+  AgentGroupTurn,
   AgentGroupContribution,
   Wallet,
   Withdrawal,

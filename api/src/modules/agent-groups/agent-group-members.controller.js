@@ -103,6 +103,27 @@ async function payContribution(req, res) {
   return ok(res, data, 'Contribution de groupe enregistree avec succes.');
 }
 
+async function markContributionMissed(req, res) {
+  const data = await contributionsService.markContributionMissedByAgent(
+    req.agentProfile,
+    req.params.groupId,
+    req.params.contributionId,
+    req.body?.reason,
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Contribution de groupe marquee en impaye.');
+}
+
+async function payoutTurn(req, res) {
+  const data = await contributionsService.payoutTurnByAgent(
+    req.agentProfile,
+    req.params.groupId,
+    req.params.turnId,
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Beneficiaire du tour verse avec succes.');
+}
+
 module.exports = {
   list,
   listCandidates,
@@ -114,4 +135,6 @@ module.exports = {
   saveTurnOrder,
   listContributions,
   payContribution,
+  markContributionMissed,
+  payoutTurn,
 };

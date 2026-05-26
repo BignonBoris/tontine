@@ -47,6 +47,73 @@ function serializeContribution(contribution) {
   };
 }
 
+function serializeTurn(turn, contributions = []) {
+  return {
+    id: turn.id,
+    groupId: turn.groupId,
+    turnNumber: Number(turn.turnNumber),
+    dueDate: turn.dueDate,
+    amount: Number(turn.amount),
+    status: turn.status,
+    payoutMethod: turn.payoutMethod,
+    payoutAt: turn.payoutAt,
+    beneficiary: turn.beneficiaryMember?.client
+      ? {
+          id: turn.beneficiaryMember.client.id,
+          displayName: turn.beneficiaryMember.client.displayName,
+          phoneNumber: displayPhone(turn.beneficiaryMember.client.phoneNumber),
+        }
+      : null,
+    contributions,
+  };
+}
+
+async function syncTurnStatus(turn, transaction) {
+  if (turn.status === 'paid') {
+    return turn;
+  }
+
+  const paidCount = await models.AgentGroupContribution.count({
+    where: {
+      groupId: turn.groupId,
+      turnNumber: turn.turnNumber,
+      status: 'paid',
+    },
+    transaction,
+  });
+
+  const totalCount = await models.AgentGroupContribution.count({
+    where: {
+      groupId: turn.groupId,
+      turnNumber: turn.turnNumber,
+    },
+    transaction,
+  });
+
+  const missedCount = await models.AgentGroupContribution.count({
+    where: {
+      groupId: turn.groupId,
+      turnNumber: turn.turnNumber,
+      status: 'missed',
+    },
+    transaction,
+  });
+
+  let nextStatus = 'collecting';
+  if (paidCount >= totalCount) {
+    nextStatus = 'ready';
+  } else if (missedCount > 0) {
+    nextStatus = 'blocked';
+  }
+
+  if (turn.status !== nextStatus) {
+    const options = transaction ? { transaction } : undefined;
+    await turn.update({ status: nextStatus }, options);
+  }
+
+  return turn;
+}
+
 async function ensureContributionScheduleForGroup(group, transaction) {
   const existingCount = await models.AgentGroupContribution.count({
     where: { groupId: group.id },
@@ -89,6 +156,18 @@ async function ensureContributionScheduleForGroup(group, transaction) {
       turnNumber - 1,
     );
 
+    await models.AgentGroupTurn.create(
+      {
+        groupId: group.id,
+        beneficiaryMemberId: beneficiary.id,
+        turnNumber,
+        dueDate,
+        amount: Number(group.contributionAmount) * members.length,
+        status: 'collecting',
+      },
+      { transaction },
+    );
+
     for (const member of members) {
       await models.AgentGroupContribution.create(
         {
@@ -110,20 +189,12 @@ async function listGroupContributions(agentProfileId, groupId, filters = {}) {
   const group = await findOwnedGroup(agentProfileId, groupId);
   const turnNumber = Number(filters.turnNumber || 0);
 
-  const where = {
-    groupId: group.id,
-    ...(turnNumber > 0 ? { turnNumber } : {}),
-  };
-
-  const contributions = await models.AgentGroupContribution.findAll({
-    where,
+  const turns = await models.AgentGroupTurn.findAll({
+    where: {
+      groupId: group.id,
+      ...(turnNumber > 0 ? { turnNumber } : {}),
+    },
     include: [
-      {
-        model: models.AgentGroupMember,
-        as: 'member',
-        required: true,
-        include: [{ model: models.User, as: 'client', required: false }],
-      },
       {
         model: models.AgentGroupMember,
         as: 'beneficiaryMember',
@@ -131,30 +202,40 @@ async function listGroupContributions(agentProfileId, groupId, filters = {}) {
         include: [{ model: models.User, as: 'client', required: false }],
       },
     ],
-    order: [['turnNumber', 'ASC'], ['createdAt', 'ASC']],
+    order: [['turnNumber', 'ASC']],
   });
 
-  const grouped = new Map();
-  for (const contribution of contributions) {
-    const turn = Number(contribution.turnNumber);
-    const existing = grouped.get(turn) || {
-      turnNumber: turn,
-      dueDate: contribution.dueDate,
-      amount: Number(contribution.amount),
-      beneficiary: contribution.beneficiaryMember?.client
-        ? {
-            id: contribution.beneficiaryMember.client.id,
-            displayName: contribution.beneficiaryMember.client.displayName,
-            phoneNumber: displayPhone(contribution.beneficiaryMember.client.phoneNumber),
-          }
-        : null,
-      contributions: [],
-    };
-    existing.contributions.push(serializeContribution(contribution));
-    grouped.set(turn, existing);
+  const results = [];
+  for (const turn of turns) {
+    await syncTurnStatus(turn, null);
+    const contributions = await models.AgentGroupContribution.findAll({
+      where: { groupId: group.id, turnNumber: turn.turnNumber },
+      include: [
+        {
+          model: models.AgentGroupMember,
+          as: 'member',
+          required: true,
+          include: [{ model: models.User, as: 'client', required: false }],
+        },
+        {
+          model: models.AgentGroupMember,
+          as: 'beneficiaryMember',
+          required: true,
+          include: [{ model: models.User, as: 'client', required: false }],
+        },
+      ],
+      order: [['createdAt', 'ASC']],
+    });
+
+    results.push(
+      serializeTurn(
+        turn,
+        contributions.map((contribution) => serializeContribution(contribution)),
+      ),
+    );
   }
 
-  return Array.from(grouped.values());
+  return results;
 }
 
 async function payContributionByAgent(
@@ -210,6 +291,12 @@ async function payContributionByAgent(
       },
       { transaction },
     );
+    const turn = await models.AgentGroupTurn.findOne({
+      where: { groupId: group.id, turnNumber: contribution.turnNumber },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    await syncTurnStatus(turn, transaction);
 
     await applyAgentBalanceChange(
       agentProfile.id,
@@ -330,6 +417,15 @@ async function payContributionFromWallet(
       },
       { transaction },
     );
+    const turn = await models.AgentGroupTurn.findOne({
+      where: {
+        groupId: contribution.groupId,
+        turnNumber: contribution.turnNumber,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    await syncTurnStatus(turn, transaction);
 
     await writeAuditLog({
       userId,
@@ -356,10 +452,205 @@ async function payContributionFromWallet(
   return serializeContribution(result);
 }
 
+async function markContributionMissedByAgent(
+  agentProfile,
+  groupId,
+  contributionId,
+  reason,
+  requestContext = {},
+) {
+  const result = await sequelize.transaction(async (transaction) => {
+    const group = await findOwnedGroup(agentProfile.id, groupId, transaction);
+    if (!group.startedAt) {
+      throw new AppError(
+        'Les impayes de groupe ne sont possibles qu apres le lancement.',
+        422,
+      );
+    }
+
+    const contribution = await models.AgentGroupContribution.findOne({
+      where: { id: contributionId, groupId: group.id },
+      include: [
+        {
+          model: models.AgentGroupMember,
+          as: 'member',
+          required: true,
+          include: [{ model: models.User, as: 'client', required: false }],
+        },
+        {
+          model: models.AgentGroupMember,
+          as: 'beneficiaryMember',
+          required: true,
+          include: [{ model: models.User, as: 'client', required: false }],
+        },
+      ],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!contribution) {
+      throw new AppError('Contribution de groupe introuvable.', 404);
+    }
+    if (contribution.status === 'paid') {
+      throw new AppError('Une contribution deja reglee ne peut plus etre marquee en impaye.', 409);
+    }
+    if (contribution.status === 'missed') {
+      throw new AppError('Cette contribution est deja marquee en impaye.', 409);
+    }
+
+    await contribution.update(
+      {
+        status: 'missed',
+        paymentSource: null,
+        paidAt: null,
+        paidByAgentProfileId: null,
+        paidByUserId: null,
+      },
+      { transaction },
+    );
+
+    const turn = await models.AgentGroupTurn.findOne({
+      where: { groupId: group.id, turnNumber: contribution.turnNumber },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    await syncTurnStatus(turn, transaction);
+
+    await writeAuditLog({
+      userId: agentProfile.userId,
+      action: 'agent.group_contribution_marked_missed',
+      entityType: 'agentGroupContribution',
+      entityId: contribution.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        groupId: group.id,
+        groupReference: group.reference,
+        memberId: contribution.memberId,
+        beneficiaryMemberId: contribution.beneficiaryMemberId,
+        turnNumber: contribution.turnNumber,
+        amount: Number(contribution.amount),
+        reason: reason || null,
+      },
+      transaction,
+    });
+
+    return contribution;
+  });
+
+  return serializeContribution(result);
+}
+
+async function payoutTurnByAgent(
+  agentProfile,
+  groupId,
+  turnId,
+  requestContext = {},
+) {
+  const result = await sequelize.transaction(async (transaction) => {
+    const group = await findOwnedGroup(agentProfile.id, groupId, transaction);
+    const turn = await models.AgentGroupTurn.findOne({
+      where: { id: turnId, groupId: group.id },
+      include: [
+        {
+          model: models.AgentGroupMember,
+          as: 'beneficiaryMember',
+          required: true,
+          include: [{ model: models.User, as: 'client', required: true }],
+        },
+      ],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!turn) {
+      throw new AppError('Tour introuvable pour ce groupe.', 404);
+    }
+
+    await syncTurnStatus(turn, transaction);
+    if (turn.status !== 'ready') {
+      throw new AppError(
+        'Le beneficiarie ne peut etre verse que lorsque toutes les cotisations du tour sont reglees.',
+        422,
+      );
+    }
+
+    const beneficiaryUserId = turn.beneficiaryMember.clientUserId;
+    const wallet = await models.Wallet.findOne({
+      where: { userId: beneficiaryUserId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    await wallet.update(
+      {
+        availableBalance: Number(wallet.availableBalance || 0) + Number(turn.amount),
+      },
+      { transaction },
+    );
+
+    await models.AvailableBalanceHistory.create(
+      {
+        userId: beneficiaryUserId,
+        type: 'tontinePayout',
+        amount: turn.amount,
+        label: `Paiement groupe ${group.reference} tour ${turn.turnNumber}`,
+        isCredit: true,
+      },
+      { transaction },
+    );
+
+    await models.Notification.create(
+      {
+        userId: beneficiaryUserId,
+        type: 'system',
+        title: 'Paiement du tour disponible',
+        message: `${Number(turn.amount)} F verses pour le tour ${turn.turnNumber} du groupe ${group.name}.`,
+      },
+      { transaction },
+    );
+
+    await turn.update(
+      {
+        status: 'paid',
+        payoutMethod: 'wallet',
+        payoutAt: new Date(),
+        paidByAgentProfileId: agentProfile.id,
+        paidByUserId: agentProfile.userId,
+      },
+      { transaction },
+    );
+
+    await writeAuditLog({
+      userId: agentProfile.userId,
+      action: 'agent.group_turn_paid_out',
+      entityType: 'agentGroupTurn',
+      entityId: turn.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        groupId: group.id,
+        groupReference: group.reference,
+        turnNumber: turn.turnNumber,
+        amount: Number(turn.amount),
+        beneficiaryUserId,
+      },
+      transaction,
+    });
+
+    return turn;
+  });
+
+  return serializeTurn(result);
+}
+
 module.exports = {
   ensureContributionScheduleForGroup,
   listGroupContributions,
   payContributionByAgent,
   payContributionFromWallet,
+  markContributionMissedByAgent,
+  payoutTurnByAgent,
   serializeContribution,
+  serializeTurn,
 };
