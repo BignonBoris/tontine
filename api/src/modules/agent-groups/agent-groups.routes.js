@@ -38,6 +38,12 @@ router.get(
   authenticateAgent,
   asyncHandler(membersController.listContributions),
 );
+router.get(
+  '/:groupId/advances',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(membersController.listAdvances),
+);
 router.get('/:groupId', authenticate, authenticateAgent, asyncHandler(controller.detail));
 router.post('/', authenticate, authenticateAgent, asyncHandler(controller.create));
 router.post(
@@ -77,10 +83,16 @@ router.post(
   asyncHandler(membersController.payContribution),
 );
 router.post(
-  '/:groupId/contributions/:contributionId/missed',
+  '/:groupId/contributions/:contributionId/advance',
   authenticate,
   authenticateAgent,
-  asyncHandler(membersController.markContributionMissed),
+  asyncHandler(membersController.advanceContribution),
+);
+router.post(
+  '/:groupId/advances/:advanceId/recover',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(membersController.recoverAdvance),
 );
 router.post(
   '/:groupId/turns/:turnId/payout',

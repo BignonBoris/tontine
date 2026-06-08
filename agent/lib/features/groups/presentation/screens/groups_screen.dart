@@ -54,9 +54,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           IconButton(
             onPressed: _toggleSearchCard,
             icon: Icon(
-              _showSearchCard
-                  ? Icons.search_off_rounded
-                  : Icons.search_rounded,
+              _showSearchCard ? Icons.search_off_rounded : Icons.search_rounded,
             ),
             tooltip: _showSearchCard
                 ? 'Masquer la recherche'
@@ -101,7 +99,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       ),
                       items: const [
                         DropdownMenuItem(value: 'all', child: Text('Tous')),
-                        DropdownMenuItem(value: 'active', child: Text('Actifs')),
+                        DropdownMenuItem(
+                          value: 'active',
+                          child: Text('Actifs'),
+                        ),
                         DropdownMenuItem(
                           value: 'suspended',
                           child: Text('Suspendus'),

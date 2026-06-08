@@ -4,6 +4,7 @@ import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 class AgentClientFormSheet extends StatefulWidget {
   const AgentClientFormSheet({super.key});
@@ -14,7 +15,8 @@ class AgentClientFormSheet extends StatefulWidget {
 
 class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
   final _service = AgentClientService();
-  final _displayNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _stakeController = TextEditingController();
@@ -25,7 +27,8 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
 
   @override
   void dispose() {
-    _displayNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _stakeController.dispose();
@@ -40,7 +43,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
         left: 16,
         right: 16,
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        top: 24,
+        top: 12,
       ),
       child: Material(
         color: Colors.white,
@@ -56,17 +59,82 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                 const Center(
                   child: SizedBox(width: 44, child: Divider(thickness: 4)),
                 ),
-                const SizedBox(height: 12),
-                const SectionTitle(
-                  title: 'Nouveau client',
-                  subtitle:
-                      'Enrolez un client puis initialisez sa tontine avec une mise et un premier depot facultatif.',
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Nouveau client',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Fermer',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _displayNameController,
-                  inputFormatters: AgentInputRules.personNameFormatters,
-                  decoration: const InputDecoration(labelText: 'Nom complet'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _lastNameController,
+                        inputFormatters: AgentInputRules.personNameFormatters,
+                        decoration: const InputDecoration(labelText: 'Nom'),
+                        onChanged: (_) {
+                          if (_errorMessage != null) {
+                            setState(() => _errorMessage = null);
+                          }
+                        },
+                        validator: (value) {
+                          if (value == null ||
+                              !AgentInputRules.isValidPersonName(value)) {
+                            return 'Entrez le nom';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _firstNameController,
+                        inputFormatters: AgentInputRules.personNameFormatters,
+                        decoration: const InputDecoration(
+                          labelText: 'Prénom(s)',
+                        ),
+                        onChanged: (_) {
+                          if (_errorMessage != null) {
+                            setState(() => _errorMessage = null);
+                          }
+                        },
+                        validator: (value) {
+                          if (value == null ||
+                              !AgentInputRules.isValidPersonName(value)) {
+                            return 'Entrez le(s) prenom(s)';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                IntlPhoneField(
+                  controller: _phoneController,
+                  initialCountryCode: 'BJ',
+                  showCountryFlag: true,
+                  showDropdownIcon: false,
+                  disableLengthCheck: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Telephone',
+                    hintText: 'Ex. 01 23 45 67 89',
+                  ),
                   onChanged: (_) {
                     if (_errorMessage != null) {
                       setState(() => _errorMessage = null);
@@ -74,25 +142,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                   },
                   validator: (value) {
                     if (value == null ||
-                        !AgentInputRules.isValidPersonName(value)) {
-                      return 'Entrez le nom du client';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: AgentInputRules.phoneFormatters,
-                  decoration: const InputDecoration(labelText: 'Telephone'),
-                  onChanged: (_) {
-                    if (_errorMessage != null) {
-                      setState(() => _errorMessage = null);
-                    }
-                  },
-                  validator: (value) {
-                    if (value == null || !AgentInputRules.isValidPhone(value)) {
+                        !AgentInputRules.isValidPhone(value.number)) {
                       return 'Entrez un numero valide';
                     }
                     return null;
@@ -215,6 +265,12 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     final double initialDeposit = initialDigits.isEmpty
         ? 0
         : double.parse(initialDigits);
+    final firstName = AgentInputRules.normalizePersonName(
+      _firstNameController.text,
+    );
+    final lastName = AgentInputRules.normalizePersonName(
+      _lastNameController.text,
+    );
 
     setState(() {
       _isSubmitting = true;
@@ -222,9 +278,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     });
     try {
       final client = await _service.createClient(
-        displayName: AgentInputRules.normalizePersonName(
-          _displayNameController.text,
-        ),
+        displayName: '$lastName $firstName'.trim(),
         phoneNumber: AgentInputRules.normalizePhone(_phoneController.text),
         address: _addressController.text.trim(),
         stakeAmount: stakeAmount,

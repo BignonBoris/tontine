@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,6 +49,15 @@ class LocalAuthService {
     return formatPhoneForInput(storedPhone);
   }
 
+  static Future<String?> loadSuggestedNormalizedPhoneNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedPhone = prefs.getString(_suggestedPhoneKey);
+    if (storedPhone == null || storedPhone.isEmpty) {
+      return null;
+    }
+    return normalizePhone(storedPhone);
+  }
+
   static Future<void> _saveSuggestedPhoneNumber(String rawPhoneNumber) async {
     final normalizedPhone = normalizePhone(rawPhoneNumber);
     if (normalizedPhone.length != 10) {
@@ -58,6 +70,7 @@ class LocalAuthService {
   static Future<LocalAuthResult> requestOtp({
     required String rawPhoneNumber,
     required bool isRegistration,
+    String? pinCode,
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
@@ -67,6 +80,8 @@ class LocalAuthService {
         body: {
           'phoneNumber': normalizedPhone,
           'purpose': isRegistration ? 'register' : 'login',
+          if (!isRegistration && pinCode != null && pinCode.trim().isNotEmpty)
+            'pinCode': pinCode.trim(),
         },
       ) as Map<String, dynamic>;
 
@@ -87,6 +102,10 @@ class LocalAuthService {
   static Future<LocalAuthResult> verifyOtp({
     required String rawPhoneNumber,
     required String otpCode,
+    String? pinCode,
+    String? firstName,
+    String? lastName,
+    String? birthDate,
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
@@ -96,6 +115,14 @@ class LocalAuthService {
         body: {
           'phoneNumber': normalizedPhone,
           'code': otpCode,
+          if (pinCode != null && pinCode.trim().isNotEmpty)
+            'pinCode': pinCode.trim(),
+          if (firstName != null && firstName.trim().isNotEmpty)
+            'firstName': firstName.trim(),
+          if (lastName != null && lastName.trim().isNotEmpty)
+            'lastName': lastName.trim(),
+          if (birthDate != null && birthDate.trim().isNotEmpty)
+            'birthDate': birthDate.trim(),
         },
       ) as Map<String, dynamic>;
 
@@ -105,6 +132,9 @@ class LocalAuthService {
       }
 
       await SessionStorage.saveToken(token);
+      unawaited(
+        PushNotificationService.instance.syncCurrentToken(force: true),
+      );
       await _saveSuggestedPhoneNumber(normalizedPhone);
       return LocalAuthResult(
         isSuccess: true,

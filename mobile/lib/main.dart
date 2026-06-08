@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,6 +8,7 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/features/auth/screens/auth_choice_screen.dart';
 import 'package:mobile/features/auth/screens/auth_identification_screen.dart';
 import 'package:mobile/features/auth/screens/auth_otp_screen.dart';
@@ -27,6 +30,7 @@ void main() async {
 
   await initializeDateFormatting('fr_FR', null);
   await NotificationService.init();
+  unawaited(PushNotificationService.instance.start());
   await Hive.initFlutter();
 
   Hive.registerAdapter(TontineTransactionAdapter());
@@ -35,7 +39,6 @@ void main() async {
 
   await Hive.openBox<TontineGoal>('goals_box');
   await Hive.openBox('wallet_box');
-  await dotenv.load(fileName: ".env");
   runApp(const MaTontineApp());
 }
 

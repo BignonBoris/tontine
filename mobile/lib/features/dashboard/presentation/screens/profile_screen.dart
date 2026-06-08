@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/security/local_security_service.dart';
-import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/core/utils/input_rules.dart';
@@ -25,7 +27,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(
@@ -255,8 +257,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    await LocalSecurityService.clear();
-    await SessionStorage.clear();
+    await PushNotificationService.instance.signOut();
     if (!context.mounted) {
       return;
     }
@@ -272,7 +273,7 @@ class ProfileScreen extends StatelessWidget {
       text: state.profile.displayName,
     );
     final phoneController = TextEditingController(
-      text: state.profile.phoneNumber,
+      text: LocalAuthService.formatPhoneForInput(state.profile.phoneNumber),
     );
     final formKey = GlobalKey<FormState>();
 
@@ -320,27 +321,75 @@ class ProfileScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 14),
-              TextFormField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: AppInputRules.phoneFormatters,
-                decoration: const InputDecoration(
-                  labelText: "Numero de telephone",
-                  hintText: "+229 00 00 00 00 00",
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppTheme.accentColor.withValues(alpha: 0.22),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.04),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || !AppInputRules.isValidPhone(value)) {
-                    return "Entrez un numero valide";
-                  }
-                  return null;
-                },
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 6,
+                ),
+                child: IntlPhoneField(
+                  controller: phoneController,
+                  initialCountryCode: 'BJ',
+                  disableLengthCheck: true,
+                  keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
+                  autovalidateMode: AutovalidateMode.disabled,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textPrimaryColor,
+                  ),
+                  dropdownTextStyle: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.accentDarkColor,
+                  ),
+                  flagsButtonPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  showCountryFlag: true,
+                  showDropdownIcon: false,
+                  decoration: InputDecoration(
+                    hintText: "Numero de telephone",
+                    hintStyle: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    border: InputBorder.none,
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 0,
+                      vertical: 14,
+                    ),
+                  ),
+                  invalidNumberMessage: "Numero invalide",
+                  validator: (phone) {
+                    if (phone == null ||
+                        !AppInputRules.isValidPhone(phone.number)) {
+                      return "Entrez un numero valide";
+                    }
+                    return null;
+                  },
+                ),
               ),
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6F8FE),
+                  color: const Color(0xFFF9FAFB),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
@@ -612,7 +661,10 @@ class ProfileScreen extends StatelessWidget {
                       final updatedPreferences = state.preferences.copyWith(
                         pinEnabled: true,
                         biometricEnabled: biometricEnabled,
-                        clearPinCode: true,
+                        pinCode: pinController.text.trim().isEmpty
+                            ? null
+                            : pinController.text.trim(),
+                        clearPinCode: pinController.text.trim().isEmpty,
                       );
                       context.read<DashboardBloc>().add(
                         SaveProfilePreferences(updatedPreferences),
@@ -720,8 +772,8 @@ class ProfileScreen extends StatelessWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE8EEF9),
-                child: Icon(Icons.email_outlined, color: AppTheme.primaryColor),
+                backgroundColor: Color(0xFFFFF1DE),
+                child: Icon(Icons.email_outlined, color: AppTheme.accentDarkColor),
               ),
               title: const Text("Email support"),
               subtitle: const Text("support@viziobox.app"),
@@ -826,7 +878,7 @@ class _ProfileHeroCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [Color(0xFF1A237E), Color(0xFF283593)],
+          colors: [AppTheme.primaryColor, AppTheme.accentColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

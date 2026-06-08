@@ -1,5 +1,6 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
+import 'package:agent/features/groups/domain/entities/agent_group_advance.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_contribution.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_invitation.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_member.dart';
@@ -49,6 +50,7 @@ class AgentGroupService {
     required int turnIntervalValue,
     required String turnIntervalUnit,
     required double contributionAmount,
+    required double commissionAmount,
     required String plannedStartDate,
     String? description,
   }) async {
@@ -61,6 +63,7 @@ class AgentGroupService {
             'turnIntervalValue': turnIntervalValue,
             'turnIntervalUnit': turnIntervalUnit,
             'contributionAmount': contributionAmount,
+            'commissionAmount': commissionAmount,
             'plannedStartDate': plannedStartDate,
           },
         )
@@ -75,6 +78,7 @@ class AgentGroupService {
     required int turnIntervalValue,
     required String turnIntervalUnit,
     required double contributionAmount,
+    required double commissionAmount,
     required String plannedStartDate,
     String? description,
   }) async {
@@ -87,6 +91,7 @@ class AgentGroupService {
             'turnIntervalValue': turnIntervalValue,
             'turnIntervalUnit': turnIntervalUnit,
             'contributionAmount': contributionAmount,
+            'commissionAmount': commissionAmount,
             'plannedStartDate': plannedStartDate,
           },
         )
@@ -312,17 +317,46 @@ class AgentGroupService {
     return AgentGroupContribution.fromMap(Map<dynamic, dynamic>.from(data));
   }
 
-  Future<AgentGroupContribution> markContributionMissed({
+  Future<AgentGroupContribution> advanceContribution({
     required String groupId,
     required String contributionId,
-    String? reason,
+  }) async {
+    final data =
+        await _apiClient.post(
+              '/agent/groups/$groupId/contributions/$contributionId/advance',
+            )
+            as Map<dynamic, dynamic>;
+    return AgentGroupContribution.fromMap(Map<dynamic, dynamic>.from(data));
+  }
+
+  Future<List<AgentGroupAdvance>> fetchAdvances(
+    String groupId, {
+    String status = 'open',
+  }) async {
+    final encodedStatus = Uri.encodeQueryComponent(status);
+    final data =
+        await _apiClient.get('/agent/groups/$groupId/advances?status=$encodedStatus')
+            as List<dynamic>;
+    return data
+        .map(
+          (entry) => AgentGroupAdvance.fromMap(
+            Map<dynamic, dynamic>.from(entry as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<AgentGroupAdvance> recoverAdvance({
+    required String groupId,
+    required String advanceId,
+    double? amount,
   }) async {
     final data = await _apiClient.post(
-          '/agent/groups/$groupId/contributions/$contributionId/missed',
-          body: reason == null || reason.trim().isEmpty ? null : {'reason': reason},
+          '/agent/groups/$groupId/advances/$advanceId/recover',
+          body: amount == null ? null : {'amount': amount},
         )
         as Map<dynamic, dynamic>;
-    return AgentGroupContribution.fromMap(Map<dynamic, dynamic>.from(data));
+    return AgentGroupAdvance.fromMap(Map<dynamic, dynamic>.from(data));
   }
 
   Future<AgentGroupTurn> payoutTurn({

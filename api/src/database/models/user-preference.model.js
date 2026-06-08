@@ -40,7 +40,7 @@ const UserPreference = sequelize.define(
       defaultValue: false,
     },
     pinCode: {
-      type: DataTypes.STRING(12),
+      type: DataTypes.STRING(128),
       allowNull: true,
     },
   },

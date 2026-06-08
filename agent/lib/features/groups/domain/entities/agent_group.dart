@@ -8,6 +8,7 @@ class AgentGroup {
   final int turnIntervalValue;
   final String turnIntervalUnit;
   final double contributionAmount;
+  final double commissionAmount;
   final DateTime? plannedStartDate;
   final String launchStatus;
   final DateTime? startedAt;
@@ -28,6 +29,7 @@ class AgentGroup {
     required this.turnIntervalValue,
     required this.turnIntervalUnit,
     required this.contributionAmount,
+    required this.commissionAmount,
     required this.plannedStartDate,
     required this.launchStatus,
     required this.startedAt,
@@ -54,6 +56,7 @@ class AgentGroup {
       turnIntervalValue: _toInt(map['turnIntervalValue']),
       turnIntervalUnit: '${map['turnIntervalUnit'] ?? 'month'}',
       contributionAmount: _toDouble(map['contributionAmount']),
+      commissionAmount: _toDouble(map['commissionAmount']),
       plannedStartDate: _toDate(map['plannedStartDate']),
       launchStatus: '${map['launchStatus'] ?? 'collecting'}',
       startedAt: _toDate(map['startedAt']),

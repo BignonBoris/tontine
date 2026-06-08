@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
   late final TextEditingController _participantCountController;
   late final TextEditingController _turnIntervalValueController;
   late final TextEditingController _contributionAmountController;
+  late final TextEditingController _commissionAmountController;
   late final TextEditingController _plannedStartDateController;
   DateTime? _plannedStartDate;
   String _turnIntervalUnit = 'month';
@@ -47,6 +49,11 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
           ? initialGroup.contributionAmount.toStringAsFixed(0)
           : '500',
     );
+    _commissionAmountController = TextEditingController(
+      text: initialGroup != null
+          ? initialGroup.commissionAmount.toStringAsFixed(0)
+          : '50',
+    );
     _turnIntervalUnit = initialGroup?.turnIntervalUnit ?? 'month';
     _plannedStartDate =
         initialGroup?.plannedStartDate ??
@@ -63,6 +70,7 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
     _participantCountController.dispose();
     _turnIntervalValueController.dispose();
     _contributionAmountController.dispose();
+    _commissionAmountController.dispose();
     _plannedStartDateController.dispose();
     super.dispose();
   }
@@ -207,10 +215,39 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
                       labelText: 'Montant par personne et par tour',
                       prefixIcon: Icon(Icons.payments_outlined),
                     ),
+                    onChanged: (_) => setState(() {}),
                     validator: (value) {
                       final parsed = double.tryParse((value ?? '').trim());
                       if (parsed == null || parsed <= 0 || parsed % 500 != 0) {
                         return 'Entrez un multiple positif de 500.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _commissionAmountController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Commission totale du groupe par tour',
+                      prefixIcon: const Icon(Icons.percent_rounded),
+                      helperText: _commissionHelperText(),
+                    ),
+                    validator: (value) {
+                      final contribution = double.tryParse(
+                        _contributionAmountController.text.trim(),
+                      );
+                      final parsed = double.tryParse((value ?? '').trim());
+                      if (parsed == null || parsed <= 0 || parsed % 1 != 0) {
+                        return 'Entrez un montant de commission entier.';
+                      }
+                      if (contribution == null || contribution <= 0) {
+                        return 'Renseignez d abord la mise par personne.';
+                      }
+                      final minCommission = _commissionMin(contribution);
+                      final maxCommission = _commissionMax(contribution);
+                      if (parsed < minCommission || parsed > maxCommission) {
+                        return 'La commission doit etre comprise entre ${formatFcfa(minCommission)} et ${formatFcfa(maxCommission)}.';
                       }
                       return null;
                     },
@@ -287,6 +324,9 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
       final contributionAmount = double.parse(
         _contributionAmountController.text.trim(),
       );
+      final commissionAmount = double.parse(
+        _commissionAmountController.text.trim(),
+      );
 
       final result = _isEditing
           ? await _service.updateGroup(
@@ -296,6 +336,7 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
               turnIntervalValue: turnIntervalValue,
               turnIntervalUnit: _turnIntervalUnit,
               contributionAmount: contributionAmount,
+              commissionAmount: commissionAmount,
               plannedStartDate: _plannedStartDate!.toIso8601String(),
               description: description.isEmpty ? null : description,
             )
@@ -305,6 +346,7 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
               turnIntervalValue: turnIntervalValue,
               turnIntervalUnit: _turnIntervalUnit,
               contributionAmount: contributionAmount,
+              commissionAmount: commissionAmount,
               plannedStartDate: _plannedStartDate!.toIso8601String(),
               description: description.isEmpty ? null : description,
             );
@@ -355,5 +397,23 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
     final month = value.month.toString().padLeft(2, '0');
     final year = value.year.toString();
     return '$day/$month/$year';
+  }
+
+  double _commissionMin(double contributionAmount) {
+    return double.parse((contributionAmount * 0.1).toStringAsFixed(0));
+  }
+
+  double _commissionMax(double contributionAmount) {
+    return double.parse((contributionAmount * 0.5).toStringAsFixed(0));
+  }
+
+  String _commissionHelperText() {
+    final contribution = double.tryParse(_contributionAmountController.text.trim());
+    if (contribution == null || contribution <= 0) {
+      return 'Saisissez la mise pour calculer la borne.';
+    }
+    final minCommission = _commissionMin(contribution);
+    final maxCommission = _commissionMax(contribution);
+    return 'Entre ${formatFcfa(minCommission)} et ${formatFcfa(maxCommission)} par tour. Repartition: 25% plateforme / 75% agent.';
   }
 }

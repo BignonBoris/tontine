@@ -93,6 +93,15 @@ async function listContributions(req, res) {
   return ok(res, data, 'Contributions du groupe chargees.');
 }
 
+async function listAdvances(req, res) {
+  const data = await contributionsService.listGroupAdvances(
+    req.agentProfile.id,
+    req.params.groupId,
+    req.query,
+  );
+  return ok(res, data, 'Avances du groupe chargees.');
+}
+
 async function payContribution(req, res) {
   const data = await contributionsService.payContributionByAgent(
     req.agentProfile,
@@ -103,15 +112,25 @@ async function payContribution(req, res) {
   return ok(res, data, 'Contribution de groupe enregistree avec succes.');
 }
 
-async function markContributionMissed(req, res) {
-  const data = await contributionsService.markContributionMissedByAgent(
+async function advanceContribution(req, res) {
+  const data = await contributionsService.advanceContributionByAgent(
     req.agentProfile,
     req.params.groupId,
     req.params.contributionId,
-    req.body?.reason,
     getRequestContext(req),
   );
-  return ok(res, data, 'Contribution de groupe marquee en impaye.');
+  return ok(res, data, 'Contribution de groupe avancee par l agent.');
+}
+
+async function recoverAdvance(req, res) {
+  const data = await contributionsService.recoverAdvanceByAgent(
+    req.agentProfile,
+    req.params.groupId,
+    req.params.advanceId,
+    req.body,
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Avance de groupe remboursee avec succes.');
 }
 
 async function payoutTurn(req, res) {
@@ -134,7 +153,9 @@ module.exports = {
   rejectRequest,
   saveTurnOrder,
   listContributions,
+  listAdvances,
   payContribution,
-  markContributionMissed,
+  advanceContribution,
+  recoverAdvance,
   payoutTurn,
 };

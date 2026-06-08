@@ -20,8 +20,6 @@ class ClientGroupContribution {
   });
 
   bool get isPaid => status == 'paid';
-  bool get isMissed => status == 'missed';
-
   factory ClientGroupContribution.fromMap(Map<dynamic, dynamic> map) {
     return ClientGroupContribution(
       id: '${map['id'] ?? ''}',

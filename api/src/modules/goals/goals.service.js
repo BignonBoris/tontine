@@ -239,17 +239,20 @@ async function fundGoal(userId, goalId, amount, requestContext = {}) {
       },
       { transaction },
     );
-    if (nextAmount >= Number(goal.targetAmount)) {
-      await models.Notification.create(
-        {
-          userId,
-          type: 'goal',
-          title: 'Objectif atteint',
-          message: `Le coffre ${goal.title} a atteint son objectif.`,
-        },
-        { transaction },
-      );
-    }
+
+    const targetAmount = Number(goal.targetAmount);
+    const isGoalReached = nextAmount >= targetAmount;
+    await models.Notification.create(
+      {
+        userId,
+        type: 'goal',
+        title: isGoalReached ? 'Objectif atteint' : 'Coffre alimente',
+        message: isGoalReached
+          ? `Votre coffre ${goal.title} a recu ${Number(amount).toFixed(0)} F et a atteint ${Number(nextAmount).toFixed(0)} F sur ${targetAmount.toFixed(0)} F.`
+          : `Votre coffre ${goal.title} a recu ${Number(amount).toFixed(0)} F. Progression: ${Number(nextAmount).toFixed(0)} F sur ${targetAmount.toFixed(0)} F.`,
+      },
+      { transaction },
+    );
 
     await writeAuditLog({
       userId,
@@ -297,6 +300,15 @@ async function closeGoal(userId, goalId, requestContext = {}) {
         amount: goal.currentAmount,
         label: `Cloture coffre ${goal.title}`,
         isCredit: true,
+      },
+      { transaction },
+    );
+    await models.Notification.create(
+      {
+        userId,
+        type: 'goal',
+        title: 'Coffre cloture',
+        message: `${Number(goal.currentAmount).toFixed(0)} F reverses sur votre solde disponible pour le coffre ${goal.title}.`,
       },
       { transaction },
     );

@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/auth/presentation/widgets/agent_logout_action.dart';
@@ -9,6 +10,7 @@ import 'package:agent/features/clients/presentation/widgets/agent_start_tontine_
 import 'package:agent/features/provisioning/presentation/widgets/agent_deposit_sheet.dart';
 import 'package:agent/features/withdrawals/presentation/widgets/agent_withdrawal_payment_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 class ProvisioningScreen extends StatefulWidget {
   const ProvisioningScreen({super.key});
@@ -23,6 +25,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
 
   List<AgentClient> _searchResults = const [];
   bool _isSearching = false;
+  bool _hasSearched = false;
   String? _searchError;
 
   @override
@@ -32,19 +35,36 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
   }
 
   Future<void> _searchClients(String value) async {
-    final query = value.trim();
+    final query = AgentInputRules.normalizePhone(value);
     if (query.isEmpty) {
       setState(() {
         _searchResults = const [];
         _searchError = null;
+        _hasSearched = false;
         _isSearching = false;
       });
       return;
     }
 
+    if (query.length != 10) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchResults = const [];
+        _searchError = null;
+        _hasSearched = false;
+        _isSearching = false;
+      });
+      _showMessage('Saisissez un numero complet a 10 chiffres.');
+      return;
+    }
+
     setState(() {
+      _hasSearched = true;
       _isSearching = true;
       _searchError = null;
+      _searchResults = const [];
     });
 
     try {
@@ -93,18 +113,29 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionTitle(
-                  title: 'Rechercher un client',
-                  subtitle:
-                      "Vous pouvez deposer pour tout client du systeme, meme s'il n'a pas ete inscrit par vous.",
-                ),
-                const SizedBox(height: 16),
-                TextField(
+                const Text('Rechercher un client par telephone'),
+                const SizedBox(height: 8),
+                IntlPhoneField(
                   controller: _clientSearchController,
-                  onChanged: _searchClients,
+                  initialCountryCode: 'BJ',
+                  showCountryFlag: true,
+                  showDropdownIcon: false,
+                  disableLengthCheck: true,
+                  onChanged: (_) {
+                    if (!_hasSearched &&
+                        _searchResults.isEmpty &&
+                        _searchError == null) {
+                      return;
+                    }
+                    setState(() {
+                      _hasSearched = false;
+                      _searchResults = const [];
+                      _searchError = null;
+                    });
+                  },
                   decoration: InputDecoration(
-                    labelText: 'Nom, telephone ou code client',
-                    prefixIcon: const Icon(Icons.person_search_rounded),
+                    labelText: 'Numero de telephone',
+                    hintText: 'Ex. 01 23 45 67 89',
                     suffixIcon: _isSearching
                         ? const Padding(
                             padding: EdgeInsets.all(14),
@@ -121,11 +152,29 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
                                     setState(() {
                                       _searchResults = const [];
                                       _searchError = null;
+                                      _hasSearched = false;
                                     });
                                   },
                                   icon: const Icon(Icons.close_rounded),
                                 )
                               : null),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isSearching
+                        ? null
+                        : () => _searchClients(_clientSearchController.text),
+                    icon: _isSearching
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search_rounded),
+                    label: Text(_isSearching ? 'Recherche...' : 'Rechercher'),
                   ),
                 ),
               ],
@@ -141,8 +190,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
                 onRetry: () => _searchClients(_clientSearchController.text),
               ),
             )
-          else if (_clientSearchController.text.trim().isNotEmpty &&
-              !_isSearching)
+          else if (_hasSearched && !_isSearching)
             _searchResults.isEmpty
                 ? const SizedBox(
                     height: 220,
@@ -150,7 +198,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
                       icon: Icons.person_off_outlined,
                       title: 'Aucun client correspondant',
                       message:
-                          "Affinez la recherche ou verifiez que le client est bien actif.",
+                          'Affinez la recherche ou verifiez que le client est bien actif.',
                     ),
                   )
                 : Column(
@@ -207,6 +255,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     setState(() {
       _searchResults = const [];
       _searchError = null;
+      _hasSearched = false;
     });
     _showMessage('Depot terrain enregistre avec succes.');
   }
@@ -247,6 +296,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     setState(() {
       _searchResults = const [];
       _searchError = null;
+      _hasSearched = false;
     });
     _showMessage('Tontine demarree avec succes.');
   }

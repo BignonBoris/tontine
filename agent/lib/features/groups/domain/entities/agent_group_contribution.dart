@@ -28,8 +28,6 @@ class AgentGroupContribution {
   });
 
   bool get isPaid => status == 'paid';
-  bool get isMissed => status == 'missed';
-
   factory AgentGroupContribution.fromMap(Map<dynamic, dynamic> map) {
     return AgentGroupContribution(
       id: '${map['id'] ?? ''}',

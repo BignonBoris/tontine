@@ -4,6 +4,11 @@ class SessionStorage {
   static const _tokenKey = 'authToken';
   static const _loggedInKey = 'isLoggedIn';
   static const _pendingGroupInvitationTokenKey = 'pendingGroupInvitationToken';
+  static final List<Future<void> Function()> _beforeClearHooks = [];
+
+  static void registerBeforeClearHook(Future<void> Function() hook) {
+    _beforeClearHooks.add(hook);
+  }
 
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,6 +29,12 @@ class SessionStorage {
   }
 
   static Future<void> clear() async {
+    for (final hook in List<Future<void> Function()>.from(_beforeClearHooks)) {
+      try {
+        await hook();
+      } catch (_) {}
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.setBool(_loggedInKey, false);

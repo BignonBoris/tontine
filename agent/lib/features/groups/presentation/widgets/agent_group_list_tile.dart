@@ -1,3 +1,4 @@
+import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
 import 'package:flutter/material.dart';
 
@@ -54,6 +55,12 @@ class AgentGroupListTile extends StatelessWidget {
                 _MetricItem(
                   icon: Icons.payments_outlined,
                   label: '${group.contributionAmount.toStringAsFixed(0)} F',
+                ),
+                _MetricItem(
+                  icon: Icons.percent_rounded,
+                  label: group.commissionAmount > 0
+                      ? formatFcfa(group.commissionAmount)
+                      : 'Aucune',
                 ),
               ],
             ),

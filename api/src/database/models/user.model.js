@@ -19,6 +19,18 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: 'Utilisateur maTontine',
     },
+    firstName: {
+      type: DataTypes.STRING(80),
+      allowNull: true,
+    },
+    lastName: {
+      type: DataTypes.STRING(80),
+      allowNull: true,
+    },
+    birthDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
     accountType: {
       type: DataTypes.STRING(32),
       allowNull: false,

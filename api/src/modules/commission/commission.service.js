@@ -18,6 +18,57 @@ function generateReference(prefix) {
     .padStart(4, '0')}`;
 }
 
+function resolveCommissionBucketLabel(commissionBucket) {
+  switch (commissionBucket) {
+    case 'deposit_agent':
+      return 'depot';
+    case 'withdrawal_agent':
+      return 'retrait';
+    case 'group_agent':
+      return 'groupe';
+    case 'group_platform':
+      return 'plateforme';
+    case 'bonus':
+      return 'bonus';
+    case 'floating':
+      return 'floating';
+    case 'platform':
+      return 'plateforme';
+    default:
+      return commissionBucket || 'commission';
+  }
+}
+
+async function appendCommissionNotification(
+  transaction,
+  agentId,
+  title,
+  message,
+) {
+  if (!agentId) {
+    return null;
+  }
+
+  const agentProfile = await models.AgentProfile.findByPk(agentId, {
+    attributes: ['userId'],
+    transaction,
+  });
+
+  if (!agentProfile?.userId) {
+    return null;
+  }
+
+  return models.Notification.create(
+    {
+      userId: agentProfile.userId,
+      type: 'system',
+      title,
+      message,
+    },
+    { transaction },
+  );
+}
+
 async function getActiveCommissionRule(transaction) {
   const rule = await models.CommissionRule.findOne({
     where: {
@@ -146,7 +197,7 @@ async function postCommissionCredit({
     { transaction },
   );
 
-  return models.CommissionLedgerEntry.create(
+  const ledgerEntry = await models.CommissionLedgerEntry.create(
     {
       reference: generateReference('COM'),
       entryType,
@@ -170,6 +221,15 @@ async function postCommissionCredit({
     },
     { transaction },
   );
+
+  await appendCommissionNotification(
+    transaction,
+    agentId,
+    'Commission creditee',
+    `${normalizedAmount} F credites sur votre portefeuille commission (${resolveCommissionBucketLabel(commissionBucket)}). Reference ${ledgerEntry.reference}.`,
+  );
+
+  return ledgerEntry;
 }
 
 async function ensureSnapshotForCycle({ transaction, cycle, userId }) {
@@ -763,6 +823,13 @@ async function reverseCommissionCredits({
         },
       },
       { transaction },
+    );
+
+    await appendCommissionNotification(
+      transaction,
+      entry.agentId,
+      'Commission contrepassee',
+      `${amount} F de commission (${resolveCommissionBucketLabel(entry.commissionBucket)}) ont ete contrepasses. Reference ${reversalEntry.reference}.`,
     );
 
     await entry.update(

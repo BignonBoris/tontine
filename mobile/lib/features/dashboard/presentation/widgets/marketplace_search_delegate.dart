@@ -142,7 +142,7 @@ class _ResultsList extends StatelessWidget {
           ),
           trailing: const Icon(
             Icons.north_east_rounded,
-            color: AppTheme.primaryColor,
+            color: AppTheme.accentColor,
           ),
         );
       },

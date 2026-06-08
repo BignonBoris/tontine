@@ -25,6 +25,22 @@ async function contributions(req, res) {
   return ok(res, data, 'Vos cotisations de groupe ont ete chargees.');
 }
 
+async function advances(req, res) {
+  const data = await service.listMyGroupAdvances(
+    req.auth.userId,
+    req.params.groupId,
+  );
+  return ok(res, data, 'Vos avances de groupe ont ete chargees.');
+}
+
+async function advanceRecoveries(req, res) {
+  const data = await service.listClientAdvanceRecoveries(
+    req.auth.userId,
+    req.params.groupId,
+  );
+  return ok(res, data, 'Vos remboursements d avances ont ete charges.');
+}
+
 async function payContribution(req, res) {
   const data = await service.payContributionFromWallet(
     req.auth.userId,
@@ -39,5 +55,7 @@ module.exports = {
   listRequests,
   detail,
   contributions,
+  advances,
+  advanceRecoveries,
   payContribution,
 };

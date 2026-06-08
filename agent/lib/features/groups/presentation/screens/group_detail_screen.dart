@@ -1,8 +1,10 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
+import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
+import 'package:agent/features/groups/domain/entities/agent_group_advance.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_contribution.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_invitation.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_member.dart';
@@ -11,6 +13,7 @@ import 'package:agent/features/groups/presentation/widgets/agent_group_form_shee
 import 'package:agent/features/groups/presentation/widgets/agent_group_member_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -26,6 +29,7 @@ class GroupDetailScreen extends StatefulWidget {
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
   final _service = AgentGroupService();
   late Future<_GroupDetailViewModel> _detailFuture;
+  bool _isPayoutInProgress = false;
 
   @override
   void initState() {
@@ -38,11 +42,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       _service.fetchGroupDetail(widget.groupId),
       _service.fetchMembers(widget.groupId),
       _service.fetchContributions(widget.groupId),
+      _service.fetchAdvances(widget.groupId),
     ]);
     return _GroupDetailViewModel(
       group: results[0] as AgentGroup,
       members: results[1] as List<AgentGroupMember>,
       turns: results[2] as List<AgentGroupTurn>,
+      advances: results[3] as List<AgentGroupAdvance>,
     );
   }
 
@@ -106,10 +112,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     final group = data.group;
     final members = data.members;
     final turns = data.turns;
-    final currentTurn = turns.cast<AgentGroupTurn?>().firstWhere(
-          (turn) => turn != null && turn.paidCount < turn.totalCount,
-          orElse: () => turns.isNotEmpty ? turns.first : null,
-        );
+    final advances = data.advances;
+    final currentTurn = _selectVisibleTurn(turns);
 
     return RefreshIndicator(
       onRefresh: () async => _reload(),
@@ -136,6 +140,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     _GroupMetricItem(
                       icon: Icons.payments_outlined,
                       label: '${group.contributionAmount.toStringAsFixed(0)} F',
+                    ),
+                    _GroupMetricItem(
+                      icon: Icons.percent_rounded,
+                      label: group.commissionAmount > 0
+                          ? formatFcfa(group.commissionAmount)
+                          : 'Aucune',
                     ),
                     _GroupMetricItem(
                       icon: Icons.event_rounded,
@@ -174,6 +184,105 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ],
             ),
           ),
+          if (group.isStarted && currentTurn != null) ...[
+            const SizedBox(height: 18),
+            SectionTitle(
+              title: _turnSectionTitle(currentTurn),
+              subtitle: _turnSectionSubtitle(currentTurn),
+              trailing: null,
+            ),
+            const SizedBox(height: 12),
+            SoftSectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Beneficiaire: ${currentTurn.beneficiary?.displayName ?? 'Non defini'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Cotisations: ${currentTurn.paidCount}/${currentTurn.totalCount} | Montant brut: ${formatFcfa(currentTurn.amount)}',
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Commission du groupe: ${group.commissionAmount > 0 ? formatFcfa(group.commissionAmount) : 'Aucune'} | Net a verser: ${formatFcfa(_netPayoutAmount(group, currentTurn))}',
+                  ),
+                  if (group.commissionAmount > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Repartition: ${formatFcfa(_platformCommissionShare(group))} pour la plateforme et ${formatFcfa(_agentCommissionShare(group))} pour l agent.',
+                    ),
+                  ],
+                  if (_isTurnReadyForPayout(currentTurn)) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isPayoutInProgress
+                            ? null
+                            : () => _payoutTurn(group, currentTurn),
+                        child: _isPayoutInProgress
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text('Verser le beneficiaire du tour'),
+                      ),
+                    ),
+                  ] else if (currentTurn.isPaidOut) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Beneficiaire deja verse pour ce tour.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  ...currentTurn.contributions.map(
+                    (contribution) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        contribution.member?.displayName ?? 'Participant',
+                      ),
+                      subtitle: Text(
+                        contribution.isPaid ? 'Reglee' : 'En attente',
+                      ),
+                      trailing: contribution.isPaid
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: Color(0xFF067647),
+                            )
+                          : Wrap(
+                              spacing: 4,
+                              children: [
+                                TextButton(
+                                  onPressed: () => _collectContribution(
+                                    group,
+                                    contribution,
+                                  ),
+                                  child: const Text('Encaisser'),
+                                ),
+                                TextButton(
+                                  onPressed: () => _advanceContribution(
+                                    group,
+                                    contribution,
+                                  ),
+                                  child: const Text('Avancer'),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           SectionTitle(
             title: 'Participants',
@@ -203,92 +312,31 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
               ),
             ),
-          if (group.isStarted && currentTurn != null) ...[
+          if (advances.isNotEmpty) ...[
             const SizedBox(height: 18),
-            SectionTitle(
-              title: 'Tour en cours',
-              subtitle:
-                  'Encaissez les cotisations du tour ${currentTurn.turnNumber}.',
+            const SectionTitle(
+              title: 'Avances agent',
+              subtitle: 'Suivi des avances en attente de remboursement.',
               trailing: null,
             ),
             const SizedBox(height: 12),
             SoftSectionCard(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Beneficiaire: ${currentTurn.beneficiary?.displayName ?? 'Non defini'}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Cotisations: ${currentTurn.paidCount}/${currentTurn.totalCount} | Montant: ${currentTurn.amount.toStringAsFixed(0)} F',
-                  ),
-                  if (currentTurn.isBlocked) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Ce tour est bloque par au moins une cotisation impayee.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFB42318),
-                      ),
-                    ),
-                  ],
-                  if (currentTurn.isReadyForPayout) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _payoutTurn(group, currentTurn),
-                        child: const Text('Verser le beneficiaire du tour'),
-                      ),
-                    ),
-                  ] else if (currentTurn.isPaidOut) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Beneficiaire deja verse pour ce tour.',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  ...currentTurn.contributions.map(
-                    (contribution) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        contribution.member?.displayName ?? 'Participant',
-                      ),
-                      subtitle: Text(
-                        contribution.isPaid
-                            ? 'Reglee'
-                            : contribution.isMissed
-                            ? 'Impayee'
-                            : 'En attente',
-                      ),
-                      trailing: contribution.isPaid
-                          ? const Icon(Icons.check_circle, color: Color(0xFF067647))
-                          : Wrap(
-                              spacing: 4,
-                              children: [
-                                TextButton(
-                                  onPressed: () => _collectContribution(
-                                    group,
-                                    contribution,
-                                  ),
-                                  child: const Text('Encaisser'),
-                                ),
-                                if (!contribution.isMissed)
-                                  TextButton(
-                                    onPressed: () => _markContributionMissed(
-                                      group,
-                                      contribution,
-                                    ),
-                                    child: const Text('Impaye'),
-                                  ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ],
+                children: advances.map((advance) {
+                  final subtitle =
+                      'Tour ${advance.contribution?.turnNumber ?? '-'} | Reste ${advance.remainingAmount.toStringAsFixed(0)} F';
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(advance.member?.displayName ?? 'Participant'),
+                    subtitle: Text(subtitle),
+                    trailing: advance.isRecovered
+                        ? const Icon(Icons.check_circle, color: Color(0xFF067647))
+                        : TextButton(
+                            onPressed: () => _recoverAdvance(group, advance),
+                            child: const Text('Rembourser'),
+                          ),
+                  );
+                }).toList(),
               ),
             ),
           ],
@@ -338,6 +386,61 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     }
 
     return null;
+  }
+
+  AgentGroupTurn? _selectVisibleTurn(List<AgentGroupTurn> turns) {
+    for (final turn in turns) {
+      if (_isTurnReadyForPayout(turn)) {
+        return turn;
+      }
+    }
+
+    for (final turn in turns) {
+      if (!turn.isPaidOut) {
+        return turn;
+      }
+    }
+
+    return turns.isNotEmpty ? turns.last : null;
+  }
+
+  String _turnSectionTitle(AgentGroupTurn turn) {
+    if (_isTurnReadyForPayout(turn)) {
+      return 'Tour pret au versement';
+    }
+    if (turn.isPaidOut) {
+      return 'Tour cloture';
+    }
+    return 'Tour en cours';
+  }
+
+  String _turnSectionSubtitle(AgentGroupTurn turn) {
+    if (_isTurnReadyForPayout(turn)) {
+      return 'Toutes les cotisations du tour ${turn.turnNumber} sont reglees. Versez le beneficiaire.';
+    }
+    if (turn.isPaidOut) {
+      return 'Le beneficiaire du tour ${turn.turnNumber} a deja ete verse.';
+    }
+    return 'Encaissez les cotisations du tour ${turn.turnNumber}.';
+  }
+
+  bool _isTurnReadyForPayout(AgentGroupTurn turn) {
+    return turn.status != 'paid' &&
+        (turn.status == 'ready' ||
+            (turn.totalCount > 0 && turn.paidCount >= turn.totalCount));
+  }
+
+  double _netPayoutAmount(AgentGroup group, AgentGroupTurn turn) {
+    final netAmount = turn.amount - group.commissionAmount;
+    return netAmount > 0 ? netAmount : 0;
+  }
+
+  double _platformCommissionShare(AgentGroup group) {
+    return group.commissionAmount * 0.25;
+  }
+
+  double _agentCommissionShare(AgentGroup group) {
+    return group.commissionAmount - _platformCommissionShare(group);
   }
 
   List<Widget> _buildHeaderActions(
@@ -887,7 +990,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     AgentGroup group,
     AgentGroupTurn turn,
   ) async {
+    if (_isPayoutInProgress) {
+      return;
+    }
+
     try {
+      setState(() {
+        _isPayoutInProgress = true;
+      });
       await _service.payoutTurn(
         groupId: group.id,
         turnId: turn.id,
@@ -902,19 +1012,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         return;
       }
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPayoutInProgress = false;
+        });
+      }
     }
   }
 
-  Future<void> _markContributionMissed(
+  Future<void> _advanceContribution(
     AgentGroup group,
     AgentGroupContribution contribution,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Marquer en impaye'),
+        title: const Text('Avance agent'),
         content: Text(
-          'Confirmer l impaye pour ${contribution.member?.displayName ?? 'ce participant'} sur le tour ${contribution.turnNumber} ?',
+          'Confirmer l avance de ${contribution.amount.toStringAsFixed(0)} F depuis votre caisse pour ${contribution.member?.displayName ?? 'ce participant'} ?',
         ),
         actions: [
           TextButton(
@@ -934,7 +1050,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     }
 
     try {
-      await _service.markContributionMissed(
+      await _service.advanceContribution(
         groupId: group.id,
         contributionId: contribution.id,
       );
@@ -942,7 +1058,29 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         return;
       }
       _reload();
-      _showMessage('Cotisation marquee en impaye.');
+      _showMessage('Cotisation avancee depuis la caisse agent.');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(error.message);
+    }
+  }
+
+  Future<void> _recoverAdvance(
+    AgentGroup group,
+    AgentGroupAdvance advance,
+  ) async {
+    try {
+      await _service.recoverAdvance(
+        groupId: group.id,
+        advanceId: advance.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      _reload();
+      _showMessage('Avance remboursee et caisse agent recreditee.');
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -1280,11 +1418,13 @@ class _GroupDetailViewModel {
   final AgentGroup group;
   final List<AgentGroupMember> members;
   final List<AgentGroupTurn> turns;
+  final List<AgentGroupAdvance> advances;
 
   const _GroupDetailViewModel({
     required this.group,
     required this.members,
     required this.turns,
+    required this.advances,
   });
 }
 
@@ -1299,6 +1439,7 @@ class _TurnOrderSheet extends StatefulWidget {
 
 class _TurnOrderSheetState extends State<_TurnOrderSheet> {
   late List<AgentGroupMember> _members;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -1317,6 +1458,60 @@ class _TurnOrderSheetState extends State<_TurnOrderSheet> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(
           children: [
+            if (_errorMessage != null) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.error_outline_rounded,
+                        color: Color(0xFFB91C1C),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFB91C1C),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _errorMessage = null;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(999),
+                      child: const Padding(
+                        padding: EdgeInsets.all(2),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFFB91C1C),
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             Row(
               children: [
                 Expanded(
@@ -1397,10 +1592,15 @@ class _TurnOrderSheetState extends State<_TurnOrderSheet> {
     final member = _members[index];
     final minimumTurn = member.minimumEligibleTurn ?? 1;
     if (targetIndex + 1 < minimumTurn) {
+      setState(() {
+        _errorMessage =
+            '${member.client?.displayName ?? 'Un membre'} ne peut pas etre place avant le tour $minimumTurn.';
+      });
       return;
     }
 
     setState(() {
+      _errorMessage = null;
       final item = _members.removeAt(index);
       _members.insert(targetIndex, item);
     });
@@ -1410,15 +1610,10 @@ class _TurnOrderSheetState extends State<_TurnOrderSheet> {
     for (var index = 0; index < _members.length; index += 1) {
       final minimumTurn = _members[index].minimumEligibleTurn ?? 1;
       if (index + 1 < minimumTurn) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                '${_members[index].client?.displayName ?? 'Un membre'} ne peut pas etre place avant le tour $minimumTurn.',
-              ),
-            ),
-          );
+        setState(() {
+          _errorMessage =
+              '${_members[index].client?.displayName ?? 'Un membre'} ne peut pas etre place avant le tour $minimumTurn.';
+        });
         return;
       }
     }

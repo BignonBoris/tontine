@@ -1,4 +1,5 @@
 import 'package:agent/core/theme/agent_app_theme.dart';
+import 'package:agent/core/storage/agent_navigation_storage.dart';
 import 'package:agent/features/clients/presentation/screens/clients_screen.dart';
 import 'package:agent/features/groups/presentation/screens/groups_screen.dart';
 import 'package:agent/features/history/presentation/screens/history_screen.dart';
@@ -16,9 +17,27 @@ class AgentMainShell extends StatefulWidget {
 class _AgentMainShellState extends State<AgentMainShell> {
   int _currentIndex = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _restoreLastTab();
+  }
+
   void _goToTab(int index) {
     setState(() {
       _currentIndex = index;
+    });
+    AgentNavigationStorage.saveLastTabIndex(index);
+  }
+
+  Future<void> _restoreLastTab() async {
+    final lastIndex = await AgentNavigationStorage.getLastTabIndex();
+    if (!mounted || lastIndex == _currentIndex) {
+      return;
+    }
+
+    setState(() {
+      _currentIndex = lastIndex.clamp(0, 4).toInt();
     });
   }
 

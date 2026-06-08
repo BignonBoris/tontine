@@ -23,7 +23,7 @@ async function ensureAgentGroupContributionCompatibility(sequelize) {
       turn_number INT NOT NULL,
       due_date DATETIME NOT NULL,
       amount DECIMAL(18,2) NOT NULL,
-      status ENUM('pending', 'paid', 'missed', 'cancelled') NOT NULL DEFAULT 'pending',
+      status ENUM('pending', 'paid', 'cancelled') NOT NULL DEFAULT 'pending',
       payment_source VARCHAR(32) NULL,
       paid_at DATETIME NULL,
       paid_by_agent_profile_id CHAR(36) NULL,

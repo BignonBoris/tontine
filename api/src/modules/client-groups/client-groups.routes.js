@@ -17,6 +17,16 @@ router.get(
   authenticate,
   asyncHandler(controller.contributions),
 );
+router.get(
+  '/:groupId/advances',
+  authenticate,
+  asyncHandler(controller.advances),
+);
+router.get(
+  '/:groupId/advance-recoveries',
+  authenticate,
+  asyncHandler(controller.advanceRecoveries),
+);
 router.get('/:groupId', authenticate, asyncHandler(controller.detail));
 
 module.exports = router;

@@ -88,16 +88,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.qr_code_scanner_rounded,
-              color: AppTheme.primaryColor,
-            ),
-            tooltip: 'Scanner un QR groupe',
-            onPressed: () {
-              Navigator.pushNamed(context, '/group-scanner');
-            },
-          ),
           BlocBuilder<DashboardBloc, DashboardState>(
             builder: (context, state) {
               final unreadCount = state is DashboardLoaded

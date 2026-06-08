@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/services/push_notification_service.dart';
 import 'package:agent/core/storage/session_storage.dart';
 import 'package:agent/core/utils/input_rules.dart';
 
@@ -27,6 +30,7 @@ class AgentAuthService {
     }
 
     await SessionStorage.saveToken(token);
+    unawaited(PushNotificationService.instance.syncCurrentToken(force: true));
     return data;
   }
 }

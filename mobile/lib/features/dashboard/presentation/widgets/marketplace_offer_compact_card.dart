@@ -158,7 +158,7 @@ class MarketplaceOfferCompactCard extends StatelessWidget {
                         const Icon(
                           Icons.open_in_new_rounded,
                           size: 18,
-                          color: AppTheme.primaryColor,
+                          color: AppTheme.accentColor,
                         ),
                       ],
                     ),
@@ -198,7 +198,7 @@ class _OverlayActionIcon extends StatelessWidget {
           child: Icon(
             icon,
             size: 16,
-            color: iconColor ?? AppTheme.primaryColor.withOpacity(0.88),
+            color: iconColor ?? AppTheme.accentColor.withOpacity(0.92),
           ),
         ),
       ),

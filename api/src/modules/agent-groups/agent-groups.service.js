@@ -3,9 +3,11 @@ const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const { AGENT_GROUP_TURN_UNITS } = require('../../common/constants/enums');
+const { getClientGroupCapacityProfile } = require('./agent-group-capacity.service');
 const {
-  getClientGroupCapacityProfile,
-} = require('./agent-group-capacity.service');
+  getOrCreateCommissionWallet,
+  generateReference: generateCommissionReference,
+} = require('../commission/commission.service');
 
 function normalizeGroupName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
@@ -34,7 +36,43 @@ function parsePlannedStartDate(value) {
   return parsed;
 }
 
-function computeLaunchStatus({ status, memberCount, participantCount, startedAt, launchCancelledAt }) {
+function formatAmount(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? Number(amount.toFixed(2)) : 0;
+}
+
+function getCommissionBounds(contributionAmount) {
+  const amount = formatAmount(contributionAmount);
+  return {
+    min: formatAmount(amount * 0.1),
+    max: formatAmount(amount * 0.5),
+  };
+}
+
+function validateCommissionAmount(contributionAmount, commissionAmount) {
+  const normalizedContribution = formatAmount(contributionAmount);
+  const normalizedCommission = formatAmount(commissionAmount);
+  const { min, max } = getCommissionBounds(normalizedContribution);
+
+  if (!Number.isFinite(normalizedCommission) || normalizedCommission <= 0) {
+    throw new AppError('La commission par tour doit etre un montant positif.', 422);
+  }
+
+  if (normalizedCommission < min || normalizedCommission > max) {
+    throw new AppError(
+      `La commission du groupe doit etre comprise entre ${min.toFixed(0)} F et ${max.toFixed(0)} F, soit 10% a 50% de la mise par personne.`,
+      422,
+    );
+  }
+}
+
+function computeLaunchStatus({
+  status,
+  memberCount,
+  participantCount,
+  startedAt,
+  launchCancelledAt,
+}) {
   if (startedAt) {
     return 'started';
   }
@@ -65,6 +103,7 @@ function serializeGroup(group) {
     turnIntervalValue: Number(group.turnIntervalValue),
     turnIntervalUnit: group.turnIntervalUnit,
     contributionAmount: Number(group.contributionAmount),
+    commissionAmount: Number(group.commissionAmount || 0),
     plannedStartDate: group.plannedStartDate,
     launchStatus: group.launchStatus,
     startedAt: group.startedAt,
@@ -78,11 +117,11 @@ function serializeGroup(group) {
 }
 
 async function serializeGroupWithTurnSummary(group, transaction = null) {
-  const serialized = serializeGroup(group);
   if (!group) {
     return null;
   }
 
+  const serialized = serializeGroup(group);
   const activeMembers = await models.AgentGroupMember.findAll({
     where: { groupId: group.id, status: 'active' },
     order: [['turnPosition', 'ASC'], ['joinedAt', 'ASC'], ['createdAt', 'ASC']],
@@ -91,6 +130,7 @@ async function serializeGroupWithTurnSummary(group, transaction = null) {
 
   const turnMembers = [];
   let hasUnrankableMember = false;
+
   for (const member of activeMembers) {
     const capacitySummary = await getClientGroupCapacityProfile(member.clientUserId, {
       groupId: group.id,
@@ -121,99 +161,55 @@ async function serializeGroupWithTurnSummary(group, transaction = null) {
 
 function validateGroupPayload(payload, { partial = false } = {}) {
   const hasName = Object.prototype.hasOwnProperty.call(payload || {}, 'name');
-  const hasDescription = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'description',
-  );
-  const hasParticipantCount = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'participantCount',
-  );
-  const hasTurnIntervalValue = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'turnIntervalValue',
-  );
-  const hasTurnIntervalUnit = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'turnIntervalUnit',
-  );
-  const hasPlannedStartDate = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'plannedStartDate',
-  );
-  const hasMemberCount = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'memberCount',
-  );
-  const hasContributionAmount = Object.prototype.hasOwnProperty.call(
-    payload || {},
-    'contributionAmount',
-  );
+  const hasDescription = Object.prototype.hasOwnProperty.call(payload || {}, 'description');
+  const hasParticipantCount = Object.prototype.hasOwnProperty.call(payload || {}, 'participantCount');
+  const hasTurnIntervalValue = Object.prototype.hasOwnProperty.call(payload || {}, 'turnIntervalValue');
+  const hasTurnIntervalUnit = Object.prototype.hasOwnProperty.call(payload || {}, 'turnIntervalUnit');
+  const hasPlannedStartDate = Object.prototype.hasOwnProperty.call(payload || {}, 'plannedStartDate');
+  const hasMemberCount = Object.prototype.hasOwnProperty.call(payload || {}, 'memberCount');
+  const hasContributionAmount = Object.prototype.hasOwnProperty.call(payload || {}, 'contributionAmount');
+  const hasCommissionAmount = Object.prototype.hasOwnProperty.call(payload || {}, 'commissionAmount');
 
   const name = hasName ? normalizeGroupName(payload.name) : undefined;
-  const description = hasDescription
-    ? normalizeDescription(payload.description)
-    : undefined;
-  const participantCount = hasParticipantCount
-    ? Number(payload.participantCount)
-    : undefined;
-  const turnIntervalValue = hasTurnIntervalValue
-    ? Number(payload.turnIntervalValue)
-    : undefined;
+  const description = hasDescription ? normalizeDescription(payload.description) : undefined;
+  const participantCount = hasParticipantCount ? Number(payload.participantCount) : undefined;
+  const turnIntervalValue = hasTurnIntervalValue ? Number(payload.turnIntervalValue) : undefined;
   const turnIntervalUnit = hasTurnIntervalUnit
     ? String(payload.turnIntervalUnit || '').trim().toLowerCase()
     : undefined;
-  const plannedStartDate = hasPlannedStartDate
-    ? parsePlannedStartDate(payload.plannedStartDate)
-    : undefined;
+  const plannedStartDate = hasPlannedStartDate ? parsePlannedStartDate(payload.plannedStartDate) : undefined;
   const memberCount = hasMemberCount ? Number(payload.memberCount) : undefined;
-  const contributionAmount = hasContributionAmount
-    ? Number(payload.contributionAmount)
-    : undefined;
+  const contributionAmount = hasContributionAmount ? Number(payload.contributionAmount) : undefined;
+  const commissionAmount = hasCommissionAmount ? Number(payload.commissionAmount) : undefined;
 
   if (!partial || hasName) {
     if (!name) {
       throw new AppError('Le nom du groupe est requis.', 422);
     }
     if (name.length < 3 || name.length > 160) {
-      throw new AppError(
-        'Le nom du groupe doit contenir entre 3 et 160 caracteres.',
-        422,
-      );
+      throw new AppError('Le nom du groupe doit contenir entre 3 et 160 caracteres.', 422);
     }
   }
 
   if (hasDescription && description && description.length > 255) {
-    throw new AppError(
-      'La description du groupe ne doit pas depasser 255 caracteres.',
-      422,
-    );
+    throw new AppError('La description du groupe ne doit pas depasser 255 caracteres.', 422);
   }
 
   if (!partial || hasParticipantCount) {
     if (!Number.isInteger(participantCount) || participantCount < 2) {
-      throw new AppError(
-        'Le nombre de participants doit etre un entier superieur ou egal a 2.',
-        422,
-      );
+      throw new AppError('Le nombre de participants doit etre un entier superieur ou egal a 2.', 422);
     }
   }
 
   if (!partial || hasTurnIntervalValue) {
     if (!Number.isInteger(turnIntervalValue) || turnIntervalValue < 1) {
-      throw new AppError(
-        'Le delai d un tour doit etre un entier superieur ou egal a 1.',
-        422,
-      );
+      throw new AppError('Le delai d un tour doit etre un entier superieur ou egal a 1.', 422);
     }
   }
 
   if (!partial || hasTurnIntervalUnit) {
     if (!AGENT_GROUP_TURN_UNITS.includes(turnIntervalUnit)) {
-      throw new AppError(
-        'L unite du delai doit etre day, week ou month.',
-        422,
-      );
+      throw new AppError('L unite du delai doit etre day, week ou month.', 422);
     }
   }
 
@@ -223,10 +219,13 @@ function validateGroupPayload(payload, { partial = false } = {}) {
       contributionAmount <= 0 ||
       contributionAmount % 500 !== 0
     ) {
-      throw new AppError(
-        'Le montant par personne doit etre un multiple positif de 500.',
-        422,
-      );
+      throw new AppError('Le montant par personne doit etre un multiple positif de 500.', 422);
+    }
+  }
+
+  if (!partial || hasCommissionAmount) {
+    if (!Number.isInteger(commissionAmount) || commissionAmount <= 0) {
+      throw new AppError('La commission par tour doit etre un montant entier positif.', 422);
     }
   }
 
@@ -236,12 +235,9 @@ function validateGroupPayload(payload, { partial = false } = {}) {
     }
   }
 
-  if (!partial || hasMemberCount) {
+  if (hasMemberCount) {
     if (!Number.isInteger(memberCount) || memberCount < 0) {
-      throw new AppError(
-        'Le nombre de participants actuels doit etre un entier positif ou nul.',
-        422,
-      );
+      throw new AppError('Le nombre de participants actuels doit etre un entier positif ou nul.', 422);
     }
   }
 
@@ -254,6 +250,7 @@ function validateGroupPayload(payload, { partial = false } = {}) {
     ...(hasPlannedStartDate ? { plannedStartDate } : {}),
     ...(hasMemberCount ? { memberCount } : {}),
     ...(hasContributionAmount ? { contributionAmount } : {}),
+    ...(hasCommissionAmount ? { commissionAmount } : {}),
   };
 }
 
@@ -342,6 +339,10 @@ async function getGroupDetail(agentProfileId, groupId) {
 
 async function createGroup(agentProfile, payload, requestContext = {}) {
   const normalizedPayload = validateGroupPayload(payload);
+  validateCommissionAmount(
+    normalizedPayload.contributionAmount,
+    normalizedPayload.commissionAmount,
+  );
 
   const group = await sequelize.transaction(async (transaction) => {
     await ensureUniqueGroupName(
@@ -363,6 +364,7 @@ async function createGroup(agentProfile, payload, requestContext = {}) {
         turnIntervalValue: normalizedPayload.turnIntervalValue,
         turnIntervalUnit: normalizedPayload.turnIntervalUnit,
         contributionAmount: normalizedPayload.contributionAmount,
+        commissionAmount: normalizedPayload.commissionAmount,
         plannedStartDate: normalizedPayload.plannedStartDate,
         launchStatus: computeLaunchStatus({
           status: 'active',
@@ -392,6 +394,7 @@ async function createGroup(agentProfile, payload, requestContext = {}) {
         turnIntervalValue: createdGroup.turnIntervalValue,
         turnIntervalUnit: createdGroup.turnIntervalUnit,
         contributionAmount: Number(createdGroup.contributionAmount),
+        commissionAmount: Number(createdGroup.commissionAmount || 0),
         plannedStartDate: createdGroup.plannedStartDate,
       },
       transaction,
@@ -407,6 +410,7 @@ async function updateGroup(agentProfile, groupId, payload, requestContext = {}) 
   const membersService = require('./agent-group-members.service');
   const normalizedPayload = validateGroupPayload(payload, { partial: true });
   delete normalizedPayload.memberCount;
+
   if (Object.keys(normalizedPayload).length === 0) {
     throw new AppError('Aucune modification a appliquer sur le groupe.', 422);
   }
@@ -415,10 +419,7 @@ async function updateGroup(agentProfile, groupId, payload, requestContext = {}) 
     const existingGroup = await findOwnedGroup(agentProfile.id, groupId, transaction);
 
     if (existingGroup.startedAt) {
-      throw new AppError(
-        'Un groupe deja demarre ne peut plus etre modifie.',
-        422,
-      );
+      throw new AppError('Un groupe deja demarre ne peut plus etre modifie.', 422);
     }
 
     if (normalizedPayload.normalizedName) {
@@ -440,26 +441,46 @@ async function updateGroup(agentProfile, groupId, payload, requestContext = {}) 
       );
     }
 
+    const nextContributionAmount = Object.prototype.hasOwnProperty.call(
+      normalizedPayload,
+      'contributionAmount',
+    )
+      ? normalizedPayload.contributionAmount
+      : Number(existingGroup.contributionAmount);
+    const nextCommissionAmount = Object.prototype.hasOwnProperty.call(
+      normalizedPayload,
+      'commissionAmount',
+    )
+      ? normalizedPayload.commissionAmount
+      : Number(existingGroup.commissionAmount || 0);
+
+    if (
+      nextCommissionAmount > 0 ||
+      Object.prototype.hasOwnProperty.call(normalizedPayload, 'commissionAmount')
+    ) {
+      validateCommissionAmount(nextContributionAmount, nextCommissionAmount);
+    }
+
     await existingGroup.update(
       {
         ...normalizedPayload,
-        launchCancelledAt:
-          normalizedPayload.plannedStartDate
-            ? null
-            : existingGroup.launchCancelledAt,
-        launchCancellationReason:
-          normalizedPayload.plannedStartDate
-            ? null
-            : existingGroup.launchCancellationReason,
+        launchCancelledAt: normalizedPayload.plannedStartDate
+          ? null
+          : existingGroup.launchCancelledAt,
+        launchCancellationReason: normalizedPayload.plannedStartDate
+          ? null
+          : existingGroup.launchCancellationReason,
       },
       { transaction },
     );
+
     if (
       Object.prototype.hasOwnProperty.call(normalizedPayload, 'participantCount') ||
       Object.prototype.hasOwnProperty.call(normalizedPayload, 'contributionAmount')
     ) {
       await membersService.recalculateGroupTurnOrder(existingGroup, transaction);
     }
+
     await syncLaunchStatus(existingGroup, transaction);
 
     await writeAuditLog({
@@ -491,6 +512,9 @@ async function updateGroup(agentProfile, groupId, payload, requestContext = {}) 
           ...(Object.prototype.hasOwnProperty.call(normalizedPayload, 'contributionAmount')
             ? { contributionAmount: Number(existingGroup.contributionAmount) }
             : {}),
+          ...(Object.prototype.hasOwnProperty.call(normalizedPayload, 'commissionAmount')
+            ? { commissionAmount: Number(existingGroup.commissionAmount || 0) }
+            : {}),
         },
       },
       transaction,
@@ -502,12 +526,7 @@ async function updateGroup(agentProfile, groupId, payload, requestContext = {}) 
   return serializeGroupWithTurnSummary(group);
 }
 
-async function changeGroupStatus(
-  agentProfile,
-  groupId,
-  nextStatus,
-  requestContext = {},
-) {
+async function changeGroupStatus(agentProfile, groupId, nextStatus, requestContext = {}) {
   if (!['active', 'suspended'].includes(nextStatus)) {
     throw new AppError('Statut groupe invalide.', 422);
   }
@@ -523,10 +542,7 @@ async function changeGroupStatus(
 
     await writeAuditLog({
       userId: agentProfile.userId,
-      action:
-        nextStatus === 'active'
-          ? 'agent.group_activated'
-          : 'agent.group_suspended',
+      action: nextStatus === 'active' ? 'agent.group_activated' : 'agent.group_suspended',
       entityType: 'agentGroup',
       entityId: existingGroup.id,
       ipAddress: requestContext.ipAddress,
@@ -546,9 +562,8 @@ async function changeGroupStatus(
 
 async function launchGroup(agentProfile, groupId, requestContext = {}) {
   const membersService = require('./agent-group-members.service');
-  const {
-    ensureContributionScheduleForGroup,
-  } = require('./agent-group-contributions.service');
+  const { ensureContributionScheduleForGroup } = require('./agent-group-contributions.service');
+
   const group = await sequelize.transaction(async (transaction) => {
     const existingGroup = await findOwnedGroup(agentProfile.id, groupId, transaction);
 
@@ -587,10 +602,7 @@ async function launchGroup(agentProfile, groupId, requestContext = {}) {
         !member.turnPosition ||
         member.turnPosition < Number(capacitySummary.minimumEligibleTurn || 0)
       ) {
-        throw new AppError(
-          'L ordre des tours n est pas valide pour tous les membres actifs.',
-          422,
-        );
+        throw new AppError('L ordre des tours n est pas valide pour tous les membres actifs.', 422);
       }
     }
 
@@ -666,28 +678,19 @@ async function postponeGroupLaunch(agentProfile, groupId, payload, requestContex
   return serializeGroup(group);
 }
 
-async function reduceGroupTargetToCurrentMembers(
-  agentProfile,
-  groupId,
-  requestContext = {},
-) {
+async function reduceGroupTargetToCurrentMembers(agentProfile, groupId, requestContext = {}) {
   const membersService = require('./agent-group-members.service');
+
   const group = await sequelize.transaction(async (transaction) => {
     const existingGroup = await findOwnedGroup(agentProfile.id, groupId, transaction);
     if (existingGroup.startedAt) {
       throw new AppError('Un groupe deja demarre ne peut pas etre reduit.', 422);
     }
     if (Number(existingGroup.memberCount) < 2) {
-      throw new AppError(
-        'Il faut au moins 2 participants actuels pour reduire le nombre cible.',
-        422,
-      );
+      throw new AppError('Il faut au moins 2 participants actuels pour reduire le nombre cible.', 422);
     }
     if (Number(existingGroup.memberCount) >= Number(existingGroup.participantCount)) {
-      throw new AppError(
-        'Le nombre actuel atteint deja ou depasse le nombre cible.',
-        422,
-      );
+      throw new AppError('Le nombre actuel atteint deja ou depasse le nombre cible.', 422);
     }
 
     await existingGroup.update(

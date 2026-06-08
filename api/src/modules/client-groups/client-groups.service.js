@@ -1,8 +1,14 @@
 const AppError = require('../../common/errors/app-error');
+const { Op } = require('sequelize');
 const { models } = require('../../database/models');
 const { displayPhone } = require('../auth/auth.service');
 const { serializeGroup } = require('../agent-groups/agent-groups.service');
-const { serializeContribution, payContributionFromWallet } = require('../agent-groups/agent-group-contributions.service');
+const {
+  serializeContribution,
+  serializeAdvance,
+  listClientAdvanceRecoveries,
+  payContributionFromWallet,
+} = require('../agent-groups/agent-group-contributions.service');
 
 function serializeClientGroupMembership(membership) {
   const group = membership.group;
@@ -182,10 +188,56 @@ async function listMyGroupContributions(userId, groupId) {
   return contributions.map((contribution) => serializeContribution(contribution));
 }
 
+async function listMyGroupAdvances(userId, groupId) {
+  const membership = await models.AgentGroupMember.findOne({
+    where: {
+      clientUserId: userId,
+      groupId,
+      status: 'active',
+    },
+  });
+
+  if (!membership) {
+    throw new AppError('Groupe introuvable dans vos adhesions actives.', 404);
+  }
+
+  const advances = await models.AgentGroupAdvance.findAll({
+    where: {
+      groupId,
+      memberId: membership.id,
+      status: { [Op.in]: ['outstanding', 'partially_recovered'] },
+    },
+    include: [
+      {
+        model: models.AgentGroupMember,
+        as: 'member',
+        required: true,
+        include: [{ model: models.User, as: 'client', required: false }],
+      },
+      {
+        model: models.AgentGroupMember,
+        as: 'beneficiaryMember',
+        required: true,
+        include: [{ model: models.User, as: 'client', required: false }],
+      },
+      {
+        model: models.AgentGroupContribution,
+        as: 'contribution',
+        required: true,
+      },
+    ],
+    order: [['advancedAt', 'DESC'], ['createdAt', 'DESC']],
+  });
+
+  return advances.map((advance) => serializeAdvance(advance));
+}
+
 module.exports = {
   listMyGroups,
   listMyGroupRequests,
   getMyGroupDetail,
   listMyGroupContributions,
+  listMyGroupAdvances,
+  listClientAdvanceRecoveries,
   payContributionFromWallet,
 };

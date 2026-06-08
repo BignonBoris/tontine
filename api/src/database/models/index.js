@@ -9,6 +9,8 @@ const AgentGroup = require('./agent-group.model');
 const AgentGroupMember = require('./agent-group-member.model');
 const AgentGroupTurn = require('./agent-group-turn.model');
 const AgentGroupContribution = require('./agent-group-contribution.model');
+const AgentGroupAdvance = require('./agent-group-advance.model');
+const AgentGroupAdvanceRecovery = require('./agent-group-advance-recovery.model');
 const Wallet = require('./wallet.model');
 const Withdrawal = require('./withdrawal.model');
 const TontineCycle = require('./tontine-cycle.model');
@@ -21,6 +23,7 @@ const MarketOffer = require('./market-offer.model');
 const MarketFavorite = require('./market-favorite.model');
 const MarketOrder = require('./market-order.model');
 const Notification = require('./notification.model');
+const PushDeviceToken = require('./push-device-token.model');
 const Provisioning = require('./provisioning.model');
 const CommissionRule = require('./commission-rule.model');
 const CycleCommissionSnapshot = require('./cycle-commission-snapshot.model');
@@ -97,6 +100,11 @@ MarketOrder.belongsTo(MarketOffer, { foreignKey: 'offerId', as: 'offer' });
 
 User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(PushDeviceToken, {
+  foreignKey: 'userId',
+  as: 'pushDeviceTokens',
+});
+PushDeviceToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 AgentProfile.hasMany(Provisioning, {
   foreignKey: 'agentProfileId',
@@ -192,6 +200,94 @@ AgentGroupContribution.belongsTo(AgentGroupMember, {
   foreignKey: 'beneficiaryMemberId',
   as: 'beneficiaryMember',
 });
+AgentGroup.hasMany(AgentGroupAdvance, {
+  foreignKey: 'groupId',
+  as: 'advances',
+});
+AgentGroupAdvance.belongsTo(AgentGroup, {
+  foreignKey: 'groupId',
+  as: 'group',
+});
+AgentGroupContribution.hasOne(AgentGroupAdvance, {
+  foreignKey: 'contributionId',
+  as: 'advance',
+});
+AgentGroupAdvance.belongsTo(AgentGroupContribution, {
+  foreignKey: 'contributionId',
+  as: 'contribution',
+});
+AgentGroupMember.hasMany(AgentGroupAdvance, {
+  foreignKey: 'memberId',
+  as: 'advances',
+});
+AgentGroupAdvance.belongsTo(AgentGroupMember, {
+  foreignKey: 'memberId',
+  as: 'member',
+});
+AgentGroupMember.hasMany(AgentGroupAdvance, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'advancesAsBeneficiary',
+});
+AgentGroupAdvance.belongsTo(AgentGroupMember, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryMember',
+});
+AgentProfile.hasMany(AgentGroupAdvance, {
+  foreignKey: 'agentProfileId',
+  as: 'groupAdvances',
+});
+AgentGroupAdvance.belongsTo(AgentProfile, {
+  foreignKey: 'agentProfileId',
+  as: 'agentProfile',
+});
+AgentGroupAdvance.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'advanceId',
+  as: 'recoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentGroupAdvance, {
+  foreignKey: 'advanceId',
+  as: 'advance',
+});
+AgentGroup.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'groupId',
+  as: 'advanceRecoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentGroup, {
+  foreignKey: 'groupId',
+  as: 'group',
+});
+AgentGroupContribution.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'contributionId',
+  as: 'advanceRecoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentGroupContribution, {
+  foreignKey: 'contributionId',
+  as: 'contribution',
+});
+AgentGroupMember.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'memberId',
+  as: 'advanceRecoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentGroupMember, {
+  foreignKey: 'memberId',
+  as: 'member',
+});
+AgentGroupMember.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryAdvanceRecoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentGroupMember, {
+  foreignKey: 'beneficiaryMemberId',
+  as: 'beneficiaryMember',
+});
+AgentProfile.hasMany(AgentGroupAdvanceRecovery, {
+  foreignKey: 'agentProfileId',
+  as: 'groupAdvanceRecoveries',
+});
+AgentGroupAdvanceRecovery.belongsTo(AgentProfile, {
+  foreignKey: 'agentProfileId',
+  as: 'agentProfile',
+});
 
 User.hasMany(CycleCommissionSnapshot, {
   foreignKey: 'userId',
@@ -269,6 +365,8 @@ const models = {
   AgentGroupMember,
   AgentGroupTurn,
   AgentGroupContribution,
+  AgentGroupAdvance,
+  AgentGroupAdvanceRecovery,
   Wallet,
   Withdrawal,
   TontineCycle,
@@ -281,6 +379,7 @@ const models = {
   MarketFavorite,
   MarketOrder,
   Notification,
+  PushDeviceToken,
   Provisioning,
   CommissionRule,
   CycleCommissionSnapshot,

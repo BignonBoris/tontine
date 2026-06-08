@@ -1,4 +1,6 @@
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/features/groups/domain/entities/client_group_advance.dart';
+import 'package:mobile/features/groups/domain/entities/client_group_advance_recovery.dart';
 import 'package:mobile/features/groups/domain/entities/client_group_contribution.dart';
 import 'package:mobile/features/groups/domain/entities/client_group_membership.dart';
 
@@ -45,6 +47,36 @@ class ClientGroupsService {
     return data
         .map(
           (entry) => ClientGroupContribution.fromMap(
+            Map<dynamic, dynamic>.from(entry as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ClientGroupAdvance>> fetchGroupAdvances(
+    String groupId,
+  ) async {
+    final data =
+        await _apiClient.get('/client/groups/$groupId/advances')
+            as List<dynamic>;
+    return data
+        .map(
+          (entry) => ClientGroupAdvance.fromMap(
+            Map<dynamic, dynamic>.from(entry as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ClientGroupAdvanceRecovery>> fetchGroupAdvanceRecoveries(
+    String groupId,
+  ) async {
+    final data =
+        await _apiClient.get('/client/groups/$groupId/advance-recoveries')
+            as List<dynamic>;
+    return data
+        .map(
+          (entry) => ClientGroupAdvanceRecovery.fromMap(
             Map<dynamic, dynamic>.from(entry as Map),
           ),
         )

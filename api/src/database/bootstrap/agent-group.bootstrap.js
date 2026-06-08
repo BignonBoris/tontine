@@ -35,6 +35,7 @@ async function ensureAgentGroupCompatibility(sequelize) {
         turn_interval_value INT NOT NULL,
         turn_interval_unit ENUM('day', 'week', 'month') NOT NULL,
         contribution_amount DECIMAL(18,2) NOT NULL,
+        commission_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
         planned_start_date DATETIME NOT NULL,
         launch_status ENUM('collecting', 'ready', 'started', 'launch_cancelled') NOT NULL DEFAULT 'collecting',
         started_at DATETIME NULL,
@@ -89,6 +90,13 @@ async function ensureAgentGroupCompatibility(sequelize) {
     'contribution_amount',
     '`contribution_amount` DECIMAL(18,2) NOT NULL DEFAULT 500',
     'UPDATE agent_groups SET contribution_amount = 500 WHERE contribution_amount IS NULL OR contribution_amount <= 0',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'commission_amount',
+    '`commission_amount` DECIMAL(18,2) NOT NULL DEFAULT 0',
+    'UPDATE agent_groups SET commission_amount = 0 WHERE commission_amount IS NULL OR commission_amount < 0',
   );
   await ensureColumn(
     sequelize,

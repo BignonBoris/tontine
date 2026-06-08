@@ -77,8 +77,13 @@ const AGENT_GROUP_MEMBER_STATUSES = [
 const AGENT_GROUP_CONTRIBUTION_STATUSES = [
   'pending',
   'paid',
-  'missed',
   'cancelled',
+];
+const AGENT_GROUP_ADVANCE_STATUSES = [
+  'outstanding',
+  'partially_recovered',
+  'recovered',
+  'escalated',
 ];
 
 module.exports = {
@@ -101,4 +106,5 @@ module.exports = {
   AGENT_GROUP_LAUNCH_STATUSES,
   AGENT_GROUP_MEMBER_STATUSES,
   AGENT_GROUP_CONTRIBUTION_STATUSES,
+  AGENT_GROUP_ADVANCE_STATUSES,
 };

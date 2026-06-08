@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
+const crypto = require('crypto');
 const env = require('../../config/env');
 const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
@@ -39,8 +40,58 @@ function isValidDisplayName(displayName) {
   );
 }
 
+function normalizePersonalName(name) {
+  return normalizeDisplayName(name);
+}
+
+function isValidPersonalName(name) {
+  const normalized = normalizePersonalName(name);
+  return (
+    normalized.length >= 2 &&
+    /^[A-Za-z\u00C0-\u024F]/.test(normalized) &&
+    !/\d/.test(normalized)
+  );
+}
+
+function buildDisplayNameFromIdentity(firstName, lastName) {
+  return normalizeDisplayName(`${firstName || ''} ${lastName || ''}`.trim());
+}
+
+function normalizeBirthDate(value) {
+  if (value == null || String(value).trim().isEmpty) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AppError('La date de naissance est invalide.', 422);
+  }
+
+  const today = new Date();
+  const dateOnly = new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()),
+  );
+  const todayOnly = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+  );
+
+  if (dateOnly.getTime() > todayOnly.getTime()) {
+    throw new AppError('La date de naissance ne peut pas etre dans le futur.', 422);
+  }
+
+  return dateOnly.toISOString().slice(0, 10);
+}
+
 function generateOtpCode() {
   return `${1000 + Math.floor(Math.random() * 9000)}`;
+}
+
+function hashClientPin(pinCode) {
+  return crypto.createHash('sha256').update(String(pinCode || '')).digest('hex');
+}
+
+function isValidPinCode(pinCode) {
+  return /^\d{4}$/.test(String(pinCode || '').trim());
 }
 
 function signToken(user) {
@@ -93,6 +144,7 @@ async function getLatestOtpForVerification(phoneNumber) {
 async function assertPhonePurposeConsistency(normalizedPhone, purpose) {
   const user = await models.User.findOne({
     where: { phoneNumber: normalizedPhone },
+    include: [{ model: models.UserPreference, as: 'preferences' }],
   });
 
   if (purpose === 'register' && user) {
@@ -107,6 +159,22 @@ async function assertPhonePurposeConsistency(normalizedPhone, purpose) {
   }
 
   return user;
+}
+
+function sanitizePreferences(preferences) {
+  if (!preferences) {
+    return null;
+  }
+
+  return {
+    id: preferences.id,
+    userId: preferences.userId,
+    depositNotificationsEnabled: preferences.depositNotificationsEnabled,
+    cycleNotificationsEnabled: preferences.cycleNotificationsEnabled,
+    marketingNotificationsEnabled: preferences.marketingNotificationsEnabled,
+    pinEnabled: preferences.pinEnabled,
+    biometricEnabled: preferences.biometricEnabled,
+  };
 }
 
 async function createFreshOtp({
@@ -166,7 +234,7 @@ async function createFreshOtp({
 }
 
 async function requestOtp(payload, context) {
-  const { phoneNumber, purpose } = payload;
+  const { phoneNumber, purpose, pinCode } = payload;
   const normalizedPhone = normalizePhone(phoneNumber);
   const authContext = buildAuthContext(context);
 
@@ -174,7 +242,16 @@ async function requestOtp(payload, context) {
     throw new AppError('Le numero doit contenir 10 chiffres.', 422);
   }
 
-  await assertPhonePurposeConsistency(normalizedPhone, purpose);
+  const user = await assertPhonePurposeConsistency(normalizedPhone, purpose);
+
+  if (purpose === 'login' && user?.preferences?.pinCode) {
+    if (!isValidPinCode(pinCode)) {
+      throw new AppError('Le code PIN doit contenir 4 chiffres.', 422);
+    }
+    if (user.preferences.pinCode !== hashClientPin(pinCode)) {
+      throw new AppError('Code PIN incorrect.', 401);
+    }
+  }
 
   return sequelize.transaction(async (transaction) => {
     const existingOtp = await getLatestOtp(normalizedPhone, purpose, transaction);
@@ -295,7 +372,10 @@ async function resendOtp(payload, context) {
   });
 }
 
-async function verifyOtp({ phoneNumber, code }, context) {
+async function verifyOtp(
+  { phoneNumber, code, firstName, lastName, birthDate, pinCode },
+  context,
+) {
   const normalizedPhone = normalizePhone(phoneNumber);
   const normalizedCode = String(code || '').replace(/\D/g, '').trim();
   const authContext = buildAuthContext(context);
@@ -393,10 +473,25 @@ async function verifyOtp({ phoneNumber, code }, context) {
     }
 
     if (!user) {
+      const normalizedFirstName = normalizePersonalName(firstName);
+      const normalizedLastName = normalizePersonalName(lastName);
+
+      if (!isValidPersonalName(normalizedFirstName)) {
+        throw new AppError('Le prenom est invalide.', 422);
+      }
+      if (!isValidPersonalName(normalizedLastName)) {
+        throw new AppError('Le nom est invalide.', 422);
+      }
+
       user = await models.User.create(
         {
           phoneNumber: normalizedPhone,
-          displayName: 'Utilisateur maTontine',
+          displayName:
+            buildDisplayNameFromIdentity(normalizedFirstName, normalizedLastName) ||
+            'Utilisateur maTontine',
+          firstName: normalizedFirstName,
+          lastName: normalizedLastName,
+          birthDate: normalizeBirthDate(birthDate),
           accountType: 'Personnel',
         },
         { transaction },
@@ -415,6 +510,25 @@ async function verifyOtp({ phoneNumber, code }, context) {
       defaults: { userId: user.id },
       transaction,
     });
+
+    const preferences = await models.UserPreference.findOne({
+      where: { userId: user.id },
+      transaction,
+    });
+
+    if (
+      preferences &&
+      !preferences.pinCode &&
+      isValidPinCode(pinCode)
+    ) {
+      await preferences.update(
+        {
+          pinEnabled: true,
+          pinCode: hashClientPin(pinCode),
+        },
+        { transaction },
+      );
+    }
 
     await models.Wallet.findOrCreate({
       where: { userId: user.id },
@@ -452,9 +566,13 @@ async function verifyOtp({ phoneNumber, code }, context) {
         id: user.id,
         phoneNumber: displayPhone(user.phoneNumber),
         displayName: user.displayName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        birthDate: user.birthDate,
         accountType: user.accountType,
         memberSince: user.memberSince,
         lastLoginAt: user.lastLoginAt,
+        preferences: sanitizePreferences(preferences),
       },
     };
   });
@@ -476,10 +594,13 @@ async function getCurrentUserProfile(userId) {
     id: user.id,
     phoneNumber: displayPhone(user.phoneNumber),
     displayName: user.displayName,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    birthDate: user.birthDate,
     accountType: user.accountType,
     memberSince: user.memberSince,
     lastLoginAt: user.lastLoginAt,
-    preferences: user.preferences,
+    preferences: sanitizePreferences(user.preferences),
     wallet: user.wallet,
   };
 }
@@ -489,6 +610,10 @@ module.exports = {
   displayPhone,
   normalizeDisplayName,
   isValidDisplayName,
+  normalizePersonalName,
+  isValidPersonalName,
+  hashClientPin,
+  isValidPinCode,
   requestOtp,
   resendOtp,
   verifyOtp,

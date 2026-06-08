@@ -3,6 +3,7 @@ import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/features/auth/data/services/agent_auth_service.dart';
 import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AgentLoginScreen extends StatefulWidget {
@@ -124,24 +125,27 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                           key: _formKey,
                           child: Column(
                             children: [
-                              TextFormField(
+                              IntlPhoneField(
                                 controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                inputFormatters: AgentInputRules.phoneFormatters,
-                                onChanged: (_) {
+                                initialCountryCode: 'BJ',
+                                showDropdownIcon: false,
+                                showCountryFlag: true,
+                                disableLengthCheck: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Numero agent',
+                                  hintText: 'Ex. 01 23 45 67 89',
+                                ),
+                                onChanged: (phone) {
                                   if (_errorMessage != null) {
                                     setState(() {
                                       _errorMessage = null;
                                     });
                                   }
                                 },
-                                decoration: const InputDecoration(
-                                  labelText: 'Numero agent',
-                                  hintText: 'Ex. 01 23 45 67 89',
-                                ),
-                                validator: (value) {
-                                  if (value == null ||
-                                      !AgentInputRules.isValidPhone(value)) {
+                                validator: (phone) {
+                                  final number = phone?.number ?? '';
+                                  if (number.isEmpty ||
+                                      !AgentInputRules.isValidPhone(number)) {
                                     return 'Entrez un numero valide';
                                   }
                                   return null;

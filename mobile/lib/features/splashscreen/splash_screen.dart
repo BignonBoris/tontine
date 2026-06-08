@@ -55,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (isLoggedIn) {
       Navigator.pushReplacementNamed(
         context,
-        appLockEnabled ? '/unlock' : '/auth_pin_setup',
+        appLockEnabled ? '/unlock' : '/dashboard',
       );
     } else {
       Navigator.pushReplacementNamed(context, '/onboarding');

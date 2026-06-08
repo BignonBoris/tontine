@@ -68,6 +68,14 @@ const AgentGroup = sequelize.define(
         min: 0.01,
       },
     },
+    commissionAmount: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      },
+    },
     plannedStartDate: {
       type: DataTypes.DATE,
       allowNull: false,

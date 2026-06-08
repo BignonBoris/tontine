@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/core/security/local_security_service.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 
@@ -26,6 +26,10 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
   String _normalizedPhoneNumber = '';
   String _demoOtpCode = '0000';
   bool _isRegistration = false;
+  String? _pinCode;
+  String? _firstName;
+  String? _lastName;
+  String? _birthDate;
   bool _argumentsLoaded = false;
   bool _isSubmitting = false;
   String? _feedbackMessage;
@@ -54,6 +58,18 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       }
       if (args['isRegistration'] is bool) {
         _isRegistration = args['isRegistration'] as bool;
+      }
+      if (args['pinCode'] is String) {
+        _pinCode = args['pinCode'] as String;
+      }
+      if (args['firstName'] is String) {
+        _firstName = args['firstName'] as String;
+      }
+      if (args['lastName'] is String) {
+        _lastName = args['lastName'] as String;
+      }
+      if (args['birthDate'] is String) {
+        _birthDate = args['birthDate'] as String;
       }
     }
     _argumentsLoaded = true;
@@ -388,6 +404,10 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     final result = await LocalAuthService.verifyOtp(
       rawPhoneNumber: _normalizedPhoneNumber,
       otpCode: code,
+      pinCode: _pinCode,
+      firstName: _isRegistration ? _firstName : null,
+      lastName: _isRegistration ? _lastName : null,
+      birthDate: _isRegistration ? _birthDate : null,
     );
 
     if (!mounted) {
@@ -408,6 +428,23 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
 
     final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
     if (!mounted) {
+      return;
+    }
+
+    if (!_isRegistration &&
+        !appLockEnabled &&
+        _pinCode != null &&
+        _pinCode!.trim().length == 4) {
+      await LocalSecurityService.saveSettings(
+        pinEnabled: true,
+        biometricEnabled: false,
+        pinCode: _pinCode!.trim(),
+        phoneNumber: _normalizedPhoneNumber,
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
       return;
     }
 

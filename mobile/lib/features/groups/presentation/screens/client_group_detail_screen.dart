@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/features/groups/data/services/client_groups_service.dart';
+import 'package:mobile/features/groups/domain/entities/client_group_advance.dart';
+import 'package:mobile/features/groups/domain/entities/client_group_advance_recovery.dart';
 import 'package:mobile/features/groups/domain/entities/client_group_contribution.dart';
 import 'package:mobile/features/groups/domain/entities/client_group_membership.dart';
 
@@ -17,18 +20,25 @@ class _ClientGroupDetailScreenState extends State<ClientGroupDetailScreen> {
   final _service = ClientGroupsService();
   late Future<ClientGroupMembership> _future;
   late Future<List<ClientGroupContribution>> _contributionsFuture;
+  late Future<List<ClientGroupAdvance>> _advancesFuture;
+  late Future<List<ClientGroupAdvanceRecovery>> _advanceRecoveriesFuture;
 
   @override
   void initState() {
     super.initState();
     _future = _service.fetchGroupDetail(widget.groupId);
     _contributionsFuture = _service.fetchGroupContributions(widget.groupId);
+    _advancesFuture = _service.fetchGroupAdvances(widget.groupId);
+    _advanceRecoveriesFuture = _service.fetchGroupAdvanceRecoveries(widget.groupId);
   }
 
   void _reload() {
     setState(() {
       _future = _service.fetchGroupDetail(widget.groupId);
       _contributionsFuture = _service.fetchGroupContributions(widget.groupId);
+      _advancesFuture = _service.fetchGroupAdvances(widget.groupId);
+      _advanceRecoveriesFuture =
+          _service.fetchGroupAdvanceRecoveries(widget.groupId);
     });
   }
 
@@ -139,11 +149,7 @@ class _ClientGroupDetailScreenState extends State<ClientGroupDetailScreen> {
                           const SizedBox(height: 10),
                           _FactRow(
                             label: 'Statut',
-                            value: nextContribution.isPaid
-                                ? 'Payee'
-                                : nextContribution.isMissed
-                                ? 'Impayee'
-                                : 'En attente',
+                            value: nextContribution.isPaid ? 'Payee' : 'En attente',
                           ),
                           if (!nextContribution.isPaid) ...[
                             const SizedBox(height: 16),
@@ -151,13 +157,117 @@ class _ClientGroupDetailScreenState extends State<ClientGroupDetailScreen> {
                               width: double.infinity,
                               child: ElevatedButton(
                                 onPressed: () =>
-                                    _payContribution(nextContribution.id),
+                                    _payContribution(nextContribution),
                                 child: const Text(
                                   'Payer depuis le solde disponible',
                                 ),
                               ),
                             ),
                           ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              FutureBuilder<List<ClientGroupAdvance>>(
+                future: _advancesFuture,
+                builder: (context, advanceSnapshot) {
+                  if (advanceSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+                  if (advanceSnapshot.hasError) {
+                    return const SizedBox.shrink();
+                  }
+                  final advances =
+                      advanceSnapshot.data ?? const <ClientGroupAdvance>[];
+                  if (advances.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Avances a rembourser',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 10),
+                          ...advances.map(
+                            (advance) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _FactRow(
+                                label:
+                                    'Tour ${advance.contribution?.turnNumber ?? '-'}',
+                                value:
+                                    '${advance.remainingAmount.toStringAsFixed(0)} F',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              FutureBuilder<List<ClientGroupAdvanceRecovery>>(
+                future: _advanceRecoveriesFuture,
+                builder: (context, recoverySnapshot) {
+                  if (recoverySnapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+                  if (recoverySnapshot.hasError) {
+                    return const SizedBox.shrink();
+                  }
+                  final recoveries =
+                      recoverySnapshot.data ??
+                      const <ClientGroupAdvanceRecovery>[];
+                  if (recoveries.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Remboursements d avances',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 10),
+                          ...recoveries.map(
+                            (recovery) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _FactRow(
+                                    label:
+                                        'Tour ${recovery.contribution?.turnNumber ?? '-'}',
+                                    value:
+                                        '${recovery.amount.toStringAsFixed(0)} F',
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _FactRow(
+                                    label: 'Reference',
+                                    value: recovery.reference,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _FactRow(
+                                    label: 'Date',
+                                    value: _formatDate(recovery.recoveredAt),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -171,9 +281,38 @@ class _ClientGroupDetailScreenState extends State<ClientGroupDetailScreen> {
     );
   }
 
-  Future<void> _payContribution(String contributionId) async {
+  Future<void> _payContribution(
+    ClientGroupContribution contribution,
+  ) async {
     try {
-      await _service.payContribution(contributionId);
+      final hasPin = await LocalSecurityService.hasAppLockEnabled();
+      if (!hasPin) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Configurez votre code PIN dans Profil avant de payer une tontine.',
+              ),
+            ),
+          );
+        return;
+      }
+
+      final authorized = await LocalSecurityService.authorizeIfEnabled(
+        context,
+        title: 'Confirmer le paiement',
+        message:
+            'Entrez votre PIN pour confirmer le paiement de ${contribution.amount.toStringAsFixed(0)} F du tour ${contribution.turnNumber}.',
+      );
+      if (!mounted || !authorized) {
+        return;
+      }
+
+      await _service.payContribution(contribution.id);
       if (!mounted) {
         return;
       }

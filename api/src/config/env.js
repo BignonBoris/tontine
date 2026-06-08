@@ -25,6 +25,7 @@ const env = {
   ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
+  fcmServerKey: process.env.FCM_SERVER_KEY || '',
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),
