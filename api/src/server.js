@@ -8,7 +8,15 @@ async function start() {
   try {
     await sequelize.authenticate();
     await runBootstrap(sequelize);
-    if (env.sequelizeSync) {
+    const shouldSyncSchema = env.sequelizeSync && env.nodeEnv !== 'production';
+
+    if (env.sequelizeSync && env.nodeEnv === 'production') {
+      console.warn(
+        '[WARN] SEQUELIZE_SYNC ignored in production. Use bootstrap/migrations to avoid schema drift and MySQL index limits.',
+      );
+    }
+
+    if (shouldSyncSchema) {
       await sequelize.sync();
     }
     const defaultAgent = await runSeeds(models);
