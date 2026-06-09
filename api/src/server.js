@@ -8,11 +8,19 @@ async function start() {
   try {
     await sequelize.authenticate();
     await runBootstrap(sequelize);
-    const shouldSyncSchema = env.sequelizeSync && env.nodeEnv !== 'production';
+    const isRenderDeployment = Boolean(
+      process.env.RENDER ||
+        process.env.RENDER_SERVICE_ID ||
+        process.env.RENDER_EXTERNAL_URL,
+    );
+    const shouldSyncSchema =
+      env.sequelizeSync &&
+      env.nodeEnv === 'development' &&
+      !isRenderDeployment;
 
-    if (env.sequelizeSync && env.nodeEnv === 'production') {
+    if (env.sequelizeSync && !shouldSyncSchema) {
       console.warn(
-        '[WARN] SEQUELIZE_SYNC ignored in production. Use bootstrap/migrations to avoid schema drift and MySQL index limits.',
+        '[WARN] SEQUELIZE_SYNC ignored outside local development. Use bootstrap/migrations to avoid schema drift and MySQL index limits.',
       );
     }
 
