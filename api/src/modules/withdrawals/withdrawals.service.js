@@ -8,6 +8,10 @@ const {
   consumeWithdrawalCommissionReserves,
   postWithdrawalCommissions,
 } = require('../commission/commission.service');
+const {
+  getActiveGroupDebtForUser,
+  getClientFinancialSnapshot,
+} = require('../agent-groups/agent-group-capacity.service');
 
 const WITHDRAWAL_CONFIRMATION_TTL_MINUTES = 15;
 const WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS = 5;
@@ -181,6 +185,22 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
     }
     if (Number(wallet.availableBalance || 0) < amount) {
       throw new AppError('Solde disponible insuffisant.', 422);
+    }
+
+    const financialSnapshot = await getClientFinancialSnapshot(userId, transaction);
+    const activeGroupDebt = await getActiveGroupDebtForUser(userId, {
+      transaction,
+    });
+    const estimatedCapacityAfterWithdrawal = Math.max(
+      financialSnapshot.estimatedCapacity - amount,
+      0,
+    );
+
+    if (estimatedCapacityAfterWithdrawal < activeGroupDebt) {
+      throw new AppError(
+        'Retrait indisponible car il reduirait votre capacite a honorer vos cotisations de groupe en cours.',
+        422,
+      );
     }
 
     const confirmationCode = generateConfirmationCode();

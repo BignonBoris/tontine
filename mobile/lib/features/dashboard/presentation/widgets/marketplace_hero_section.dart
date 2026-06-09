@@ -33,12 +33,12 @@ class MarketplaceHeroSection extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: AppTheme.secondaryColor.withOpacity(0.12),
+              color: AppTheme.accentColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
               Icons.account_balance_wallet_outlined,
-              color: AppTheme.secondaryColor,
+              color: AppTheme.accentColor,
             ),
           ),
           const SizedBox(width: 12),
@@ -58,7 +58,7 @@ class MarketplaceHeroSection extends StatelessWidget {
                 Text(
                   "${formatFCFA(availableBalance)} F CFA",
                   style: GoogleFonts.poppins(
-                    color: AppTheme.primaryColor,
+                    color: AppTheme.secondaryColor,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),

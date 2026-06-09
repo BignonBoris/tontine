@@ -51,20 +51,17 @@ async function buildClientSummary(client) {
 }
 
 async function searchClients(query) {
-  const search = String(query || '').trim();
+  const search = normalizePhone(String(query || ''));
+  if (search.length !== 10) {
+    return [];
+  }
   const where = {
     isActive: true,
     accountType: { [Op.ne]: 'Agent' },
     '$agentProfile.id$': null,
   };
 
-  if (search.length > 0) {
-    const digits = search.replace(/\D/g, '');
-    where[Op.or] = [
-      { displayName: { [Op.like]: `%${search}%` } },
-      { phoneNumber: { [Op.like]: `%${digits}%` } },
-    ];
-  }
+  where.phoneNumber = search;
 
   const clients = await models.User.findAll({
     where,

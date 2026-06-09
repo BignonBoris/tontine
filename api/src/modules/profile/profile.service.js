@@ -3,9 +3,13 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models } = require('../../database/models');
 const {
   displayPhone,
+  hashClientPin,
+  isValidPinCode,
   normalizePhone,
   normalizeDisplayName,
   isValidDisplayName,
+  normalizePersonalName,
+  isValidPersonalName,
 } = require('../auth/auth.service');
 
 async function getProfile(userId) {
@@ -19,11 +23,27 @@ async function getProfile(userId) {
   return {
     id: user.id,
     displayName: user.displayName,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    birthDate: user.birthDate,
     phoneNumber: displayPhone(user.phoneNumber),
     accountType: user.accountType,
     memberSince: user.memberSince,
     lastLoginAt: user.lastLoginAt,
-    preferences: user.preferences,
+    preferences: user.preferences
+      ? {
+          id: user.preferences.id,
+          userId: user.preferences.userId,
+          depositNotificationsEnabled:
+              user.preferences.depositNotificationsEnabled,
+          cycleNotificationsEnabled:
+              user.preferences.cycleNotificationsEnabled,
+          marketingNotificationsEnabled:
+              user.preferences.marketingNotificationsEnabled,
+          pinEnabled: user.preferences.pinEnabled,
+          biometricEnabled: user.preferences.biometricEnabled,
+        }
+      : null,
   };
 }
 
@@ -41,6 +61,31 @@ async function updateProfile(userId, payload, requestContext = {}) {
     }
     updates.displayName = displayName;
   }
+  if (payload.firstName != null) {
+    const firstName = normalizePersonalName(payload.firstName);
+    if (!isValidPersonalName(firstName)) {
+      throw new AppError('Le prenom est invalide.', 422);
+    }
+    updates.firstName = firstName;
+  }
+  if (payload.lastName != null) {
+    const lastName = normalizePersonalName(payload.lastName);
+    if (!isValidPersonalName(lastName)) {
+      throw new AppError('Le nom est invalide.', 422);
+    }
+    updates.lastName = lastName;
+  }
+  if (payload.birthDate !== undefined) {
+    if (payload.birthDate == null || `${payload.birthDate}`.trim().isEmpty) {
+      updates.birthDate = null;
+    } else {
+      const parsed = new Date(payload.birthDate);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new AppError('La date de naissance est invalide.', 422);
+      }
+      updates.birthDate = parsed.toISOString().slice(0, 10);
+    }
+  }
   if (payload.accountType) updates.accountType = payload.accountType;
   if (payload.phoneNumber != null) {
     const phoneNumber = normalizePhone(payload.phoneNumber);
@@ -48,6 +93,11 @@ async function updateProfile(userId, payload, requestContext = {}) {
       throw new AppError('Le numero de telephone est invalide.', 422);
     }
     updates.phoneNumber = phoneNumber;
+  }
+  if (updates.firstName != null || updates.lastName != null) {
+    updates.displayName = normalizeDisplayName(
+      `${updates.firstName ?? user.firstName ?? ''} ${updates.lastName ?? user.lastName ?? ''}`.trim(),
+    ) || user.displayName;
   }
 
   await user.update(updates);
@@ -70,7 +120,21 @@ async function updatePreferences(userId, payload, requestContext = {}) {
     where: { userId },
     defaults: { userId },
   });
-  await preferences.update(payload);
+  const updates = { ...payload };
+
+  if (payload.pinCode !== undefined) {
+    if (payload.pinCode == null || `${payload.pinCode}`.trim().isEmpty) {
+      delete updates.pinCode;
+    } else {
+      if (!isValidPinCode(payload.pinCode)) {
+        throw new AppError('Le code PIN doit contenir 4 chiffres.', 422);
+      }
+      updates.pinCode = hashClientPin(payload.pinCode);
+      updates.pinEnabled = true;
+    }
+  }
+
+  await preferences.update(updates);
   await writeAuditLog({
     userId,
     action: 'profile.preferencesUpdated',
@@ -79,10 +143,18 @@ async function updatePreferences(userId, payload, requestContext = {}) {
     ipAddress: requestContext.ipAddress,
     userAgent: requestContext.userAgent,
     metadata: {
-      updatedFields: Object.keys(payload),
+      updatedFields: Object.keys(updates),
     },
   });
-  return preferences;
+  return {
+    id: preferences.id,
+    userId: preferences.userId,
+    depositNotificationsEnabled: preferences.depositNotificationsEnabled,
+    cycleNotificationsEnabled: preferences.cycleNotificationsEnabled,
+    marketingNotificationsEnabled: preferences.marketingNotificationsEnabled,
+    pinEnabled: preferences.pinEnabled,
+    biometricEnabled: preferences.biometricEnabled,
+  };
 }
 
 module.exports = { getProfile, updateProfile, updatePreferences };

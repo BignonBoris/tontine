@@ -40,12 +40,12 @@ class MarketOrderListTile extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.08),
+                color: AppTheme.accentColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(
                 Icons.shopping_bag_outlined,
-                color: AppTheme.primaryColor,
+                color: AppTheme.accentColor,
               ),
             ),
             const SizedBox(width: 12),
@@ -86,7 +86,7 @@ class MarketOrderListTile extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.primaryColor,
+                color: AppTheme.secondaryColor,
               ),
             ),
           ],

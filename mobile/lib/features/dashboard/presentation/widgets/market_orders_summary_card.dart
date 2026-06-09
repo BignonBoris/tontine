@@ -37,10 +37,10 @@ class MarketOrdersSummaryCard extends StatelessWidget {
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
-                    backgroundColor: AppTheme.secondaryColor.withOpacity(0.12),
+                    backgroundColor: AppTheme.accentColor.withOpacity(0.12),
                     child: const Icon(
                       Icons.shopping_bag_outlined,
-                      color: AppTheme.secondaryColor,
+                      color: AppTheme.accentColor,
                     ),
                   ),
                   title: Text(
@@ -62,7 +62,7 @@ class MarketOrdersSummaryCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryColor,
+                      color: AppTheme.secondaryColor,
                     ),
                   ),
                 );

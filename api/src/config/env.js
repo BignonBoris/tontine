@@ -7,6 +7,10 @@ const env = {
   port: Number(process.env.PORT || 3000),
   appName: process.env.APP_NAME || 'maTontine API',
   appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+  clientAppBaseUrl:
+    process.env.CLIENT_APP_BASE_URL ||
+    process.env.APP_BASE_URL ||
+    'http://localhost:3000',
   jwtSecret: process.env.JWT_SECRET || 'change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
@@ -21,6 +25,7 @@ const env = {
   ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
+  fcmServerKey: process.env.FCM_SERVER_KEY || '',
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),

@@ -44,6 +44,7 @@ class ProfilePreferences {
       'marketingNotificationsEnabled': marketingNotificationsEnabled,
       'pinEnabled': pinEnabled,
       'biometricEnabled': biometricEnabled,
+      if (pinCode != null && pinCode!.isNotEmpty) 'pinCode': pinCode,
     };
   }
 

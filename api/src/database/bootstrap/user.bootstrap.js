@@ -33,6 +33,24 @@ async function ensureUserCompatibility(sequelize) {
     'created_by_agent_profile_id',
     '`created_by_agent_profile_id` CHAR(36) NULL',
   );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'first_name',
+    '`first_name` VARCHAR(80) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'last_name',
+    '`last_name` VARCHAR(80) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'birth_date',
+    '`birth_date` DATE NULL',
+  );
 }
 
 module.exports = { ensureUserCompatibility };

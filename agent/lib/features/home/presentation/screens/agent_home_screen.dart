@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/services/realtime_notification_service.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
@@ -8,6 +11,7 @@ import 'package:agent/features/home/data/services/agent_dashboard_service.dart';
 import 'package:agent/features/home/domain/entities/agent_overview.dart';
 import 'package:agent/features/home/presentation/widgets/agent_overview_tile.dart';
 import 'package:agent/features/home/presentation/widgets/agent_quick_action_card.dart';
+import 'package:agent/features/notifications/presentation/screens/agent_notifications_screen.dart';
 import 'package:agent/features/withdrawals/presentation/widgets/agent_withdrawal_payment_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -30,17 +34,67 @@ class AgentHomeScreen extends StatefulWidget {
 
 class _AgentHomeScreenState extends State<AgentHomeScreen> {
   final _service = AgentDashboardService();
+  final _realtimeService = RealtimeNotificationService();
+  StreamSubscription<RealtimeNotificationEvent>? _realtimeSubscription;
+  Timer? _realtimeRefreshTimer;
+  bool _disposed = false;
   late Future<AgentOverview> _overviewFuture;
 
   @override
   void initState() {
     super.initState();
     _overviewFuture = _service.fetchOverview();
+    _ensureRealtimeSubscription();
   }
 
   void _reload() {
     setState(() {
       _overviewFuture = _service.fetchOverview();
+    });
+  }
+
+  Future<void> _openNotificationsCenter() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AgentNotificationsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _reload();
+  }
+
+  void _ensureRealtimeSubscription() {
+    if (_realtimeSubscription != null) {
+      return;
+    }
+
+    _realtimeSubscription = _realtimeService.stream.listen((event) {
+      if (_disposed) {
+        return;
+      }
+
+      if (event.eventName == 'notification.created') {
+        _scheduleRealtimeRefresh();
+      }
+    });
+  }
+
+  void _scheduleRealtimeRefresh() {
+    if (_disposed) {
+      return;
+    }
+
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(const Duration(milliseconds: 500), () {
+      if (_disposed || !mounted) {
+        return;
+      }
+      _reload();
     });
   }
 
@@ -62,6 +116,15 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
       ..showSnackBar(
         const SnackBar(content: Text('Retrait client paye avec succes.')),
       );
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _realtimeRefreshTimer?.cancel();
+    unawaited(_realtimeSubscription?.cancel());
+    unawaited(_realtimeService.dispose());
+    super.dispose();
   }
 
   @override
@@ -101,9 +164,47 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: widget.onOpenHistory,
-            icon: const Icon(Icons.notifications_none_rounded),
+          FutureBuilder<AgentOverview>(
+            future: _overviewFuture,
+            builder: (context, snapshot) {
+              final unreadCount =
+                  snapshot.data?.unreadNotificationsCount ?? 0;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      onPressed: _openNotificationsCenter,
+                      icon: const Icon(Icons.notifications_none_rounded),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: AgentAppTheme.errorColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
           const AgentLogoutAction(),
         ],
@@ -139,6 +240,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                 myClientsCount: 0,
                 commissionBalance: 0,
                 commissionPayableBalance: 0,
+                unreadNotificationsCount: 0,
               );
 
           return RefreshIndicator(
@@ -246,6 +348,73 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                                 value: '${overview.pendingCount}',
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _openNotificationsCenter,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(
+                                      Icons.notifications_none_rounded,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Notifications',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          overview.unreadNotificationsCount > 0
+                                              ? '${overview.unreadNotificationsCount} alerte(s) non lue(s)'
+                                              : 'Aucune alerte en attente',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: Colors.white70,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Colors.white70,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ],

@@ -1,6 +1,9 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/database');
 const { APP_NOTIFICATION_TYPES } = require('../../common/constants/enums');
+const {
+  deliverNotificationCreated,
+} = require('../../common/services/notification-delivery.service');
 
 const Notification = sequelize.define(
   'Notification',
@@ -46,6 +49,20 @@ const Notification = sequelize.define(
   },
   {
     tableName: 'notifications',
+    hooks: {
+      afterCreate(notification, options) {
+        const publish = () => {
+          deliverNotificationCreated(notification);
+        };
+
+        if (options?.transaction?.afterCommit) {
+          options.transaction.afterCommit(publish);
+          return;
+        }
+
+        publish();
+      },
+    },
     indexes: [
       { fields: ['user_id', 'is_read'] },
       { fields: ['user_id', 'created_at_client'] },

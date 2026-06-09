@@ -4,6 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
+import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
+import 'package:mobile/features/dashboard/domain/entities/profile_preferences.dart';
 
 class AuthPinSetupScreen extends StatefulWidget {
   const AuthPinSetupScreen({super.key});
@@ -39,7 +42,9 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
           builder: (context, constraints) => SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(30, 10, 30, 28),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 38),
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - 38,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -66,7 +71,9 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
                               borderRadius: BorderRadius.circular(30),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.accentDarkColor.withValues(alpha: 0.14),
+                                  color: AppTheme.accentDarkColor.withValues(
+                                    alpha: 0.14,
+                                  ),
                                   blurRadius: 24,
                                   offset: const Offset(0, 12),
                                 ),
@@ -143,27 +150,27 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 16),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.12),
-                            ),
-                          ),
-                          child: Text(
-                            "Sans ce PIN, l'application ne permettra plus l'acces au tableau de bord.",
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.90),
-                              height: 1.45,
-                            ),
-                          ),
-                        ),
+                        // const SizedBox(height: 16),
+                        // Container(
+                        //   width: double.infinity,
+                        //   padding: const EdgeInsets.all(14),
+                        //   decoration: BoxDecoration(
+                        //     color: Colors.white.withValues(alpha: 0.10),
+                        //     borderRadius: BorderRadius.circular(18),
+                        //     border: Border.all(
+                        //       color: Colors.white.withValues(alpha: 0.12),
+                        //     ),
+                        //   ),
+                        //   child: Text(
+                        //     "Sans ce PIN, l'application ne permettra plus l'acces au tableau de bord.",
+                        //     style: GoogleFonts.inter(
+                        //       fontSize: 13,
+                        //       fontWeight: FontWeight.w600,
+                        //       color: Colors.white.withValues(alpha: 0.90),
+                        //       height: 1.45,
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                     Padding(
@@ -215,6 +222,14 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
       pinEnabled: true,
       biometricEnabled: false,
       pinCode: _pinController.text.trim(),
+      phoneNumber: await LocalAuthService.loadSuggestedNormalizedPhoneNumber(),
+    );
+    await RemoteDashboardService().savePreferences(
+      ProfilePreferences.defaults().copyWith(
+        pinEnabled: true,
+        biometricEnabled: false,
+        pinCode: _pinController.text.trim(),
+      ),
     );
 
     if (!mounted) {
@@ -247,9 +262,7 @@ class _PinInputCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppTheme.accentColor.withValues(alpha: 0.26),
-        ),
+        border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.26)),
         boxShadow: [
           BoxShadow(
             color: AppTheme.accentDarkColor.withValues(alpha: 0.08),
@@ -262,9 +275,7 @@ class _PinInputCard extends StatelessWidget {
         controller: controller,
         keyboardType: TextInputType.number,
         obscureText: true,
-        inputFormatters: [
-          ...AppInputRules.pinFormatters,
-        ],
+        inputFormatters: [...AppInputRules.pinFormatters],
         decoration: InputDecoration(
           labelText: label,
           hintText: '4 chiffres',

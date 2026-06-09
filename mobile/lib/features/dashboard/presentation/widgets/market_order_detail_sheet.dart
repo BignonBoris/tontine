@@ -59,7 +59,10 @@ class MarketOrderDetailSheet extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: AppTheme.accentColor,
+                      ),
                     ),
                   ],
                 ),
@@ -68,7 +71,7 @@ class MarketOrderDetailSheet extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F8FE),
+                    color: AppTheme.backgroundColor,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Column(
@@ -87,11 +90,16 @@ class MarketOrderDetailSheet extends StatelessWidget {
                       _InfoRow(
                         label: "Montant",
                         value: "${formatFCFA(order.amount)} F",
+                        valueColor: AppTheme.secondaryColor,
                       ),
-                      _InfoRow(label: "Quantite", value: "${order.quantity}"),
+                      _InfoRow(
+                        label: "Quantite",
+                        value: "${order.quantity}",
+                      ),
                       _InfoRow(
                         label: "Prix unitaire",
                         value: "${formatFCFA(order.unitPrice)} F",
+                        valueColor: AppTheme.secondaryColor,
                       ),
                       _InfoRow(
                         label: "Creee le",
@@ -173,8 +181,13 @@ class MarketOrderDetailSheet extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +212,7 @@ class _InfoRow extends StatelessWidget {
               value,
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: AppTheme.textPrimaryColor,
+                color: valueColor ?? AppTheme.textPrimaryColor,
                 fontWeight: FontWeight.w600,
               ),
             ),

@@ -289,10 +289,12 @@ Future<int?> _showMarketplaceQuantityDialog(
                 _ConfirmationLine(
                   label: "Prix unitaire",
                   value: "${formatFCFA(unitPrice)} F CFA",
+                  valueColor: AppTheme.secondaryColor,
                 ),
                 _ConfirmationLine(
                   label: "Montant total",
                   value: "${formatFCFA(total)} F CFA",
+                  valueColor: AppTheme.secondaryColor,
                 ),
                 if (mode == _MarketplaceActionMode.goal) ...[
                   const _ConfirmationLine(
@@ -340,8 +342,13 @@ enum _MarketplaceActionMode { order, goal }
 class _ConfirmationLine extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _ConfirmationLine({required this.label, required this.value});
+  const _ConfirmationLine({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +376,7 @@ class _ConfirmationLine extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimaryColor,
+                color: valueColor ?? AppTheme.textPrimaryColor,
               ),
             ),
           ),
@@ -396,12 +403,12 @@ class _QuantityButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: onTap == null
               ? Colors.grey.shade100
-              : AppTheme.primaryColor.withOpacity(0.06),
+              : AppTheme.accentColor.withOpacity(0.08),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
           icon,
-          color: onTap == null ? Colors.grey.shade400 : AppTheme.primaryColor,
+          color: onTap == null ? Colors.grey.shade400 : AppTheme.accentColor,
         ),
       ),
     );
