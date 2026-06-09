@@ -16,6 +16,30 @@ export const clientService = {
     );
   },
 
+  create(payload: {
+    displayName: string;
+    phoneNumber: string;
+    address: string;
+    stakeAmount: number;
+    agentId?: string | null;
+  }) {
+    return unwrapEnvelope<ClientDetail>(
+      apiClient.post("/admin/clients", payload)
+    );
+  },
+
+  startTontine(userId: string, stakeAmount: number) {
+    return unwrapEnvelope<{ id: string }>(
+      apiClient.post(`/admin/clients/${userId}/start-tontine`, { stakeAmount })
+    );
+  },
+
+  recordContribution(userId: string, amount: number) {
+    return unwrapEnvelope<ClientDetail>(
+      apiClient.post(`/admin/clients/${userId}/contributions`, { amount })
+    );
+  },
+
   updateStatus(userId: string, isActive: boolean) {
     return unwrapEnvelope<{ id: string; isActive: boolean }>(
       apiClient.patch(`/admin/clients/${userId}/status`, { isActive })

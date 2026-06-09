@@ -229,6 +229,7 @@ export interface ClientItem {
   availableBalance: number;
   reservedWithdrawalBalance: number;
   tontineBalance: number;
+  hasActiveTontine: boolean;
   createdByAgent: {
     id: string;
     agentCode: string;
@@ -427,4 +428,38 @@ export interface WithdrawalDetail {
       phoneNumber: string;
     } | null;
   }>;
+}
+
+export interface TontineCycleItem {
+  id: string;
+  stakeAmount: number;
+  cumulativeAmount: number;
+  targetAmount: number;
+  progress: number;
+  status: string;
+  startedAt: string;
+  expectedEndAt: string;
+  endedAt: string | null;
+  createdAt: string;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string;
+    tontineBalance: number;
+  };
+}
+
+export interface TontineCycleDepositItem {
+  id: string;
+  amount: number;
+  label: string;
+  note: string | null;
+  occurredAt: string;
+  initiatedByUserId: string | null;
+  initiatorType: string | null;
+}
+
+export interface TontineCycleCalendar {
+  cycle: TontineCycleItem;
+  deposits: TontineCycleDepositItem[];
 }

@@ -63,6 +63,30 @@ async function ensureWithdrawalCompatibility(sequelize) {
     'cancellation_reason',
     '`cancellation_reason` VARCHAR(255) NULL',
   );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'paid_by_agent_profile_id',
+    '`paid_by_agent_profile_id` CHAR(36) BINARY NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'initiated_by_user_id',
+    '`initiated_by_user_id` CHAR(36) BINARY NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'initiator_type',
+    '`initiator_type` VARCHAR(32) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'notes',
+    '`notes` VARCHAR(255) NULL',
+  );
 
   await sequelize.query(
     "UPDATE withdrawals SET confirmation_code_hash = 'legacy-withdrawal-code' WHERE confirmation_code_hash IS NULL OR confirmation_code_hash = ''",

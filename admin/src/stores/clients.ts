@@ -18,9 +18,48 @@ export const useClientStore = defineStore("clients", () => {
     }
   }
 
+  async function createClient(payload: {
+    displayName: string;
+    phoneNumber: string;
+    address: string;
+    stakeAmount: number;
+    agentId?: string | null;
+  }) {
+    isLoading.value = true;
+    try {
+      const result = await clientService.create(payload);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function startTontine(userId: string, stakeAmount: number) {
+    isLoading.value = true;
+    try {
+      const result = await clientService.startTontine(userId, stakeAmount);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function recordContribution(userId: string, amount: number) {
+    isLoading.value = true;
+    try {
+      const result = await clientService.recordContribution(userId, amount);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     collection,
     isLoading,
     fetchClients,
+    createClient,
+    startTontine,
+    recordContribution,
   };
 });
