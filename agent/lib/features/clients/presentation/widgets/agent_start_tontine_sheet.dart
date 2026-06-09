@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
@@ -67,6 +68,7 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
                 TextFormField(
                   controller: _stakeController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AgentInputRules.amountFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Mise initiale',
                     suffixText: 'F CFA',
@@ -82,6 +84,7 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
                 TextFormField(
                   controller: _initialDepositController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AgentInputRules.amountFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Premier depot (facultatif)',
                     suffixText: 'F CFA',

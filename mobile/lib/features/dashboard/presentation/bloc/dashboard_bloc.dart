@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/services/realtime_notification_service.dart';
 import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 
 import 'dashboard_event.dart';
@@ -7,10 +10,14 @@ import 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final RemoteDashboardService _remoteDashboardService;
+  final RealtimeNotificationService _realtimeNotificationService;
+  StreamSubscription<RealtimeNotificationEvent>? _realtimeSubscription;
+  Timer? _realtimeRefreshTimer;
 
   DashboardBloc({RemoteDashboardService? remoteDashboardService})
     : _remoteDashboardService =
           remoteDashboardService ?? RemoteDashboardService(),
+      _realtimeNotificationService = RealtimeNotificationService(),
       super(DashboardInitial()) {
     on<LoadDashboardData>(_onLoadDashboardData);
     on<AddGoal>(_onAddGoal);
@@ -33,6 +40,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<TogglePriority>((event, emit) => _emitUnsupportedState(emit));
     on<TransferFunds>((event, emit) => _emitUnsupportedState(emit));
     on<ReorderGoalPriority>((event, emit) => _emitUnsupportedState(emit));
+    _ensureRealtimeSubscription();
   }
 
   Future<void> _onLoadDashboardData(
@@ -60,6 +68,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           preferences: snapshot.preferences,
         ),
       );
+      _ensureRealtimeSubscription();
     } on ApiException catch (error) {
       emit(_mapApiError(error));
     } catch (error) {
@@ -249,6 +258,32 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
   }
 
+  void _ensureRealtimeSubscription() {
+    if (_realtimeSubscription != null) {
+      return;
+    }
+
+    _realtimeSubscription = _realtimeNotificationService.stream.listen(
+      (event) {
+        if (event.eventName == 'notification.created') {
+          _scheduleRealtimeRefresh();
+        }
+      },
+    );
+  }
+
+  void _scheduleRealtimeRefresh() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(
+      const Duration(milliseconds: 500),
+      () {
+        if (!isClosed) {
+          add(LoadDashboardData());
+        }
+      },
+    );
+  }
+
   Future<void> _runMutation(
     Emitter<DashboardState> emit,
     Future<void> Function() action, {
@@ -280,6 +315,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           preferences: snapshot.preferences,
         ),
       );
+      _ensureRealtimeSubscription();
     } on ApiException catch (error) {
       emit(_mapApiError(error));
     } catch (error) {
@@ -287,6 +323,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         DashboardError("Une erreur serveur est survenue. ${error.toString()}"),
       );
     }
+  }
+
+  @override
+  Future<void> close() async {
+    _realtimeRefreshTimer?.cancel();
+    await _realtimeSubscription?.cancel();
+    await _realtimeNotificationService.dispose();
+    return super.close();
   }
 
   DashboardError _mapApiError(ApiException error) {

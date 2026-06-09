@@ -19,6 +19,17 @@ const router = express.Router();
  */
 router.get('/', authenticate, asyncHandler(controller.listNotifications));
 router.post(
+  '/devices/register',
+  authenticate,
+  asyncHandler(controller.registerPushDevice),
+);
+router.post(
+  '/devices/unregister',
+  authenticate,
+  asyncHandler(controller.unregisterPushDevice),
+);
+router.get('/stream', authenticate, asyncHandler(controller.streamNotifications));
+router.post(
   '/:notificationId/read',
   authenticate,
   asyncHandler(controller.markAsRead),

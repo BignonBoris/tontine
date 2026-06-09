@@ -61,7 +61,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         );
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF8F9FE),
+          backgroundColor: AppTheme.backgroundColor,
           appBar: AppBar(
             automaticallyImplyLeading: widget.showBackButton,
             title: Text(
@@ -71,7 +71,10 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             actions: [
               IconButton(
                 onPressed: () => _openSearch(context),
-                icon: const Icon(Icons.search_rounded),
+                icon: const Icon(
+                  Icons.search_rounded,
+                  color: AppTheme.accentColor,
+                ),
               ),
               IconButton(
                 onPressed: () => _openFavorites(context),
@@ -79,14 +82,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   state.favoriteOfferIds.isEmpty
                       ? Icons.favorite_border_rounded
                       : Icons.favorite_rounded,
-                  color: state.favoriteOfferIds.isEmpty
-                      ? null
-                      : const Color(0xFFD81B60),
+                  color: AppTheme.accentColor,
                 ),
               ),
               IconButton(
                 onPressed: () => _openOrders(context),
-                icon: const Icon(Icons.shopping_bag_outlined),
+                icon: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppTheme.accentColor,
+                ),
               ),
             ],
           ),
@@ -168,8 +172,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         onCreateGoal: () => _handleCreateGoal(context, offer),
                       );
                     }, childCount: visibleOffers.length),
-                  ),
                 ),
+              ),
             ],
           ),
         );
@@ -507,14 +511,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              "$quantity",
-                              style: GoogleFonts.poppins(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.primaryColor,
-                              ),
+                          Text(
+                            "$quantity",
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.accentColor,
                             ),
+                          ),
                           ],
                         ),
                       ),
@@ -528,10 +532,12 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   _ConfirmationLine(
                     label: "Prix unitaire",
                     value: "${formatFCFA(unitPrice)} F CFA",
+                    valueColor: AppTheme.secondaryColor,
                   ),
                   _ConfirmationLine(
                     label: "Montant total",
                     value: "${formatFCFA(total)} F CFA",
+                    valueColor: AppTheme.secondaryColor,
                   ),
                   if (mode == _MarketplaceActionMode.goal) ...[
                     _ConfirmationLine(
@@ -580,8 +586,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 class _ConfirmationLine extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _ConfirmationLine({required this.label, required this.value});
+  const _ConfirmationLine({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -609,7 +620,7 @@ class _ConfirmationLine extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimaryColor,
+                color: valueColor ?? AppTheme.textPrimaryColor,
               ),
             ),
           ),
@@ -638,12 +649,12 @@ class _QuantityButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: onTap == null
               ? Colors.grey.shade100
-              : AppTheme.primaryColor.withOpacity(0.06),
+              : AppTheme.accentColor.withOpacity(0.08),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
           icon,
-          color: onTap == null ? Colors.grey.shade400 : AppTheme.primaryColor,
+          color: onTap == null ? Colors.grey.shade400 : AppTheme.accentColor,
         ),
       ),
     );

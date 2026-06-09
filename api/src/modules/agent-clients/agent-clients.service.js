@@ -2,7 +2,12 @@ const { Op } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
-const { displayPhone, normalizePhone } = require('../auth/auth.service');
+const {
+  displayPhone,
+  normalizePhone,
+  normalizeDisplayName,
+  isValidDisplayName,
+} = require('../auth/auth.service');
 const {
   configureStake,
   getCycleOverview,
@@ -46,20 +51,17 @@ async function buildClientSummary(client) {
 }
 
 async function searchClients(query) {
-  const search = String(query || '').trim();
+  const search = normalizePhone(String(query || ''));
+  if (search.length !== 10) {
+    return [];
+  }
   const where = {
     isActive: true,
     accountType: { [Op.ne]: 'Agent' },
     '$agentProfile.id$': null,
   };
 
-  if (search.length > 0) {
-    const digits = search.replace(/\D/g, '');
-    where[Op.or] = [
-      { displayName: { [Op.like]: `%${search}%` } },
-      { phoneNumber: { [Op.like]: `%${digits}%` } },
-    ];
-  }
+  where.phoneNumber = search;
 
   const clients = await models.User.findAll({
     where,
@@ -149,7 +151,7 @@ async function getMyClientDetail(agentProfileId, clientId) {
 }
 
 async function createClient(agentProfile, payload, requestContext = {}) {
-  const displayName = String(payload.displayName || '').trim();
+  const displayName = normalizeDisplayName(payload.displayName);
   const rawPhoneNumber = String(payload.phoneNumber || '').trim();
   const address = String(payload.address || '').trim();
   const stakeAmount = Number(payload.stakeAmount);
@@ -157,11 +159,11 @@ async function createClient(agentProfile, payload, requestContext = {}) {
     ? 0
     : Number(payload.initialDeposit);
 
-  if (!displayName || displayName.length < 3) {
+  if (!isValidDisplayName(displayName)) {
     throw new AppError('Le nom du client est requis.', 422);
   }
   const phoneNumber = normalizePhone(rawPhoneNumber);
-  if (phoneNumber.length !== 8) {
+  if (phoneNumber.length !== 10) {
     throw new AppError('Le numero du client est invalide.', 422);
   }
   if (!address || address.length < 3) {

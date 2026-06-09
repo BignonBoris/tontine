@@ -49,6 +49,112 @@ export interface OverviewData {
   recentAuditLogs: AuditLogItem[];
 }
 
+export interface MarketplaceOverviewItem {
+  offerId: string;
+  title: string;
+  category: string | null;
+  brand: string | null;
+  unitPrice: number;
+  isActive: boolean;
+  directOrders: {
+    totalOrders: number;
+    totalOrderedQuantity: number;
+    inFlightQuantity: number;
+    deliveredQuantity: number;
+    cancelledQuantity: number;
+    pendingQuantity: number;
+    confirmedQuantity: number;
+    readyQuantity: number;
+    lastOrderedAt: string | null;
+  };
+  linkedGoals: {
+    totalGoals: number;
+    activeGoals: number;
+    closedGoals: number;
+    plannedQuantity: number;
+    activePlannedQuantity: number;
+    fundedAmount: number;
+    targetAmount: number;
+    nearestEndDate: string | null;
+    farthestEndDate: string | null;
+    progressRate: number;
+  };
+}
+
+export interface MarketplaceOverviewData {
+  totals: {
+    offers: number;
+    activeOffers: number;
+    inFlightOrderedQuantity: number;
+    activePlannedGoalQuantity: number;
+  };
+  items: MarketplaceOverviewItem[];
+}
+
+export interface MarketplaceOrderLineItem {
+  id: string;
+  offerId: string;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  status: string;
+  orderedAt: string;
+  updatedStatusAt: string | null;
+  offer: {
+    id: string;
+    title: string;
+    category: string | null;
+    brand: string | null;
+    isActive: boolean;
+  } | null;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string;
+  } | null;
+}
+
+export interface MarketplaceGoalLineItem {
+  id: string;
+  title: string;
+  linkedOfferId: string | null;
+  quantity: number;
+  unitPrice: number;
+  targetAmount: number;
+  currentAmount: number;
+  progress: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+  linkedOffer: {
+    id: string;
+    title: string;
+    category: string | null;
+    brand: string | null;
+    isActive: boolean;
+  } | null;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string;
+  } | null;
+}
+
+export interface MarketplaceOfferAdminItem {
+  id: string;
+  title: string;
+  description: string;
+  descriptionHtml?: string | null;
+  imageUrl: string;
+  category: string;
+  brand: string | null;
+  price: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OperationalAnomalies {
   counts: {
     staleWithdrawals: number;
@@ -123,6 +229,7 @@ export interface ClientItem {
   availableBalance: number;
   reservedWithdrawalBalance: number;
   tontineBalance: number;
+  hasActiveTontine: boolean;
   createdByAgent: {
     id: string;
     agentCode: string;
@@ -163,8 +270,18 @@ export interface ClientDetail {
   goals: Array<{
     id: string;
     title: string;
+    linkedOfferId: string | null;
+    linkedOffer: {
+      id: string;
+      title: string;
+      category: string | null;
+      brand: string | null;
+    } | null;
+    quantity: number;
+    unitPrice: number;
     targetAmount: number;
     currentAmount: number;
+    progress: number;
     status: string;
     startDate: string;
     endDate: string;
@@ -311,4 +428,38 @@ export interface WithdrawalDetail {
       phoneNumber: string;
     } | null;
   }>;
+}
+
+export interface TontineCycleItem {
+  id: string;
+  stakeAmount: number;
+  cumulativeAmount: number;
+  targetAmount: number;
+  progress: number;
+  status: string;
+  startedAt: string;
+  expectedEndAt: string;
+  endedAt: string | null;
+  createdAt: string;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string;
+    tontineBalance: number;
+  };
+}
+
+export interface TontineCycleDepositItem {
+  id: string;
+  amount: number;
+  label: string;
+  note: string | null;
+  occurredAt: string;
+  initiatedByUserId: string | null;
+  initiatorType: string | null;
+}
+
+export interface TontineCycleCalendar {
+  cycle: TontineCycleItem;
+  deposits: TontineCycleDepositItem[];
 }

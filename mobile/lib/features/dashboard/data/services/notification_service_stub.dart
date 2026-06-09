@@ -1,11 +1,12 @@
-// Stub pour la plateforme web — aucune notification locale disponible
+// Stub pour la plateforme web - aucune notification locale disponible.
 class NotificationService {
   static Future<void> init() async {}
 
   static Future<void> showInstantNotification(
     String title,
-    String body,
-  ) async {}
+    String body, {
+    String? payload,
+  }) async {}
 
   static Future<void> scheduleNotification(
     int id,

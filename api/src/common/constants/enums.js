@@ -25,6 +25,7 @@ const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'withdrawalPaid',
   'goalFunding',
   'tontineFunding',
+  'groupContribution',
 ];
 const APP_NOTIFICATION_TYPES = [
   'deposit',
@@ -57,6 +58,33 @@ const AGENT_BALANCE_HISTORY_TYPES = [
   'clientWithdrawal',
   'adjustment',
 ];
+const AGENT_GROUP_STATUSES = ['active', 'suspended'];
+const AGENT_GROUP_TURN_UNITS = ['day', 'week', 'month'];
+const AGENT_GROUP_LAUNCH_STATUSES = [
+  'collecting',
+  'ready',
+  'started',
+  'launch_cancelled',
+];
+const AGENT_GROUP_MEMBER_STATUSES = [
+  'requested',
+  'invited',
+  'active',
+  'declined',
+  'rejected',
+  'removed',
+];
+const AGENT_GROUP_CONTRIBUTION_STATUSES = [
+  'pending',
+  'paid',
+  'cancelled',
+];
+const AGENT_GROUP_ADVANCE_STATUSES = [
+  'outstanding',
+  'partially_recovered',
+  'recovered',
+  'escalated',
+];
 
 module.exports = {
   OTP_PURPOSES,
@@ -73,4 +101,10 @@ module.exports = {
   WITHDRAWAL_STATUSES,
   WITHDRAWAL_CHANNELS,
   AGENT_BALANCE_HISTORY_TYPES,
+  AGENT_GROUP_STATUSES,
+  AGENT_GROUP_TURN_UNITS,
+  AGENT_GROUP_LAUNCH_STATUSES,
+  AGENT_GROUP_MEMBER_STATUSES,
+  AGENT_GROUP_CONTRIBUTION_STATUSES,
+  AGENT_GROUP_ADVANCE_STATUSES,
 };

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
@@ -51,7 +52,7 @@ void showAddGoalDialog(BuildContext context, DashboardBloc bloc) {
             TextField(
               controller: targetController,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: AppInputRules.amountFormatters,
               decoration: InputDecoration(
                 labelText: "Montant cible (F CFA)",
                 border: OutlineInputBorder(
@@ -80,10 +81,13 @@ void showAddGoalDialog(BuildContext context, DashboardBloc bloc) {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),
                   borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
+                  ),
+                  child: Row(
                   children: [
-                    const Icon(Icons.calendar_month, color: Color(0xFF1A237E)),
+                    const Icon(
+                      Icons.calendar_month,
+                      color: AppTheme.primaryColor,
+                    ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,7 +116,7 @@ void showAddGoalDialog(BuildContext context, DashboardBloc bloc) {
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A237E),
+                  backgroundColor: AppTheme.primaryColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),

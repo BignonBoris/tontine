@@ -6,6 +6,7 @@ class AgentOverview {
   final int myClientsCount;
   final double commissionBalance;
   final double commissionPayableBalance;
+  final int unreadNotificationsCount;
 
   const AgentOverview({
     required this.agentBalance,
@@ -15,6 +16,7 @@ class AgentOverview {
     required this.myClientsCount,
     required this.commissionBalance,
     required this.commissionPayableBalance,
+    required this.unreadNotificationsCount,
   });
 
   factory AgentOverview.fromMap(Map<dynamic, dynamic> map) {
@@ -26,6 +28,7 @@ class AgentOverview {
       myClientsCount: _toInt(map['myClientsCount']),
       commissionBalance: _toDouble(map['commissionBalance']),
       commissionPayableBalance: _toDouble(map['commissionPayableBalance']),
+      unreadNotificationsCount: _toInt(map['unreadNotificationsCount']),
     );
   }
 

@@ -1,4 +1,5 @@
-import 'package:agent/core/storage/session_storage.dart';
+import 'package:agent/core/storage/agent_navigation_storage.dart';
+import 'package:agent/core/services/push_notification_service.dart';
 import 'package:flutter/material.dart';
 
 class AgentLogoutAction extends StatelessWidget {
@@ -40,7 +41,8 @@ class AgentLogoutAction extends StatelessWidget {
       return;
     }
 
-    await SessionStorage.clear();
+    await PushNotificationService.instance.signOut();
+    await AgentNavigationStorage.clearLastTabIndex();
     if (!context.mounted) {
       return;
     }

@@ -75,6 +75,18 @@ async function applyAgentBalanceChange(
     { transaction },
   );
 
+  await models.Notification.create(
+    {
+      userId: agentProfile.userId,
+      type: 'system',
+      title: isCredit ? 'Caisse agent creditee' : 'Caisse agent debitee',
+      message: `${normalizedAmount} F ${
+        isCredit ? 'ajoutes' : 'retires'
+      } a votre caisse agent. Operation: ${label}. Reference ${history.reference}.`,
+    },
+    { transaction },
+  );
+
   if (auditAction) {
     await writeAuditLog({
       userId: initiatedByUserId,

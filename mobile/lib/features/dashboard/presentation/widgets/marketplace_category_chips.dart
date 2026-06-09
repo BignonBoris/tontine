@@ -35,12 +35,14 @@ class MarketplaceCategoryChips extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? AppTheme.primaryColor : Colors.white,
+                color: isSelected
+                    ? AppTheme.accentColor.withOpacity(0.12)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
                   color: isSelected
-                      ? AppTheme.primaryColor
-                      : AppTheme.primaryColor.withOpacity(0.08),
+                      ? AppTheme.accentColor
+                      : AppTheme.accentColor.withOpacity(0.14),
                 ),
               ),
               child: Row(
@@ -49,9 +51,7 @@ class MarketplaceCategoryChips extends StatelessWidget {
                   Icon(
                     _resolveIcon(label),
                     size: 16,
-                    color: isSelected
-                        ? Colors.white
-                        : AppTheme.primaryColor.withOpacity(0.82),
+                    color: AppTheme.accentColor,
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -59,7 +59,7 @@ class MarketplaceCategoryChips extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : AppTheme.primaryColor,
+                      color: AppTheme.accentColor,
                     ),
                   ),
                 ],

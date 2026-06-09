@@ -61,6 +61,12 @@ const sidebarItem: menu[] = [
     subCaption: "Portefeuille client",
   },
   {
+    title: "Tontines",
+    icon: "restart-square-linear",
+    to: "/tontines",
+    subCaption: "Suivi des cycles",
+  },
+  {
     title: "Agents",
     icon: "user-id-linear",
     to: "/agents",
@@ -71,6 +77,12 @@ const sidebarItem: menu[] = [
     icon: "card-recive-linear",
     to: "/withdrawals",
     subCaption: "Suivi decaissements",
+  },
+  {
+    title: "Marketplace",
+    icon: "bag-smile-linear",
+    to: "/marketplace",
+    subCaption: "Demandes produits et coffres",
   },
   {
     title: "Audit",

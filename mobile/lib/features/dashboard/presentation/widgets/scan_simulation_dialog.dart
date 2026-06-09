@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
@@ -111,7 +111,7 @@ void showScanSimulation(BuildContext context, DashboardBloc bloc) {
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: AppInputRules.amountFormatters,
                 onChanged: (_) => clearInlineError(),
                 decoration: InputDecoration(
                   labelText: "Montant a deposer (F CFA)",

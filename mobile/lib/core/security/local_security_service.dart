@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalSecuritySettings {
@@ -18,6 +20,7 @@ class LocalSecurityService {
   static const _pinEnabledKey = 'localSecurity.pinEnabled';
   static const _biometricEnabledKey = 'localSecurity.biometricEnabled';
   static const _pinHashKey = 'localSecurity.pinHash';
+  static const _pinOwnerPhoneKey = 'localSecurity.pinOwnerPhone';
 
   static Future<LocalSecuritySettings> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,6 +41,7 @@ class LocalSecurityService {
     required bool pinEnabled,
     required bool biometricEnabled,
     String? pinCode,
+    String? phoneNumber,
     bool clearPin = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,11 +50,15 @@ class LocalSecurityService {
 
     if (clearPin || !pinEnabled) {
       await prefs.remove(_pinHashKey);
+      await prefs.remove(_pinOwnerPhoneKey);
       return;
     }
 
     if (pinCode != null && pinCode.isNotEmpty) {
       await prefs.setString(_pinHashKey, _hashPin(pinCode));
+      if (phoneNumber != null && phoneNumber.trim().isNotEmpty) {
+        await prefs.setString(_pinOwnerPhoneKey, _normalizePhone(phoneNumber));
+      }
     }
   }
 
@@ -59,14 +67,25 @@ class LocalSecurityService {
     await prefs.remove(_pinEnabledKey);
     await prefs.remove(_biometricEnabledKey);
     await prefs.remove(_pinHashKey);
+    await prefs.remove(_pinOwnerPhoneKey);
   }
 
-  static Future<bool> verifyPin(String pinCode) async {
+  static Future<bool> verifyPin(String pinCode, {String? phoneNumber}) async {
     final prefs = await SharedPreferences.getInstance();
     final pinHash = prefs.getString(_pinHashKey);
     if (pinHash == null || pinHash.isEmpty) {
       return false;
     }
+
+    final ownerPhone = prefs.getString(_pinOwnerPhoneKey);
+    if (phoneNumber != null &&
+        phoneNumber.trim().isNotEmpty &&
+        ownerPhone != null &&
+        ownerPhone.isNotEmpty &&
+        ownerPhone != _normalizePhone(phoneNumber)) {
+      return false;
+    }
+
     return pinHash == _hashPin(pinCode);
   }
 
@@ -96,6 +115,11 @@ class LocalSecurityService {
 
   static String _hashPin(String pinCode) {
     return sha256.convert(utf8.encode(pinCode)).toString();
+  }
+
+  static String _normalizePhone(String rawPhone) {
+    final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+    return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
   }
 }
 
@@ -135,6 +159,7 @@ class _LocalPinDialogState extends State<_LocalPinDialog> {
             keyboardType: TextInputType.number,
             obscureText: true,
             maxLength: 4,
+            inputFormatters: AppInputRules.pinFormatters,
             decoration: InputDecoration(
               labelText: 'Code PIN',
               errorText: _error,

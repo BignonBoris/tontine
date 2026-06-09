@@ -90,7 +90,7 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                           IconButton(
                             onPressed: () => Navigator.pop(context),
                             icon: const Icon(Icons.close_rounded),
-                            color: AppTheme.primaryColor,
+                            color: AppTheme.accentColor,
                           ),
                         ],
                       ),
@@ -125,8 +125,8 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                               _SheetBadge(
                                 label: offer.category,
                                 backgroundColor:
-                                    AppTheme.primaryColor.withOpacity(0.08),
-                                foregroundColor: AppTheme.primaryColor,
+                                    AppTheme.accentColor.withOpacity(0.12),
+                                foregroundColor: AppTheme.accentColor,
                               ),
                               const Spacer(),
                               _SheetNavigationButton(
@@ -195,7 +195,7 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF6F8FE),
+                              color: const Color(0xFFF9FAFB),
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: Row(
@@ -246,8 +246,8 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                       icon: Icons.flash_on_rounded,
                       label: "Acheter",
                       isEnabled: canBuyNow,
-                      backgroundColor: const Color(0xFFE8EEF9),
-                      foregroundColor: AppTheme.primaryColor,
+                      backgroundColor: AppTheme.accentColor.withOpacity(0.12),
+                      foregroundColor: AppTheme.accentColor,
                       onTap: () => widget.onBuyNow(offer),
                     ),
                   ),
@@ -258,8 +258,8 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
                       label: "Favori",
-                      backgroundColor: const Color(0xFFFFF0F3),
-                      foregroundColor: const Color(0xFFD81B60),
+                      backgroundColor: AppTheme.accentColor.withOpacity(0.12),
+                      foregroundColor: AppTheme.accentColor,
                       onTap: () => widget.onToggleFavorite(offer),
                     ),
                   ),
@@ -268,8 +268,8 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                     child: _SheetActionButton(
                       icon: Icons.savings_outlined,
                       label: "Coffre",
-                      backgroundColor: const Color(0xFFEAF6F4),
-                      foregroundColor: const Color(0xFF107C67),
+                      backgroundColor: AppTheme.secondaryColor.withOpacity(0.12),
+                      foregroundColor: AppTheme.secondaryColor,
                       onTap: () => widget.onSaveForLater(offer),
                     ),
                   ),
@@ -393,7 +393,7 @@ class _SheetNavigationButton extends StatelessWidget {
         height: 34,
         decoration: BoxDecoration(
           color: enabled
-              ? AppTheme.primaryColor.withOpacity(0.06)
+              ? AppTheme.accentColor.withOpacity(0.08)
               : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(14),
         ),
@@ -402,7 +402,7 @@ class _SheetNavigationButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 16,
-            color: enabled ? AppTheme.primaryColor : Colors.grey.shade400,
+            color: enabled ? AppTheme.accentColor : Colors.grey.shade400,
           ),
         ),
       ),

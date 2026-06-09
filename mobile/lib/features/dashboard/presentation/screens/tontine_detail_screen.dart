@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_archive_entry.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
+import 'package:mobile/features/dashboard/domain/entities/tontine_history_entry.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
@@ -14,11 +16,66 @@ import 'package:mobile/features/dashboard/presentation/widgets/configure_tontine
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_action_button.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_history_list.dart';
+import 'package:mobile/features/groups/presentation/widgets/my_groups_section.dart';
+import 'package:mobile/features/groups/presentation/widgets/pending_group_requests_section.dart';
+import 'package:mobile/features/groups/presentation/widgets/pending_group_invitations_section.dart';
 
-class TontineDetailScreen extends StatelessWidget {
+class TontineDetailScreen extends StatefulWidget {
   final bool showBackButton;
 
   const TontineDetailScreen({super.key, this.showBackButton = true});
+
+  @override
+  State<TontineDetailScreen> createState() => _TontineDetailScreenState();
+}
+
+class _TontineDetailScreenState extends State<TontineDetailScreen>
+    with SingleTickerProviderStateMixin {
+  int _pendingInvitationCount = 0;
+  int _pendingRequestCount = 0;
+  late final TabController _tabController;
+
+  void _handleInvitationCountChanged(int count) {
+    if (_pendingInvitationCount == count) {
+      return;
+    }
+    setState(() {
+      _pendingInvitationCount = count;
+    });
+  }
+
+  void _handleRequestCountChanged(int count) {
+    if (_pendingRequestCount == count) {
+      return;
+    }
+    setState(() {
+      _pendingRequestCount = count;
+    });
+  }
+
+  int get _adhesionPendingCount =>
+      _pendingInvitationCount + _pendingRequestCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,55 +100,86 @@ class TontineDetailScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: const Color(0xFFF8F9FE),
           appBar: AppBar(
-            automaticallyImplyLeading: showBackButton,
+            automaticallyImplyLeading: widget.showBackButton,
             title: Text(
               "Tontine",
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.history_rounded),
-                onPressed: () =>
-                    _showTontineArchives(context, state.tontineArchives),
+            actions: _tabController.index == 0
+                ? [
+                    IconButton(
+                      icon: const Icon(Icons.history_rounded),
+                      onPressed: () => _showTontineArchives(
+                        context,
+                        state.tontineArchives,
+                      ),
+                    ),
+                  ]
+                : _tabController.index == 2
+                    ? [
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/group-scanner'),
+                        ),
+                      ]
+                    : const [],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: AppTheme.primaryColor,
+                  unselectedLabelColor: AppTheme.textSecondaryColor,
+                  indicator: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelStyle: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                  unselectedLabelStyle: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  tabs: [
+                    const Tab(text: 'Personnel'),
+                    const Tab(text: 'Groupe'),
+                    Tab(
+                      child: _CountTabLabel(
+                        label: 'Adhesions',
+                        count: _adhesionPendingCount,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _PersonalTontineTab(
+                cycle: cycle,
+                availableBalance: state.availableBalance,
+                history: state.tontineHistory,
+                buildActionArea: (context, cycle, availableBalance) =>
+                    _buildActionArea(context, cycle, availableBalance),
+              ),
+              const _GroupTontineTab(),
+              _AdhesionsTontineTab(
+                onInvitationCountChanged: _handleInvitationCountChanged,
+                onRequestCountChanged: _handleRequestCountChanged,
               ),
             ],
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TontineHeroCard(cycle: cycle),
-                const SizedBox(height: 20),
-                if (cycle != null)
-                  _buildActionArea(context, cycle, state.availableBalance),
-                const SizedBox(height: 24),
-                Text(
-                  "Historique tontine",
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TontineHistoryList(history: state.tontineHistory),
-                ),
-              ],
-            ),
           ),
         );
       },
@@ -100,9 +188,43 @@ class TontineDetailScreen extends StatelessWidget {
 
   Widget _buildActionArea(
     BuildContext context,
-    TontineCycle cycle,
+    TontineCycle? cycle,
     double availableBalance,
   ) {
+    if (cycle == null) {
+      return _TontineInfoPanel(
+        title: "Aucune tontine en cours",
+        description:
+            "Vous n avez pas encore de cycle de tontine actif. Configurez votre mise pour lancer un nouveau cycle.",
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: () => _showRestartTontineModal(context),
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text("Configurer ma tontine"),
+          ),
+        ),
+      );
+    }
+
+    if (cycle.status == TontineCycleStatus.nonConfiguree) {
+      return _TontineInfoPanel(
+        title: "Aucune tontine en cours",
+        description:
+            "Vous n avez pas encore de cycle de tontine actif. Configurez votre mise pour lancer un nouveau cycle.",
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: () => _showRestartTontineModal(context),
+            icon: const Icon(Icons.tune_rounded),
+            label: const Text("Configurer ma tontine"),
+          ),
+        ),
+      );
+    }
+
     if (cycle.status == TontineCycleStatus.enAttenteValidationFin) {
       return _TontineInfoPanel(
         title: "Cycle atteint",
@@ -260,6 +382,7 @@ class TontineDetailScreen extends StatelessWidget {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
+                inputFormatters: AppInputRules.amountFormatters,
                 autofocus: true,
                 onChanged: (_) {
                   if (errorMessage != null) {
@@ -278,7 +401,7 @@ class TontineDetailScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final amount = double.tryParse(controller.text);
                     final remaining =
                         cycle.targetAmount - cycle.cumulativeAmount;
@@ -306,6 +429,17 @@ class TontineDetailScreen extends StatelessWidget {
                         () => errorMessage =
                             "Solde disponible insuffisant",
                       );
+                      return;
+                    }
+
+                    final authorized =
+                        await LocalSecurityService.authorizeIfEnabled(
+                          context,
+                          title: 'Transferer vers la tontine',
+                          message:
+                              "Entrez votre PIN pour confirmer ce versement dans votre tontine.",
+                        );
+                    if (!context.mounted || !authorized) {
                       return;
                     }
 
@@ -794,6 +928,190 @@ class _AmountLine extends StatelessWidget {
               color: isHighlighted ? AppTheme.secondaryColor : Colors.black87,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalTontineTab extends StatelessWidget {
+  final TontineCycle? cycle;
+  final double availableBalance;
+  final List<TontineHistoryEntry> history;
+  final Widget Function(
+    BuildContext context,
+    TontineCycle? cycle,
+    double availableBalance,
+  )
+  buildActionArea;
+
+  const _PersonalTontineTab({
+    required this.cycle,
+    required this.availableBalance,
+    required this.history,
+    required this.buildActionArea,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActiveCycle = cycle != null &&
+        cycle!.status != TontineCycleStatus.nonConfiguree;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasActiveCycle) ...[
+            _TontineHeroCard(cycle: cycle),
+            const SizedBox(height: 20),
+          ],
+          buildActionArea(context, cycle, availableBalance),
+          const SizedBox(height: 24),
+          Text(
+            "Historique tontine",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TontineHistoryList(history: history),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupTontineTab extends StatelessWidget {
+  const _GroupTontineTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Mes groupes de tontine",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const MyGroupsSection(),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdhesionsTontineTab extends StatelessWidget {
+  final ValueChanged<int>? onInvitationCountChanged;
+  final ValueChanged<int>? onRequestCountChanged;
+
+  const _AdhesionsTontineTab({
+    this.onInvitationCountChanged,
+    this.onRequestCountChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Invitations de groupe",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          PendingGroupInvitationsSection(
+            onCountChanged: onInvitationCountChanged,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            "Demandes envoyees",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          PendingGroupRequestsSection(
+            onCountChanged: onRequestCountChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountTabLabel extends StatelessWidget {
+  final String label;
+  final int count;
+
+  const _CountTabLabel({
+    required this.label,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (count > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              constraints: const BoxConstraints(minWidth: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -1,21 +1,39 @@
 import axios from 'axios'
+import {
+  clearStoredAuthSession,
+  getAccessToken,
+  getStoredAuthSession,
+  setStoredAuthSession,
+} from '@/services/http/tokenStorage'
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   'http://127.0.0.1:3000/api/v1'
 
-const TOKEN_KEY = 'viziobox_admin_token'
-
 export const adminTokenStorage = {
   get() {
-    return window.localStorage.getItem(TOKEN_KEY)
+    return getAccessToken()
   },
   set(token: string) {
-    window.localStorage.setItem(TOKEN_KEY, token)
+    const currentAdmin = getStoredAuthSession()?.admin || {
+      username: 'admin',
+      role: 'admin',
+    }
+    setStoredAuthSession({ token, admin: currentAdmin })
   },
   clear() {
-    window.localStorage.removeItem(TOKEN_KEY)
+    clearStoredAuthSession()
   },
+}
+
+function redirectToAdminLogin() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (window.location.pathname !== '/auth/admin-login') {
+    window.location.assign('/auth/admin-login')
+  }
 }
 
 export const adminApi = axios.create({
@@ -36,6 +54,7 @@ adminApi.interceptors.response.use(
     const status = error?.response?.status
     if (status === 401) {
       adminTokenStorage.clear()
+      redirectToAdminLogin()
     }
 
     const message =
@@ -55,8 +74,11 @@ export async function adminLogin(username: string, password: string) {
   })
 
   const data = response.data?.data || {}
-  if (data.token) {
-    adminTokenStorage.set(data.token)
+  if (data.token && data.admin) {
+    setStoredAuthSession({
+      token: data.token,
+      admin: data.admin,
+    })
   }
 
   return data

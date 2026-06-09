@@ -21,6 +21,7 @@ class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   Future<dynamic> get(String path, {bool authenticated = true}) async {
+    print(Uri.parse('${ApiConfig.baseUrl}$path'));
     final response = await _sendRequest(
       () async => _client.get(
         Uri.parse('${ApiConfig.baseUrl}$path'),
@@ -35,8 +36,25 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
+    print(Uri.parse('${ApiConfig.baseUrl}$path'));
     final response = await _sendRequest(
       () async => _client.post(
+        Uri.parse('${ApiConfig.baseUrl}$path'),
+        headers: await _headers(authenticated),
+        body: jsonEncode(body ?? <String, dynamic>{}),
+      ),
+    );
+    return _extractData(response);
+  }
+
+  Future<dynamic> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+  }) async {
+    print(Uri.parse('${ApiConfig.baseUrl}$path'));
+    final response = await _sendRequest(
+      () async => _client.patch(
         Uri.parse('${ApiConfig.baseUrl}$path'),
         headers: await _headers(authenticated),
         body: jsonEncode(body ?? <String, dynamic>{}),
