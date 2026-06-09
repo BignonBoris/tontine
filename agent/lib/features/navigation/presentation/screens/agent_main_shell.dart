@@ -2,6 +2,7 @@ import 'package:agent/features/clients/presentation/screens/clients_screen.dart'
 import 'package:agent/features/history/presentation/screens/history_screen.dart';
 import 'package:agent/features/home/presentation/screens/agent_home_screen.dart';
 import 'package:agent/features/provisioning/presentation/screens/provisioning_screen.dart';
+import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:flutter/material.dart';
 
 class AgentMainShell extends StatefulWidget {
@@ -38,6 +39,13 @@ class _AgentMainShellState extends State<AgentMainShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _goToTab,
+        selectedItemColor: AgentAppTheme.primaryColor,
+        unselectedItemColor: const Color(0xFF98A2B3),
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.space_dashboard_rounded),

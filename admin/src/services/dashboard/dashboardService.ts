@@ -1,5 +1,9 @@
 import { apiClient, unwrapEnvelope } from "@/services/http/apiClient";
-import type { OperationalAnomalies, OverviewData } from "@/types/platform";
+import type {
+  MarketplaceOverviewData,
+  OperationalAnomalies,
+  OverviewData,
+} from "@/types/platform";
 
 export const dashboardService = {
   getOverview() {
@@ -8,5 +12,11 @@ export const dashboardService = {
 
   getAnomalies() {
     return unwrapEnvelope<OperationalAnomalies>(apiClient.get("/admin/anomalies"));
+  },
+
+  getMarketplaceOverview() {
+    return unwrapEnvelope<MarketplaceOverviewData>(
+      apiClient.get("/admin/marketplace/overview")
+    );
   },
 };

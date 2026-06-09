@@ -330,8 +330,14 @@ onMounted(fetchClients);
             <div class="mt-3 space-y-2">
               <div v-for="entry in detailData.goals" :key="entry.id" class="rounded-xl border border-border/60 p-3">
                 <p class="font-medium">{{ entry.title }}</p>
+                <p v-if="entry.linkedOffer" class="text-sm">
+                  Produit lie: {{ entry.linkedOffer.title }} · Quantite {{ entry.quantity }}
+                </p>
                 <p class="text-sm">Actuel: {{ formatCurrency(entry.currentAmount) }} F / {{ formatCurrency(entry.targetAmount) }} F</p>
-                <p class="text-xs text-muted-foreground">Statut: {{ entry.status }}</p>
+                <p class="text-sm">Prix unitaire: {{ formatCurrency(entry.unitPrice) }} F</p>
+                <p class="text-xs text-muted-foreground">
+                  Statut: {{ entry.status }} · Fin prevue: {{ formatDateTime(entry.endDate) }} · Avancement: {{ Math.round(entry.progress * 100) }}%
+                </p>
               </div>
               <div v-if="!detailData.goals.length" class="text-sm text-muted-foreground">
                 Aucun coffre a afficher.

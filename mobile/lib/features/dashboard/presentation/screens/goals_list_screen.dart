@@ -12,7 +12,7 @@ import 'goal_detail_screen.dart';
 class GoalsListScreen extends StatelessWidget {
   const GoalsListScreen({super.key});
 
-  // Fonction de formatage locale si formatFCFA n'est pas exporté globalement
+  // Fonction de formatage locale si formatFCFA n'est pas exportÃ© globalement
   String _format(num amount) {
     return NumberFormat('#,###', 'fr_FR').format(amount).replaceAll(',', ' ');
   }
@@ -111,7 +111,7 @@ class GoalsListScreen extends StatelessWidget {
     );
   }
 
-  // ... (garder les mêmes imports en haut du fichier)
+  // ... (garder les mÃªmes imports en haut du fichier)
 
   Widget _buildGoalItem(BuildContext context, TontineGoal goal) {
     return Container(
@@ -130,14 +130,14 @@ class GoalsListScreen extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         onTap: () {
-          // --- FIX ICI : On récupère l'instance du bloc actuelle ---
+          // --- FIX ICI : On rÃ©cupÃ¨re l'instance du bloc actuelle ---
           final dashboardBloc = context.read<DashboardBloc>();
 
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => BlocProvider.value(
-                value: dashboardBloc, // On transmet le bloc à la nouvelle page
+                value: dashboardBloc, // On transmet le bloc Ã  la nouvelle page
                 child: GoalDetailScreen(goalId: goal.id),
               ),
             ),
@@ -242,7 +242,7 @@ class GoalsListScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "Coffres Clôturés",
+              "Coffres ClÃ´turÃ©s",
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -252,7 +252,7 @@ class GoalsListScreen extends StatelessWidget {
             if (closedGoals.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
-                child: Text("Aucun coffre archivé"),
+                child: Text("Aucun coffre archivÃ©"),
               )
             else
               Flexible(

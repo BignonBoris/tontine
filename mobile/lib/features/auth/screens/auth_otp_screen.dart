@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
@@ -21,12 +22,14 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
   );
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
 
-  String _phoneNumber = '+229 XX XX XX 00';
+  String _phoneNumber = '+229 XX XX XX XX XX';
   String _normalizedPhoneNumber = '';
   String _demoOtpCode = '0000';
   bool _isRegistration = false;
   bool _argumentsLoaded = false;
   bool _isSubmitting = false;
+  String? _feedbackMessage;
+  bool _feedbackIsError = false;
   int _secondsRemaining = 59;
   Timer? _timer;
 
@@ -229,6 +232,18 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                 ),
                               ),
                             ),
+                            if (_feedbackMessage != null) ...[
+                              const SizedBox(height: 16),
+                              _InlineAuthMessage(
+                                message: _feedbackMessage!,
+                                isError: _feedbackIsError,
+                                onClose: () {
+                                  setState(() {
+                                    _feedbackMessage = null;
+                                  });
+                                },
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -312,7 +327,9 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
         controller: _controllers[index],
         focusNode: _focusNodes[index],
         onChanged: (value) {
-          setState(() {});
+          setState(() {
+            _feedbackMessage = null;
+          });
           if (value.length == 1 && index < _focusNodes.length - 1) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
@@ -334,8 +351,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
             ? TextInputAction.done
             : TextInputAction.next,
         inputFormatters: [
-          LengthLimitingTextInputFormatter(1),
-          FilteringTextInputFormatter.digitsOnly,
+          ...AppInputRules.otpFormatters,
         ],
         style: GoogleFonts.poppins(
           fontSize: 24,
@@ -365,6 +381,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     FocusScope.of(context).unfocus();
     setState(() {
       _isSubmitting = true;
+      _feedbackMessage = null;
     });
 
     final code = _controllers.map((controller) => controller.text).join();
@@ -382,9 +399,10 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     });
 
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message)));
+      setState(() {
+        _feedbackMessage = result.message;
+        _feedbackIsError = true;
+      });
       return;
     }
 
@@ -393,32 +411,18 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
-    if (_isRegistration) {
-      if (appLockEnabled) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/dashboard',
-          (route) => false,
-        );
-        return;
-      }
-
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/auth_pin_setup',
-        (route) => false,
-      );
-      return;
-    }
-
     Navigator.pushNamedAndRemoveUntil(
       context,
-      appLockEnabled ? '/unlock' : '/dashboard',
+      appLockEnabled ? '/unlock' : '/auth_pin_setup',
       (route) => false,
     );
   }
 
   Future<void> _handleResendCode() async {
+    setState(() {
+      _feedbackMessage = null;
+    });
+
     final result = await LocalAuthService.resendOtp(
       rawPhoneNumber: _normalizedPhoneNumber,
       isRegistration: _isRegistration,
@@ -428,24 +432,24 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     }
 
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message)));
+      setState(() {
+        _feedbackMessage = result.message;
+        _feedbackIsError = true;
+      });
       return;
     }
 
     setState(() {
       _demoOtpCode = result.otpCode ?? _demoOtpCode;
       _secondsRemaining = 59;
+      _feedbackMessage = 'Un nouveau code a ete genere.';
+      _feedbackIsError = false;
       for (final controller in _controllers) {
         controller.clear();
       }
     });
     _focusNodes.first.requestFocus();
     _startTimer();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Un nouveau code a ete genere.")),
-    );
   }
 
   void _startTimer() {
@@ -463,6 +467,78 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
         _secondsRemaining -= 1;
       });
     });
+  }
+}
+
+class _InlineAuthMessage extends StatelessWidget {
+  final String message;
+  final bool isError;
+  final VoidCallback onClose;
+
+  const _InlineAuthMessage({
+    required this.message,
+    required this.isError,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = isError
+        ? const Color(0xFFFFF1F2)
+        : const Color(0xFFECFDF5);
+    final borderColor = isError
+        ? const Color(0xFFFECACA)
+        : const Color(0xFFA7F3D0);
+    final foregroundColor = isError
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF047857);
+    final icon = isError
+        ? Icons.error_outline_rounded
+        : Icons.check_circle_outline_rounded;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, color: foregroundColor, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: foregroundColor,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: onClose,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                Icons.close_rounded,
+                color: foregroundColor,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

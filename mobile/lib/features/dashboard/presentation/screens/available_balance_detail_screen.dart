@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
@@ -239,6 +241,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    inputFormatters: AppInputRules.amountFormatters,
                     onChanged: (_) {
                       if (errorMessage != null) {
                         setModalState(() => errorMessage = null);
@@ -260,7 +263,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         final amount = double.tryParse(controller.text);
                         if (selectedGoal == null ||
                             amount == null ||
@@ -285,6 +288,17 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                             () => errorMessage =
                                 "Le montant depasse l'objectif du coffre",
                           );
+                          return;
+                        }
+
+                        final authorized =
+                            await LocalSecurityService.authorizeIfEnabled(
+                              context,
+                              title: 'Alimenter un coffre',
+                              message:
+                                  "Entrez votre PIN pour confirmer le depot vers ${selectedGoal!.title}.",
+                            );
+                        if (!context.mounted || !authorized) {
                           return;
                         }
 
@@ -356,6 +370,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    inputFormatters: AppInputRules.amountFormatters,
                     onChanged: (_) {
                       if (errorMessage != null) {
                         setModalState(() => errorMessage = null);
@@ -377,7 +392,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (state.tontineCycle == null ||
                             state.tontineCycle!.status !=
                                 TontineCycleStatus.active) {
@@ -417,6 +432,17 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                             () => errorMessage =
                                 "Le montant depasse l'objectif restant",
                           );
+                          return;
+                        }
+
+                        final authorized =
+                            await LocalSecurityService.authorizeIfEnabled(
+                              context,
+                              title: 'Transferer vers la tontine',
+                              message:
+                                  "Entrez votre PIN pour confirmer ce transfert vers votre tontine.",
+                            );
+                        if (!context.mounted || !authorized) {
                           return;
                         }
 
@@ -485,6 +511,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    inputFormatters: AppInputRules.amountFormatters,
                     onChanged: (_) {
                       if (errorMessage != null) {
                         setModalState(() => errorMessage = null);
@@ -531,10 +558,21 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                                 return;
                               }
 
-                              setModalState(() {
-                                isSubmitting = true;
-                                errorMessage = null;
-                              });
+                            final authorized =
+                                await LocalSecurityService.authorizeIfEnabled(
+                                  context,
+                                  title: 'Demander un retrait',
+                                  message:
+                                      "Entrez votre PIN pour confirmer cette demande de retrait.",
+                                );
+                            if (!context.mounted || !authorized) {
+                              return;
+                            }
+
+                            setModalState(() {
+                              isSubmitting = true;
+                              errorMessage = null;
+                            });
                               try {
                                 final result = await service.requestWithdrawal(
                                   amount,
@@ -748,6 +786,16 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                     onPressed: isSubmitting
                         ? null
                         : () async {
+                            final authorized =
+                                await LocalSecurityService.authorizeIfEnabled(
+                                  context,
+                                  title: 'Regenerer le code',
+                                  message:
+                                      "Entrez votre PIN pour regenerer le code de confirmation du retrait.",
+                                );
+                            if (!context.mounted || !authorized) {
+                              return;
+                            }
                             setDialogState(() => isSubmitting = true);
                             try {
                               final result = await service
@@ -783,6 +831,16 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                     onPressed: isSubmitting
                         ? null
                         : () async {
+                            final authorized =
+                                await LocalSecurityService.authorizeIfEnabled(
+                                  context,
+                                  title: 'Annuler le retrait',
+                                  message:
+                                      "Entrez votre PIN pour annuler cette demande de retrait.",
+                                );
+                            if (!context.mounted || !authorized) {
+                              return;
+                            }
                             setDialogState(() => isSubmitting = true);
                             try {
                               await service.cancelWithdrawal(linkedWithdrawal.id);

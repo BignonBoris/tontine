@@ -4,6 +4,16 @@ import type { ApiEnvelope, ApiErrorPayload } from "@/types/api";
 import { ApiError } from "./errors";
 import { clearStoredAuthSession, getAccessToken } from "./tokenStorage";
 
+function redirectToAdminLogin() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (window.location.pathname !== "/auth/admin-login") {
+    window.location.assign("/auth/admin-login");
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: 20000,
@@ -34,6 +44,7 @@ apiClient.interceptors.response.use(
 
     if (statusCode === 401) {
       clearStoredAuthSession();
+      redirectToAdminLogin();
     }
 
     return Promise.reject(new ApiError(message, statusCode, payload?.details));

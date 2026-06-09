@@ -1,5 +1,6 @@
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/storage/session_storage.dart';
+import 'package:mobile/core/utils/input_rules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalAuthResult {
@@ -25,19 +26,15 @@ class LocalAuthService {
   static const _suggestedPhoneKey = 'auth.suggestedPhoneNumber';
 
   static String normalizePhone(String rawPhone) {
-    final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
-    if (digits.length > 8) {
-      return digits.substring(digits.length - 8);
-    }
-    return digits;
+    return AppInputRules.normalizePhone(rawPhone);
   }
 
   static String formatPhoneForInput(String rawPhone) {
     final digits = normalizePhone(rawPhone);
-    if (digits.length != 8) {
+    if (digits.length != 10) {
       return digits;
     }
-    return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)}';
+    return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)} ${digits.substring(8, 10)}';
   }
 
   static Future<String?> loadSuggestedPhoneNumber() async {
@@ -51,7 +48,7 @@ class LocalAuthService {
 
   static Future<void> _saveSuggestedPhoneNumber(String rawPhoneNumber) async {
     final normalizedPhone = normalizePhone(rawPhoneNumber);
-    if (normalizedPhone.length != 8) {
+    if (normalizedPhone.length != 10) {
       return;
     }
     final prefs = await SharedPreferences.getInstance();

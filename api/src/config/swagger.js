@@ -24,7 +24,7 @@ const swaggerSpec = swaggerJsdoc({
           type: 'object',
           required: ['phoneNumber', 'purpose'],
           properties: {
-            phoneNumber: { type: 'string', example: '97000000' },
+            phoneNumber: { type: 'string', example: '9700000000' },
             purpose: { type: 'string', enum: ['register', 'login'] },
           },
         },
@@ -32,7 +32,7 @@ const swaggerSpec = swaggerJsdoc({
           type: 'object',
           required: ['phoneNumber', 'code'],
           properties: {
-            phoneNumber: { type: 'string', example: '97000000' },
+            phoneNumber: { type: 'string', example: '9700000000' },
             code: { type: 'string', example: '1234' },
           },
         },
@@ -40,7 +40,7 @@ const swaggerSpec = swaggerJsdoc({
           type: 'object',
           required: ['phoneNumber', 'pin'],
           properties: {
-            phoneNumber: { type: 'string', example: '97000000' },
+            phoneNumber: { type: 'string', example: '9700000000' },
             pin: { type: 'string', example: '1234' },
           },
         },

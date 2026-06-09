@@ -67,9 +67,39 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AgentAppTheme.backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('VizioBox Agent'),
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AgentAppTheme.primaryColor.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Image.asset(AgentAppTheme.brandIconAsset),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'VizioBox Agent',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AgentAppTheme.primaryColor,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: widget.onOpenHistory,
@@ -121,63 +151,102 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(22),
+                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(28),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1A237E), Color(0xFF3144B8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: AgentAppTheme.heroGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AgentAppTheme.primaryColor.withOpacity(0.16),
+                          blurRadius: 28,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Bonjour Agent',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Pilotez les operations de terrain.",
-                          style: GoogleFonts.inter(
-                            color: Colors.white70,
-                            height: 1.4,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Bonjour Agent',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "Pilotez les operations de terrain.",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white70,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Container(
+                              width: 64,
+                              height: 64,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Image.asset(AgentAppTheme.brandIconAsset),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            AgentOverviewTile(
-                              label: 'Mes clients',
-                              value: '${overview.myClientsCount}',
-                              onTap: widget.onOpenClients,
-                            ),
-                            const SizedBox(width: 14),
-                            AgentOverviewTile(
-                              label: 'Caisse disponible',
-                              value: formatFcfa(overview.agentBalance),
-                              onTap: widget.onOpenProvisioning,
-                            ),
-                          ],
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              AgentOverviewTile(
+                                label: 'Mes clients',
+                                value: '${overview.myClientsCount}',
+                                onTap: widget.onOpenClients,
+                              ),
+                              const SizedBox(width: 14),
+                              AgentOverviewTile(
+                                label: 'Caisse disponible',
+                                value: formatFcfa(overview.agentBalance),
+                                onTap: widget.onOpenProvisioning,
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            AgentOverviewTile(
-                              label: 'Commissions gagnees',
-                              value: formatFcfa(overview.commissionBalance),
-                            ),
-                            const SizedBox(width: 14),
-                            AgentOverviewTile(
-                              label: 'Operations en attente',
-                              value: '${overview.pendingCount}',
-                            ),
-                          ],
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              AgentOverviewTile(
+                                label: 'Commissions gagnees',
+                                value: formatFcfa(overview.commissionBalance),
+                              ),
+                              const SizedBox(width: 14),
+                              AgentOverviewTile(
+                                label: 'Operations en attente',
+                                value: '${overview.pendingCount}',
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -219,76 +288,13 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         onTap: widget.onOpenHistory,
                       ),
                       AgentQuickActionCard(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: 'Caisse admin',
-                        subtitle: "L'approvisionnement de caisse se fait desormais via l'administration",
-                        tint: const Color(0xFF6B7280),
-                        onTap: () {
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "L'approvisionnement de caisse est reserve a l'administration.",
-                                ),
-                              ),
-                            );
-                        },
+                        icon: Icons.payments_outlined,
+                        title: 'Retrait client',
+                        subtitle: 'Payer un retrait par reference et code client',
+                        tint: AgentAppTheme.accentColor,
+                        onTap: _openWithdrawalPaymentSheet,
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 22),
-                  SectionTitle(
-                    title: 'Suivi de caisse',
-                    subtitle:
-                        'Collecte du jour: ${formatFcfa(overview.totalAmountToday)}. Les depots sont bloques si la caisse agent est insuffisante.',
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Retrait client',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AgentAppTheme.primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "Le client vous communique une reference puis un code de confirmation pour finaliser le paiement.",
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            height: 1.4,
-                            color: AgentAppTheme.textSecondaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _openWithdrawalPaymentSheet,
-                            icon: const Icon(Icons.payments_outlined),
-                            label: const Text('Payer un retrait'),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: 22),
                 ],

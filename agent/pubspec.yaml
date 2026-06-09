@@ -66,6 +66,8 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/branding/viziobox-icon.png
+    - assets/branding/logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

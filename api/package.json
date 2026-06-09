@@ -9,6 +9,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "lint": "node -e \"console.log('No lint configured yet')\"",
+    "audit:phones": "node scripts/audit-phone-numbers.js",
     "test:commission": "node scripts/test-commission-calculator.js"
   },
   "keywords": [

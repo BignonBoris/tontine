@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_order.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -112,13 +113,33 @@ class MarketOrdersScreen extends StatelessWidget {
       builder: (sheetContext) => MarketOrderDetailSheet(
         order: order,
         onAdvance: order.status.canAdvance
-            ? () {
+            ? () async {
+                final authorized =
+                    await LocalSecurityService.authorizeIfEnabled(
+                      context,
+                      title: 'Mettre a jour la commande',
+                      message:
+                          "Entrez votre PIN pour confirmer la mise a jour de cette commande.",
+                    );
+                if (!context.mounted || !authorized) {
+                  return;
+                }
                 bloc.add(AdvanceMarketOrderStatus(order.id));
                 Navigator.pop(sheetContext);
               }
             : null,
         onCancel: order.status.canCancel
-            ? () {
+            ? () async {
+                final authorized =
+                    await LocalSecurityService.authorizeIfEnabled(
+                      context,
+                      title: 'Annuler la commande',
+                      message:
+                          "Entrez votre PIN pour annuler cette commande marketplace.",
+                    );
+                if (!context.mounted || !authorized) {
+                  return;
+                }
                 bloc.add(CancelMarketOrder(order.id));
                 Navigator.pop(sheetContext);
               }

@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_list_tile.dart';
@@ -76,6 +77,7 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                 TextFormField(
                   controller: _amountController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: AgentInputRules.amountFormatters,
                   decoration: const InputDecoration(
                     labelText: 'Montant',
                     suffixText: 'F CFA',

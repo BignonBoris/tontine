@@ -7,17 +7,36 @@ const { models, sequelize } = require('../../database/models');
 
 function normalizePhone(phoneNumber) {
   const digits = String(phoneNumber || '').replace(/\D/g, '');
-  return digits.length > 8 ? digits.slice(-8) : digits;
+  return digits.length > 10 ? digits.slice(-10) : digits;
 }
 
 function displayPhone(phoneNumber) {
-  if (phoneNumber.length !== 8) {
+  if (phoneNumber.length !== 10) {
     return `+229 ${phoneNumber}`;
   }
   return `+229 ${phoneNumber.slice(0, 2)} ${phoneNumber.slice(
     2,
     4,
-  )} ${phoneNumber.slice(4, 6)} ${phoneNumber.slice(6, 8)}`;
+  )} ${phoneNumber.slice(4, 6)} ${phoneNumber.slice(6, 8)} ${phoneNumber.slice(
+    8,
+    10,
+  )}`;
+}
+
+function normalizeDisplayName(displayName) {
+  return String(displayName || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[-'\s]+|[-'\s]+$/g, '')
+    .trim();
+}
+
+function isValidDisplayName(displayName) {
+  const normalized = normalizeDisplayName(displayName);
+  return (
+    normalized.length >= 3 &&
+    /^[A-Za-z\u00C0-\u024F]/.test(normalized) &&
+    !/\d/.test(normalized)
+  );
 }
 
 function generateOtpCode() {
@@ -151,8 +170,8 @@ async function requestOtp(payload, context) {
   const normalizedPhone = normalizePhone(phoneNumber);
   const authContext = buildAuthContext(context);
 
-  if (normalizedPhone.length !== 8) {
-    throw new AppError('Le numero doit contenir 8 chiffres.', 422);
+  if (normalizedPhone.length !== 10) {
+    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
   }
 
   await assertPhonePurposeConsistency(normalizedPhone, purpose);
@@ -183,8 +202,8 @@ async function resendOtp(payload, context) {
   const normalizedPhone = normalizePhone(phoneNumber);
   const authContext = buildAuthContext(context);
 
-  if (normalizedPhone.length !== 8) {
-    throw new AppError('Le numero doit contenir 8 chiffres.', 422);
+  if (normalizedPhone.length !== 10) {
+    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
   }
 
   await assertPhonePurposeConsistency(normalizedPhone, purpose);
@@ -278,7 +297,16 @@ async function resendOtp(payload, context) {
 
 async function verifyOtp({ phoneNumber, code }, context) {
   const normalizedPhone = normalizePhone(phoneNumber);
+  const normalizedCode = String(code || '').replace(/\D/g, '').trim();
   const authContext = buildAuthContext(context);
+
+  if (normalizedPhone.length !== 10) {
+    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
+  }
+  if (!/^\d{4}$/.test(normalizedCode)) {
+    throw new AppError('Le code OTP doit contenir 4 chiffres.', 422);
+  }
+
   const otp = await getLatestOtpForVerification(normalizedPhone);
 
   if (!otp) {
@@ -319,7 +347,7 @@ async function verifyOtp({ phoneNumber, code }, context) {
     throw new AppError('Code OTP invalide ou expire.', 422);
   }
 
-  if (otp.code !== code) {
+  if (otp.code !== normalizedCode) {
     const nextAttemptCount = Number(otp.attemptCount) + 1;
     const updates = { attemptCount: nextAttemptCount };
     let status = 'failed';
@@ -459,6 +487,8 @@ async function getCurrentUserProfile(userId) {
 module.exports = {
   normalizePhone,
   displayPhone,
+  normalizeDisplayName,
+  isValidDisplayName,
   requestOtp,
   resendOtp,
   verifyOtp,
