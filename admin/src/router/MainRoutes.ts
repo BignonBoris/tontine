@@ -19,12 +19,17 @@ const MainRoutes = [
         component: () => import("../views/platform/DashboardView.vue"),
       },
       {
-        name: "Clients",
-        path: "/clients",
-        component: () => import("../views/platform/ClientsView.vue"),
+        name: 'Clients',
+        path: '/clients',
+        component: () => import('../views/platform/ClientsView.vue')
       },
       {
-        name: "Agents",
+        name: 'Tontines',
+        path: '/tontines',
+        component: () => import('../views/platform/TontinesView.vue')
+      },
+      {
+        name: 'Agents',
         path: "/agents",
         component: () => import("../views/platform/AgentsView.vue"),
       },

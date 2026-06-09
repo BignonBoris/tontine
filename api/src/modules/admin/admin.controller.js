@@ -62,9 +62,50 @@ async function clients(req, res) {
   return ok(res, data, 'Clients charges.');
 }
 
+async function createClient(req, res) {
+  const data = await service.createClient(req.body, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Client cree avec succes.', 201);
+}
+
 async function clientDetail(req, res) {
   const data = await service.getClientDetail(req.params.userId);
   return ok(res, data, 'Detail client charge.');
+}
+
+async function tontines(req, res) {
+  const data = await service.listTontines(req.query);
+  return ok(res, data, 'Tontines chargees.');
+}
+
+async function tontineCalendar(req, res) {
+  const data = await service.getTontineCalendar(req.params.cycleId);
+  return ok(res, data, 'Carte de tontine chargee.');
+}
+
+async function startTontine(req, res) {
+  const data = await service.startTontine(req.params.userId, req.body.stakeAmount, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Tontine demarree avec succes.', 201);
+}
+
+async function recordContribution(req, res) {
+  const data = await service.recordClientContribution(
+    req.params.userId,
+    req.body.amount,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Cotisation enregistree avec succes.', 201);
 }
 
 async function updateClientStatus(req, res) {
@@ -139,7 +180,12 @@ module.exports = {
   updateMarketplaceOffer,
   updateMarketplaceOfferStatus,
   clients,
+  createClient,
   clientDetail,
+  tontines,
+  tontineCalendar,
+  startTontine,
+  recordContribution,
   updateClientStatus,
   agents,
   updateAgentStatus,

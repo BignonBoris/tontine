@@ -12,6 +12,17 @@ const {
 const {
   reverseProvisioningByAdmin,
 } = require('../agent-provisionings/agent-provisionings.service');
+const {
+  normalizePhone,
+  normalizeDisplayName,
+  isValidDisplayName,
+} = require('../auth/auth.service');
+const {
+  configureStake,
+  depositToCycle,
+  hasActiveOrAwaitingCycle,
+} = require('../tontine/tontine.service');
+const { writeAuditLog } = require('../../common/services/audit-log.service');
 
 function parsePagination(query = {}) {
   const page = Math.max(Number(query.page || 1), 1);
@@ -279,6 +290,19 @@ async function listClients(query = {}) {
 
   const result = await models.User.findAndCountAll({
     where: whereClause,
+    attributes: {
+      include: [
+        [
+          sequelize.literal(`EXISTS (
+            SELECT 1
+            FROM \`tontine_cycles\` AS tc
+            WHERE tc.\`user_id\` = \`User\`.\`id\`
+              AND tc.\`status\` IN ('active', 'enAttenteValidationFin')
+          )`),
+          'hasActiveTontine',
+        ],
+      ],
+    },
     include: [
       {
         model: models.AgentProfile,
@@ -316,6 +340,7 @@ async function listClients(query = {}) {
         entry.wallet?.reservedWithdrawalBalance,
       ),
       tontineBalance: toNumber(entry.wallet?.tontineBalance),
+      hasActiveTontine: Boolean(Number(entry.get('hasActiveTontine'))),
       createdByAgent: entry.creatorAgent
         ? {
             id: entry.creatorAgent.id,
@@ -333,6 +358,345 @@ async function listClients(query = {}) {
       total: result.count,
     },
   };
+}
+
+async function createClient(payload, requestContext = {}) {
+  const displayName = normalizeDisplayName(payload.displayName);
+  const rawPhoneNumber = String(payload.phoneNumber || '').trim();
+  const address = String(payload.address || '').trim();
+  const stakeAmount = Number(payload.stakeAmount);
+
+  if (!isValidDisplayName(displayName)) {
+    throw new AppError('Le nom du client est requis.', 422);
+  }
+  const phoneNumber = normalizePhone(rawPhoneNumber);
+  if (phoneNumber.length !== 10) {
+    throw new AppError('Le numero du client est invalide.', 422);
+  }
+  if (!address || address.length < 3) {
+    throw new AppError("L'adresse du client est requise.", 422);
+  }
+  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
+    throw new AppError('La mise doit etre un multiple positif de 500.', 422);
+  }
+
+  const existingUser = await models.User.findOne({ where: { phoneNumber } });
+  if (existingUser) {
+    throw new AppError('Un client existe deja avec ce numero.', 409);
+  }
+
+  const client = await sequelize.transaction(async (transaction) => {
+    const createdClient = await models.User.create(
+      {
+        phoneNumber,
+        displayName,
+        address,
+        accountType: 'Personnel',
+        isActive: true,
+        createdByAgentProfileId: payload.agentId || null,
+      },
+      { transaction },
+    );
+
+    await models.UserPreference.create(
+      { userId: createdClient.id },
+      { transaction },
+    );
+    await models.Wallet.create({ userId: createdClient.id }, { transaction });
+
+    await writeAuditLog({
+      userId: null,
+      action: 'admin.client_created',
+      entityType: 'client',
+      entityId: createdClient.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        phoneNumber,
+        stakeAmount,
+      },
+      transaction,
+    });
+
+    return createdClient;
+  });
+
+  const actorContext = {
+    ...requestContext,
+    initiatedByUserId: null,
+    initiatorType: 'admin',
+  };
+
+  await configureStake(client.id, stakeAmount, actorContext);
+
+  return getClientDetail(client.id);
+}
+
+async function listTontines(query = {}) {
+  const { page, pageSize, offset, limit } = parsePagination(query);
+  const search = String(query.search || '').trim();
+  const status = String(query.status || '').trim().toLowerCase();
+
+  const whereClause = {};
+  if (status) {
+    whereClause.status = status;
+  }
+
+  const userWhere = search
+    ? {
+        [Op.or]: [
+          where(fn('LOWER', col('user.display_name')), {
+            [Op.like]: `%${search.toLowerCase()}%`,
+          }),
+          where(fn('LOWER', col('user.phone_number')), {
+            [Op.like]: `%${search.toLowerCase()}%`,
+          }),
+        ],
+      }
+    : undefined;
+
+  const result = await models.TontineCycle.findAndCountAll({
+    where: whereClause,
+    include: [
+      {
+        model: models.User,
+        as: 'user',
+        required: true,
+        where: userWhere,
+        include: [
+          {
+            model: models.Wallet,
+            as: 'wallet',
+            required: false,
+          },
+        ],
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+    offset,
+    limit,
+  });
+
+  const items = result.rows.map((entry) => {
+    const stakeAmount = toNumber(entry.stakeAmount);
+    const cumulativeAmount = toNumber(entry.cumulativeAmount);
+    return {
+      id: entry.id,
+      stakeAmount,
+      cumulativeAmount,
+      targetAmount: stakeAmount * 31,
+      progress: stakeAmount > 0 ? Math.min(cumulativeAmount / (stakeAmount * 31), 1) : 0,
+      status: entry.status,
+      startedAt: entry.startedAt,
+      expectedEndAt: entry.expectedEndAt,
+      endedAt: entry.endedAt,
+      createdAt: entry.createdAt,
+      client: {
+        id: entry.user.id,
+        displayName: entry.user.displayName,
+        phoneNumber: entry.user.phoneNumber,
+        tontineBalance: toNumber(entry.user.wallet?.tontineBalance),
+      },
+    };
+  });
+
+  return {
+    items,
+    pagination: {
+      page,
+      pageSize,
+      total: result.count,
+    },
+  };
+}
+
+async function getTontineCalendar(cycleId) {
+  const cycle = await models.TontineCycle.findByPk(cycleId, {
+    include: [
+      {
+        model: models.User,
+        as: 'user',
+        required: true,
+        include: [
+          {
+            model: models.AgentProfile,
+            as: 'agentProfile',
+            required: false,
+          },
+          {
+            model: models.Wallet,
+            as: 'wallet',
+            required: false,
+          },
+        ],
+      },
+    ],
+  });
+
+  if (!cycle) {
+    throw new AppError('Cycle de tontine introuvable.', 404);
+  }
+  if (cycle.user?.agentProfile) {
+    throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+  }
+
+  const deposits = await models.TontineHistory.findAll({
+    where: {
+      cycleId,
+      type: 'deposit',
+    },
+    order: [['occurredAt', 'ASC']],
+  });
+
+  return {
+    cycle: {
+      id: cycle.id,
+      stakeAmount: toNumber(cycle.stakeAmount),
+      cumulativeAmount: toNumber(cycle.cumulativeAmount),
+      targetAmount: toNumber(cycle.stakeAmount) * 31,
+      progress:
+        toNumber(cycle.stakeAmount) > 0
+          ? Math.min(
+              toNumber(cycle.cumulativeAmount) /
+                (toNumber(cycle.stakeAmount) * 31),
+              1,
+            )
+          : 0,
+      status: cycle.status,
+      startedAt: cycle.startedAt,
+      expectedEndAt: cycle.expectedEndAt,
+      endedAt: cycle.endedAt,
+      client: {
+        id: cycle.user.id,
+        displayName: cycle.user.displayName,
+        phoneNumber: cycle.user.phoneNumber,
+        tontineBalance: toNumber(cycle.user.wallet?.tontineBalance),
+      },
+    },
+    deposits: deposits.map((entry) => ({
+      id: entry.id,
+      amount: toNumber(entry.amount),
+      label: entry.label,
+      note: entry.note,
+      occurredAt: entry.occurredAt,
+      initiatedByUserId: entry.initiatedByUserId,
+      initiatorType: entry.initiatorType,
+    })),
+  };
+}
+
+async function startTontine(userId, stakeAmount, requestContext = {}) {
+  const user = await models.User.findByPk(userId, {
+    include: [
+      {
+        model: models.AgentProfile,
+        as: 'agentProfile',
+        required: false,
+      },
+    ],
+  });
+  if (!user) {
+    throw new AppError('Client introuvable.', 404);
+  }
+  if (user.agentProfile) {
+    throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+  }
+  if (!user.isActive) {
+    throw new AppError('Ce client est inactif.', 422);
+  }
+
+  const hasCycle = await hasActiveOrAwaitingCycle(userId);
+  if (hasCycle) {
+    throw new AppError(
+      'Ce client a deja une tontine active ou en attente de reversement.',
+      409,
+    );
+  }
+
+  const actorContext = {
+    ...requestContext,
+    initiatedByUserId: null,
+    initiatorType: 'admin',
+  };
+
+  const cycle = await configureStake(userId, stakeAmount, actorContext);
+
+  await writeAuditLog({
+    userId: null,
+    action: 'admin.client_tontine_started',
+    entityType: 'client',
+    entityId: userId,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      adminUsername: requestContext.adminUsername || null,
+      stakeAmount,
+      cycleId: cycle.id,
+    },
+  });
+
+  return cycle;
+}
+
+async function recordClientContribution(userId, amount, requestContext = {}) {
+  const normalizedAmount = Number(amount);
+
+  if (!normalizedAmount || normalizedAmount <= 0 || normalizedAmount % 500 !== 0) {
+    throw new AppError(
+      'La cotisation doit etre un multiple positif de 500.',
+      422,
+    );
+  }
+
+  const client = await sequelize.transaction(async (transaction) => {
+    const loadedClient = await models.User.findByPk(userId, {
+      include: [
+        {
+          model: models.AgentProfile,
+          as: 'agentProfile',
+          required: false,
+        },
+      ],
+      transaction,
+    });
+
+    if (!loadedClient) {
+      throw new AppError('Client introuvable.', 404);
+    }
+    if (loadedClient.agentProfile) {
+      throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+    }
+    if (!loadedClient.isActive) {
+      throw new AppError('Ce client est inactif.', 422);
+    }
+
+    const cycle = await depositToCycle(userId, normalizedAmount, 'external', {
+      ...requestContext,
+      transaction,
+      initiatedByUserId: null,
+      initiatorType: 'admin',
+    });
+
+    await writeAuditLog({
+      userId: null,
+      action: 'admin.client_contribution_recorded',
+      entityType: 'tontineCycle',
+      entityId: cycle.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        clientUserId: loadedClient.id,
+        amount: normalizedAmount,
+      },
+      transaction,
+    });
+
+    return loadedClient;
+  });
+
+  return getClientDetail(client.id);
 }
 
 async function getClientDetail(userId) {
@@ -1724,6 +2088,11 @@ module.exports = {
   listMarketplaceOrders,
   listMarketplaceGoals,
   listClients,
+  createClient,
+  listTontines,
+  getTontineCalendar,
+  startTontine,
+  recordClientContribution,
   getClientDetail,
   updateClientStatus,
   listAgents,

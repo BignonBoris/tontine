@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { X } from "lucide-vue-next";
 import Card from "@/components/ui/card/Card.vue";
 import {
   Dialog,
@@ -8,15 +9,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog";
 import type { ClientDetail } from "@/types/platform";
 import { useClientStore } from "@/stores/clients";
+import { useAgentStore } from "@/stores/agents";
 import { clientService } from "@/services/clients/clientService";
 import { getErrorMessage } from "@/services/http/errors";
 import { formatCurrency, formatDateTime } from "@/utils/formatters";
 
 const clientStore = useClientStore();
+const agentStore = useAgentStore();
 const clients = computed(() => clientStore.collection?.items || []);
+const agents = computed(() => agentStore.collection?.items || []);
 const pagination = computed(() => clientStore.collection?.pagination || { page: 1, pageSize: 20, total: 0 });
 const filters = reactive({
   search: "",
@@ -31,6 +36,61 @@ const selectedClientId = ref<string | null>(null);
 const detailError = ref("");
 const isDetailLoading = ref(false);
 const detailData = ref<ClientDetail | null>(null);
+const currentContributionCycle = computed(() => {
+  const latestCycle = detailData.value?.cycles[0] || null;
+  if (!detailData.value?.client.isActive || !latestCycle || latestCycle.status !== "active") {
+    return null;
+  }
+
+  return latestCycle;
+});
+const contributionRemaining = computed(() => {
+  if (!currentContributionCycle.value) {
+    return 0;
+  }
+
+  return Math.max(
+    currentContributionCycle.value.stakeAmount * 31 -
+      currentContributionCycle.value.cumulativeAmount,
+    0,
+  );
+});
+const isRecordingContribution = ref(false);
+const contributionError = ref("");
+const contributionSuccess = ref("");
+const contributionSuccessTimer = ref<number | null>(null);
+const contributionForm = reactive<{ amount: number | null }>({
+  amount: null,
+});
+
+const createDialogOpen = ref(false);
+const isCreating = ref(false);
+const createError = ref("");
+const createForm = reactive<{
+  displayName: string;
+  phoneNumber: string;
+  address: string;
+  stakeAmount: number | null;
+  agentId: string;
+}>({
+  displayName: "",
+  phoneNumber: "",
+  address: "",
+  stakeAmount: null,
+  agentId: "",
+});
+
+const startTontineDialogOpen = ref(false);
+const isStartingTontine = ref(false);
+const startTontineError = ref("");
+const startTontineSuccess = ref("");
+const startTontineSuccessTimer = ref<number | null>(null);
+const startTontineAutoCloseTimer = ref<number | null>(null);
+const startTontineForm = reactive({
+  clientId: "",
+  clientName: "",
+  stakeAmount: 1000,
+});
 
 const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.total / pagination.value.pageSize)));
 const summary = computed(() => {
@@ -57,10 +117,256 @@ async function fetchClients(page = currentPage.value) {
   }
 }
 
-async function toggleClientStatus(clientId: string, isActive: boolean) {
-  mutationClientId.value = clientId;
+function openCreateDialog() {
+  createDialogOpen.value = true;
+  createError.value = "";
+  createForm.displayName = "";
+  createForm.phoneNumber = "";
+  createForm.address = "";
+  createForm.stakeAmount = null;
+  createForm.agentId = "";
+
+  if (!agents.value.length) {
+    agentStore.fetchAgents({ pageSize: 100 });
+  }
+}
+
+function clearStartTontineSuccessTimer() {
+  if (startTontineSuccessTimer.value !== null) {
+    window.clearTimeout(startTontineSuccessTimer.value);
+    startTontineSuccessTimer.value = null;
+  }
+}
+
+function clearStartTontineAutoCloseTimer() {
+  if (startTontineAutoCloseTimer.value !== null) {
+    window.clearTimeout(startTontineAutoCloseTimer.value);
+    startTontineAutoCloseTimer.value = null;
+  }
+}
+
+function showStartTontineSuccess(message: string) {
+  startTontineSuccess.value = message;
+  clearStartTontineSuccessTimer();
+  startTontineSuccessTimer.value = window.setTimeout(() => {
+    startTontineSuccess.value = "";
+    startTontineSuccessTimer.value = null;
+  }, 4000);
+}
+
+function hasOngoingTontine(cycles: ClientDetail["cycles"]) {
+  const latestCycle = cycles[0];
+  if (!latestCycle) {
+    return false;
+  }
+
+  return ["active", "enAttenteValidationFin"].includes(latestCycle.status);
+}
+
+function clearContributionSuccessTimer() {
+  if (contributionSuccessTimer.value !== null) {
+    window.clearTimeout(contributionSuccessTimer.value);
+    contributionSuccessTimer.value = null;
+  }
+}
+
+function syncContributionAmount(detail: ClientDetail | null) {
+  const latestCycle = detail?.cycles[0] || null;
+  if (!detail?.client.isActive || !latestCycle || latestCycle.status !== "active") {
+    contributionForm.amount = null;
+    return;
+  }
+
+  const remainingAmount = Math.max(
+    latestCycle.stakeAmount * 31 - latestCycle.cumulativeAmount,
+    0,
+  );
+  contributionForm.amount =
+    remainingAmount > 0
+      ? Math.min(latestCycle.stakeAmount, remainingAmount)
+      : latestCycle.stakeAmount;
+}
+
+function resetContributionState(detail: ClientDetail | null) {
+  contributionError.value = "";
+  contributionSuccess.value = "";
+  clearContributionSuccessTimer();
+  syncContributionAmount(detail);
+}
+
+function showContributionSuccess(message: string) {
+  contributionSuccess.value = message;
+  clearContributionSuccessTimer();
+  contributionSuccessTimer.value = window.setTimeout(() => {
+    contributionSuccess.value = "";
+    contributionSuccessTimer.value = null;
+  }, 4000);
+}
+
+function openStartTontineDialog(client: { id: string; displayName: string }) {
+  clearStartTontineAutoCloseTimer();
+  clearStartTontineSuccessTimer();
+  startTontineSuccess.value = "";
+  startTontineDialogOpen.value = true;
+  startTontineError.value = "";
+  startTontineForm.clientId = client.id;
+  startTontineForm.clientName = client.displayName;
+  startTontineForm.stakeAmount =
+    detailData.value?.client.id === client.id
+      ? detailData.value.cycles[0]?.stakeAmount || 1000
+      : 1000;
+}
+
+function closeStartTontineDialog() {
+  if (isStartingTontine.value) {
+    return;
+  }
+
+  clearStartTontineAutoCloseTimer();
+  startTontineDialogOpen.value = false;
+  startTontineError.value = "";
+  startTontineForm.clientId = "";
+  startTontineForm.clientName = "";
+  startTontineForm.stakeAmount = 1000;
+}
+
+function setStartTontineDialogOpen(value: boolean) {
+  if (value) {
+    startTontineDialogOpen.value = true;
+    return;
+  }
+
+  closeStartTontineDialog();
+}
+
+async function handleCreateClient() {
+  if (isCreating.value) return;
+
+  createError.value = "";
+  isCreating.value = true;
+  const stakeAmount = Number(createForm.stakeAmount);
+
+  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
+    createError.value = "La mise doit etre un multiple positif de 500.";
+    isCreating.value = false;
+    return;
+  }
+
   try {
-    await clientService.updateStatus(clientId, !isActive);
+    await clientStore.createClient({
+      displayName: createForm.displayName,
+      phoneNumber: createForm.phoneNumber,
+      address: createForm.address,
+      stakeAmount,
+      agentId: createForm.agentId || null,
+    });
+    createDialogOpen.value = false;
+    await fetchClients(1);
+  } catch (error) {
+    createError.value = getErrorMessage(error, "Erreur lors de la creation du client.");
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+async function handleRecordContribution() {
+  if (isRecordingContribution.value) return;
+
+  const clientId = selectedClientId.value;
+  const cycle = currentContributionCycle.value;
+  const amount = Number(contributionForm.amount);
+
+  if (!clientId || !detailData.value) {
+    contributionError.value = "Selectionnez un client valide.";
+    return;
+  }
+  if (!detailData.value.client.isActive) {
+    contributionError.value = "Ce client est inactif.";
+    return;
+  }
+  if (!cycle) {
+    contributionError.value = "Aucun cycle actif ne permet une cotisation.";
+    return;
+  }
+  if (!amount || amount <= 0 || amount % 500 !== 0) {
+    contributionError.value = "La cotisation doit etre un multiple positif de 500.";
+    return;
+  }
+  if (amount > contributionRemaining.value) {
+    contributionError.value = `Le montant depasse le reste a verser (${formatCurrency(contributionRemaining.value)} F).`;
+    return;
+  }
+
+  contributionError.value = "";
+  contributionSuccess.value = "";
+  isRecordingContribution.value = true;
+
+  try {
+    const updatedDetail = await clientStore.recordContribution(clientId, amount);
+    detailData.value = updatedDetail;
+    syncContributionAmount(updatedDetail);
+    showContributionSuccess(
+      `Cotisation de ${formatCurrency(amount)} F enregistree avec succes.`,
+    );
+  } catch (error) {
+    contributionError.value = getErrorMessage(
+      error,
+      "Enregistrement de la cotisation impossible.",
+    );
+  } finally {
+    isRecordingContribution.value = false;
+  }
+}
+
+async function handleStartTontine() {
+  if (isStartingTontine.value) return;
+
+  const clientId = startTontineForm.clientId;
+  const stakeAmount = Number(startTontineForm.stakeAmount);
+  if (!clientId) {
+    startTontineError.value = "Selectionnez un client valide.";
+    return;
+  }
+  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
+    startTontineError.value = "La mise doit etre un multiple positif de 500.";
+    return;
+  }
+
+  startTontineError.value = "";
+  startTontineSuccess.value = "";
+  isStartingTontine.value = true;
+
+  try {
+    await clientStore.startTontine(clientId, stakeAmount);
+    isStartingTontine.value = false;
+
+    if (detailDialogOpen.value && selectedClientId.value === clientId) {
+      void openDetailDialog(clientId);
+    } else {
+      void fetchClients(currentPage.value);
+    }
+
+    showStartTontineSuccess(
+      `La tontine de ${startTontineForm.clientName} a ete demarree avec succes.`,
+    );
+    clearStartTontineAutoCloseTimer();
+    startTontineAutoCloseTimer.value = window.setTimeout(() => {
+      closeStartTontineDialog();
+    }, 1200);
+  } catch (error) {
+    startTontineError.value = getErrorMessage(
+      error,
+      "Demarrage de la tontine impossible.",
+    );
+  } finally {
+    isStartingTontine.value = false;
+  }
+}
+
+async function toggleClientStatus(userId: string, isActive: boolean) {
+  mutationClientId.value = userId;
+  try {
+    await clientService.updateStatus(userId, !isActive);
     await fetchClients(currentPage.value);
   } catch (error) {
     window.alert(getErrorMessage(error, "Mise a jour client impossible."));
@@ -74,10 +380,12 @@ async function openDetailDialog(clientId: string) {
   selectedClientId.value = clientId;
   detailData.value = null;
   detailError.value = "";
+  resetContributionState(null);
   isDetailLoading.value = true;
 
   try {
     detailData.value = await clientService.getDetail(clientId);
+    syncContributionAmount(detailData.value);
   } catch (error) {
     detailError.value = getErrorMessage(error, "Chargement du detail client impossible.");
   } finally {
@@ -90,9 +398,16 @@ function closeDetailDialog() {
   selectedClientId.value = null;
   detailData.value = null;
   detailError.value = "";
+  resetContributionState(null);
 }
 
 onMounted(fetchClients);
+
+onUnmounted(() => {
+  clearStartTontineSuccessTimer();
+  clearStartTontineAutoCloseTimer();
+  clearContributionSuccessTimer();
+});
 </script>
 
 <template>
@@ -148,14 +463,25 @@ onMounted(fetchClients);
             Filtrer
           </button>
         </div>
-        <button
-          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
-          @click="fetchClients(currentPage)"
-        >
-          Rafraichir
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
+            @click="openCreateDialog"
+          >
+            Nouveau client
+          </button>
+          <button
+            class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+            @click="fetchClients(currentPage)"
+          >
+            Rafraichir
+          </button>
+        </div>
       </div>
 
+      <div v-if="startTontineSuccess" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        {{ startTontineSuccess }}
+      </div>
       <div v-if="errorMessage" class="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ errorMessage }}
       </div>
@@ -211,6 +537,21 @@ onMounted(fetchClients);
                   >
                     Voir detail
                   </button>
+                  <button
+                    v-if="client.isActive && !client.hasActiveTontine"
+                    class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                    title="Demarrer une nouvelle tontine"
+                    @click="openStartTontineDialog(client)"
+                  >
+                    Demarrer Tontine
+                  </button>
+                  <span
+                    v-else-if="client.isActive && client.hasActiveTontine"
+                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700"
+                    title="Une tontine active ou en attente bloque un nouveau cycle"
+                  >
+                    Tontine en cours
+                  </span>
                 </div>
               </td>
             </tr>
@@ -248,14 +589,24 @@ onMounted(fetchClients);
   </Card>
 
   <Dialog :open="detailDialogOpen" @update:open="detailDialogOpen = $event">
-    <DialogContent class="sm:max-w-[980px]">
-      <DialogHeader>
+    <DialogContent
+      class="sm:max-w-[980px] !flex !flex-col h-[86vh] overflow-hidden"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader class="relative shrink-0 border-b border-border/60 pb-4 pr-10">
         <DialogTitle>Detail client</DialogTitle>
         <DialogDescription>
           <span v-if="detailData">{{ detailData.client.displayName }}</span>
           <span v-else>Chargement du client.</span>
         </DialogDescription>
+        <DialogClose class="absolute right-0 top-0 rounded-lg p-2 opacity-70 transition hover:bg-muted hover:opacity-100">
+          <X class="h-4 w-4" />
+          <span class="sr-only">Fermer</span>
+        </DialogClose>
       </DialogHeader>
+
+      <div class="min-h-0 flex-1 overflow-y-auto pr-2">
 
       <div v-if="detailError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {{ detailError }}
@@ -281,6 +632,63 @@ onMounted(fetchClients);
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Statut</p>
             <p class="mt-2 text-2xl font-semibold">{{ detailData.client.isActive ? "Actif" : "Inactif" }}</p>
           </div>
+        </div>
+
+        <div
+          v-if="contributionError"
+          class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {{ contributionError }}
+        </div>
+        <div
+          v-if="contributionSuccess"
+          class="rounded-2xl border border-emerald-200 bg-emerald-100/70 px-4 py-3 text-sm text-emerald-700"
+        >
+          {{ contributionSuccess }}
+        </div>
+
+        <div
+          v-if="currentContributionCycle"
+          class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 class="font-medium text-emerald-800">Encaisser une cotisation</h4>
+              <p class="mt-1 text-sm text-emerald-700">
+                Cycle actif. Reste a verser:
+                {{ formatCurrency(contributionRemaining) }} F.
+              </p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              Mise du cycle: {{ formatCurrency(currentContributionCycle.stakeAmount) }} F
+            </span>
+          </div>
+
+          <div class="mt-4 flex flex-wrap items-end gap-3">
+            <div class="grid flex-1 gap-2 min-w-[220px]">
+              <label for="contributionAmount" class="text-sm font-medium">Montant (F CFA)</label>
+              <input
+                id="contributionAmount"
+                v-model.number="contributionForm.amount"
+                type="number"
+                min="500"
+                step="500"
+                class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+                :placeholder="String(currentContributionCycle.stakeAmount)"
+              />
+            </div>
+            <button
+              class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              :disabled="isRecordingContribution"
+              @click="handleRecordContribution"
+            >
+              <span v-if="isRecordingContribution">Enregistrement...</span>
+              <span v-else>Enregistrer la cotisation</span>
+            </button>
+          </div>
+          <p class="mt-3 text-xs text-emerald-700/80">
+            Le montant doit rester un multiple de 500 F et ne peut pas depasser le reste a verser.
+          </p>
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
@@ -360,11 +768,11 @@ onMounted(fetchClients);
               </div>
             </div>
           </div>
-          <div class="rounded-2xl border border-border/60 p-4">
-            <h4 class="font-medium">Historique tontine</h4>
-            <div class="mt-3 space-y-2">
-              <div v-for="entry in detailData.tontineHistory" :key="entry.id" class="rounded-xl border border-border/60 p-3">
-                <p class="font-medium">{{ entry.label }}</p>
+        <div class="rounded-2xl border border-border/60 p-4">
+          <h4 class="font-medium">Historique tontine</h4>
+          <div class="mt-3 space-y-2">
+            <div v-for="entry in detailData.tontineHistory" :key="entry.id" class="rounded-xl border border-border/60 p-3">
+              <p class="font-medium">{{ entry.label }}</p>
                 <p class="text-sm">{{ formatCurrency(entry.amount) }} F</p>
                 <p class="text-xs text-muted-foreground">{{ formatDateTime(entry.occurredAt) }}</p>
               </div>
@@ -376,12 +784,184 @@ onMounted(fetchClients);
         </div>
       </div>
 
-      <DialogFooter>
+      </div>
+
+      <DialogFooter class="shrink-0 border-t border-border/60 pt-4">
+        <button
+          v-if="detailData && !hasOngoingTontine(detailData.cycles)"
+          class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+          :disabled="isStartingTontine"
+          @click="openStartTontineDialog(detailData.client)"
+        >
+          Ouvrir un nouveau cycle
+        </button>
         <button
           class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
           @click="closeDetailDialog"
         >
           Fermer
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="createDialogOpen" @update:open="createDialogOpen = $event">
+    <DialogContent
+      class="sm:max-w-[540px]"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader>
+        <div class="flex items-center justify-between">
+          <DialogTitle>Nouveau client</DialogTitle>
+          <DialogClose class="rounded-lg p-1 opacity-70 transition hover:bg-muted hover:opacity-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </DialogClose>
+        </div>
+        <DialogDescription>
+          Remplissez les informations pour creer un nouveau compte client.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="createError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ createError }}
+      </div>
+
+      <div class="grid gap-4 py-4">
+        <div class="grid gap-2">
+          <label for="displayName" class="text-sm font-medium">Nom complet</label>
+          <input
+            id="displayName"
+            v-model="createForm.displayName"
+            type="text"
+            placeholder="Ex: Jean Dupont"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="phoneNumber" class="text-sm font-medium">Numero de telephone</label>
+          <input
+            id="phoneNumber"
+            v-model="createForm.phoneNumber"
+            type="text"
+            placeholder="Ex: 0102030405"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="address" class="text-sm font-medium">Adresse</label>
+          <input
+            id="address"
+            v-model="createForm.address"
+            type="text"
+            placeholder="Quartier, Ville"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="stakeAmount" class="text-sm font-medium">Mise journaliere (F CFA)</label>
+          <input
+            id="stakeAmount"
+            v-model.number="createForm.stakeAmount"
+            type="number"
+            step="500"
+            min="500"
+            placeholder="1000"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de 500 F.</p>
+        </div>
+        <div class="grid gap-2">
+          <label for="agentId" class="text-sm font-medium">Agent affecte (Optionnel)</label>
+          <select
+            id="agentId"
+            v-model="createForm.agentId"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          >
+            <option value="">Aucun (Canal direct)</option>
+            <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+              {{ agent.fullName }} ({{ agent.agentCode }})
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="isCreating"
+          @click="createDialogOpen = false"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 disabled:opacity-50"
+          :disabled="isCreating"
+          @click="handleCreateClient"
+        >
+          <span v-if="isCreating">Creation...</span>
+          <span v-else>Creer le client</span>
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="startTontineDialogOpen" @update:open="setStartTontineDialogOpen">
+    <DialogContent
+      class="sm:max-w-[480px]"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader>
+        <div class="flex items-center justify-between">
+          <DialogTitle>Demarrer une tontine</DialogTitle>
+          <DialogClose class="rounded-lg p-1 opacity-70 transition hover:bg-muted hover:opacity-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </DialogClose>
+        </div>
+        <DialogDescription>
+          Vous allez demarrer un nouveau cycle de 31 jours pour <strong>{{ startTontineForm.clientName }}</strong>.
+          Le lancement sera refuse si une tontine active ou en attente existe deja.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="startTontineError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ startTontineError }}
+      </div>
+      <div v-if="startTontineSuccess" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        {{ startTontineSuccess }}
+      </div>
+
+      <div class="grid gap-4 py-4">
+        <div class="grid gap-2">
+          <label for="stakeAmountStart" class="text-sm font-medium">Mise journaliere (F CFA)</label>
+          <input
+            id="stakeAmountStart"
+            v-model.number="startTontineForm.stakeAmount"
+            type="number"
+            step="500"
+            min="500"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de 500 F.</p>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="isStartingTontine"
+          @click="closeStartTontineDialog"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 disabled:opacity-50"
+          :disabled="isStartingTontine || Boolean(startTontineSuccess)"
+          @click="handleStartTontine"
+        >
+          <span v-if="isStartingTontine">Demarrage...</span>
+          <span v-else>Demarrer le cycle</span>
         </button>
       </DialogFooter>
     </DialogContent>
