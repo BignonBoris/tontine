@@ -1,5 +1,8 @@
 const { Op } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
+const {
+  FINANCIAL_AMOUNT_STEP,
+} = require('../../common/constants/finance');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const { AGENT_GROUP_TURN_UNITS } = require('../../common/constants/enums');
@@ -217,9 +220,12 @@ function validateGroupPayload(payload, { partial = false } = {}) {
     if (
       !Number.isFinite(contributionAmount) ||
       contributionAmount <= 0 ||
-      contributionAmount % 500 !== 0
+      contributionAmount % FINANCIAL_AMOUNT_STEP !== 0
     ) {
-      throw new AppError('Le montant par personne doit etre un multiple positif de 500.', 422);
+      throw new AppError(
+        `Le montant par personne doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+        422,
+      );
     }
   }
 

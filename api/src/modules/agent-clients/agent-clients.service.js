@@ -1,5 +1,8 @@
 const { Op } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
+const {
+  FINANCIAL_AMOUNT_STEP,
+} = require('../../common/constants/finance');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const {
@@ -169,12 +172,19 @@ async function createClient(agentProfile, payload, requestContext = {}) {
   if (!address || address.length < 3) {
     throw new AppError("L'adresse du client est requise.", 422);
   }
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    throw new AppError('La mise doit etre un multiple positif de 500.', 422);
-  }
-  if (initialDeposit < 0 || initialDeposit % 500 !== 0) {
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
     throw new AppError(
-      'Le premier depot doit etre vide ou un multiple positif de 500.',
+      `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+  if (initialDeposit < 0 || initialDeposit % FINANCIAL_AMOUNT_STEP !== 0) {
+    throw new AppError(
+      `Le premier depot doit etre vide ou un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
       422,
     );
   }
@@ -249,12 +259,19 @@ async function startClientTontine(agentProfile, clientId, payload, requestContex
     ? 0
     : Number(payload.initialDeposit);
 
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    throw new AppError('La mise doit etre un multiple positif de 500.', 422);
-  }
-  if (initialDeposit < 0 || initialDeposit % 500 !== 0) {
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
     throw new AppError(
-      'Le premier depot doit etre vide ou un multiple positif de 500.',
+      `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+  if (initialDeposit < 0 || initialDeposit % FINANCIAL_AMOUNT_STEP !== 0) {
+    throw new AppError(
+      `Le premier depot doit etre vide ou un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
       422,
     );
   }

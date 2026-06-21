@@ -1,5 +1,8 @@
 const { Op } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
+const {
+  FINANCIAL_AMOUNT_STEP,
+} = require('../../common/constants/finance');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const {
@@ -9,8 +12,15 @@ const {
 } = require('../commission/commission.service');
 
 function ensureStakeMultiple(stakeAmount) {
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    throw new AppError('La mise doit etre un multiple positif de 500.', 422);
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    throw new AppError(
+      `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
   }
 }
 
@@ -210,8 +220,15 @@ async function depositToCycle(
   source = 'external',
   requestContext = {},
 ) {
-  if (!amount || amount <= 0 || amount % 500 !== 0) {
-    throw new AppError('Le versement doit etre un multiple positif de 500.', 422);
+  if (
+    !amount ||
+    amount <= 0 ||
+    amount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    throw new AppError(
+      `Le versement doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
   }
 
   const executeDeposit = async (transaction) => {
@@ -363,9 +380,13 @@ async function reverseProvisioningDepositOnCycle({
   requestContext = {},
   note = null,
 }) {
-  if (!amount || amount <= 0 || amount % 500 !== 0) {
+  if (
+    !amount ||
+    amount <= 0 ||
+    amount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
     throw new AppError(
-      'Le montant de la contrepassation doit etre un multiple positif de 500.',
+      `Le montant de la contrepassation doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
       422,
     );
   }
