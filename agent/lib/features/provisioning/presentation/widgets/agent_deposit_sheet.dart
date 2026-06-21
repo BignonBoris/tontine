@@ -94,8 +94,8 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
                     if (amount == null || amount <= 0) {
                       return 'Entrez un montant valide';
                     }
-                    if (amount % 500 != 0) {
-                      return 'Le montant doit etre un multiple de 500';
+                    if (amount % AgentInputRules.financialAmountStep != 0) {
+                      return 'Le montant doit etre un multiple de ${AgentInputRules.financialAmountStep}';
                     }
                     return null;
                   },
