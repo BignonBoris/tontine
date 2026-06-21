@@ -62,6 +62,30 @@ class GroupInvitationPreview {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'token': token,
+      'shareUrl': shareUrl,
+      'previewUrl': previewUrl,
+      'invitationType': invitationType,
+      'memberStatus': membershipStatus,
+      'invitation': {
+        'groupId': groupId,
+        'reference': reference,
+        'groupName': groupName,
+        'participantCount': participantCount,
+        'memberCount': memberCount,
+        'remainingSlots': remainingSlots,
+        'plannedStartDate': plannedStartDate?.toIso8601String(),
+        'launchStatus': launchStatus,
+        'contributionAmount': contributionAmount,
+        'turnIntervalValue': turnIntervalValue,
+        'turnIntervalUnit': turnIntervalUnit,
+        'description': description,
+      },
+    };
+  }
+
   static DateTime? _toDate(dynamic value) {
     if (value == null) {
       return null;

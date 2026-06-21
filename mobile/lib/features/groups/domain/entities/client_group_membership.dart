@@ -60,6 +60,29 @@ class ClientGroupMembership {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'reference': reference,
+      'name': name,
+      'description': description,
+      'participantCount': participantCount,
+      'memberCount': memberCount,
+      'turnIntervalValue': turnIntervalValue,
+      'turnIntervalUnit': turnIntervalUnit,
+      'contributionAmount': contributionAmount,
+      'plannedStartDate': plannedStartDate?.toIso8601String(),
+      'launchStatus': launchStatus,
+      'startedAt': startedAt?.toIso8601String(),
+      'status': status,
+      'membership': {
+        'status': status,
+        'joinedAt': joinedAt?.toIso8601String(),
+      },
+      'agent': agent?.toMap(),
+    };
+  }
+
   static int _toInt(dynamic value) {
     if (value is int) {
       return value;
@@ -99,5 +122,13 @@ class ClientGroupAgent {
       displayName: '${map['displayName'] ?? ''}',
       phoneNumber: '${map['phoneNumber'] ?? ''}',
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'phoneNumber': phoneNumber,
+    };
   }
 }

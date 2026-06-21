@@ -26,6 +26,14 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
+        if (state is DashboardOffline) {
+          return DashboardOfflineView(
+            title: state.title,
+            message: state.message,
+            inline: true,
+          );
+        }
+
         if (state is DashboardError) {
           return DashboardErrorView(
             title: state.title,
@@ -360,7 +368,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                             state.tontineCycle!.status !=
                                 TontineCycleStatus.active
                         ? "Aucune tontine active disponible pour recevoir ce montant."
-                        : "Le montant doit etre un multiple de 500.",
+                        : "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}.",
                     style: GoogleFonts.inter(
                       color: AppTheme.textSecondaryColor,
                       fontSize: 13,
@@ -410,10 +418,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           );
                           return;
                         }
-                        if (amount % 500 != 0) {
+                        if (amount % AppInputRules.financialAmountStep != 0) {
                           setModalState(
                             () => errorMessage =
-                                "Le montant doit etre un multiple de 500",
+                                "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
                           );
                           return;
                         }
@@ -543,10 +551,10 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                                 );
                                 return;
                               }
-                              if (amount % 500 != 0) {
+                              if (amount % AppInputRules.financialAmountStep != 0) {
                                 setModalState(
                                   () => errorMessage =
-                                      "Le montant doit etre un multiple de 500",
+                                      "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
                                 );
                                 return;
                               }

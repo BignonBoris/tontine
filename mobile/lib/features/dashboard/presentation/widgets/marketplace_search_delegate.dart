@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/cached_remote_image.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
 import 'package:mobile/features/dashboard/presentation/utils/marketplace_offer_filter.dart';
 
@@ -111,17 +112,11 @@ class _ResultsList extends StatelessWidget {
           ),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              offer.imageUrl,
+            child: CachedRemoteImage(
+              imageUrl: offer.imageUrl,
               width: 54,
               height: 54,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 54,
-                height: 54,
-                color: Colors.grey.shade200,
-                child: const Icon(Icons.broken_image),
-              ),
             ),
           ),
           title: Text(

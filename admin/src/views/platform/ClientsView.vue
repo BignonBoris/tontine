@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { X } from "lucide-vue-next";
 import Card from "@/components/ui/card/Card.vue";
+import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import {
   Dialog,
   DialogContent,
@@ -246,8 +247,12 @@ async function handleCreateClient() {
   isCreating.value = true;
   const stakeAmount = Number(createForm.stakeAmount);
 
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    createError.value = "La mise doit etre un multiple positif de 500.";
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    createError.value = `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
     isCreating.value = false;
     return;
   }
@@ -288,8 +293,12 @@ async function handleRecordContribution() {
     contributionError.value = "Aucun cycle actif ne permet une cotisation.";
     return;
   }
-  if (!amount || amount <= 0 || amount % 500 !== 0) {
-    contributionError.value = "La cotisation doit etre un multiple positif de 500.";
+  if (
+    !amount ||
+    amount <= 0 ||
+    amount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    contributionError.value = `La cotisation doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
     return;
   }
   if (amount > contributionRemaining.value) {
@@ -327,8 +336,12 @@ async function handleStartTontine() {
     startTontineError.value = "Selectionnez un client valide.";
     return;
   }
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    startTontineError.value = "La mise doit etre un multiple positif de 500.";
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    startTontineError.value = `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
     return;
   }
 
@@ -671,8 +684,8 @@ onUnmounted(() => {
                 id="contributionAmount"
                 v-model.number="contributionForm.amount"
                 type="number"
-                min="500"
-                step="500"
+                :min="FINANCIAL_AMOUNT_STEP"
+                :step="FINANCIAL_AMOUNT_STEP"
                 class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
                 :placeholder="String(currentContributionCycle.stakeAmount)"
               />
@@ -687,7 +700,7 @@ onUnmounted(() => {
             </button>
           </div>
           <p class="mt-3 text-xs text-emerald-700/80">
-            Le montant doit rester un multiple de 500 F et ne peut pas depasser le reste a verser.
+            Le montant doit rester un multiple de {{ FINANCIAL_AMOUNT_STEP }} F et ne peut pas depasser le reste a verser.
           </p>
         </div>
 
@@ -864,12 +877,12 @@ onUnmounted(() => {
             id="stakeAmount"
             v-model.number="createForm.stakeAmount"
             type="number"
-            step="500"
-            min="500"
+            :step="FINANCIAL_AMOUNT_STEP"
+            :min="FINANCIAL_AMOUNT_STEP"
             placeholder="1000"
             class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
           />
-          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de 500 F.</p>
+          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de {{ FINANCIAL_AMOUNT_STEP }} F.</p>
         </div>
         <div class="grid gap-2">
           <label for="agentId" class="text-sm font-medium">Agent affecte (Optionnel)</label>
@@ -939,11 +952,11 @@ onUnmounted(() => {
             id="stakeAmountStart"
             v-model.number="startTontineForm.stakeAmount"
             type="number"
-            step="500"
-            min="500"
+            :step="FINANCIAL_AMOUNT_STEP"
+            :min="FINANCIAL_AMOUNT_STEP"
             class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
           />
-          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de 500 F.</p>
+          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de {{ FINANCIAL_AMOUNT_STEP }} F.</p>
         </div>
       </div>
 

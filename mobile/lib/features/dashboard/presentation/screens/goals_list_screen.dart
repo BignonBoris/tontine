@@ -65,6 +65,14 @@ class GoalsListScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (state is DashboardOffline) {
+            return DashboardOfflineView(
+              title: state.title,
+              message: state.message,
+              inline: true,
+            );
+          }
+
           if (state is DashboardError) {
             return DashboardErrorView(
               title: state.title,
@@ -98,15 +106,23 @@ class GoalsListScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            showAddGoalDialog(context, context.read<DashboardBloc>()),
-        backgroundColor: primaryBlue,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          "Nouveau Coffre",
-          style: TextStyle(color: Colors.white),
-        ),
+      floatingActionButton: BlocBuilder<DashboardBloc, DashboardState>(
+        builder: (context, state) {
+          if (state is! DashboardLoaded) {
+            return const SizedBox.shrink();
+          }
+
+          return FloatingActionButton.extended(
+            onPressed: () =>
+                showAddGoalDialog(context, context.read<DashboardBloc>()),
+            backgroundColor: primaryBlue,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text(
+              "Nouveau Coffre",
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        },
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/services/realtime_notification_service.dart';
+import 'package:mobile/features/dashboard/data/services/dashboard_cache_service.dart';
 import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 
 import 'dashboard_event.dart';
@@ -10,6 +11,7 @@ import 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final RemoteDashboardService _remoteDashboardService;
+  final DashboardCacheService _dashboardCacheService;
   final RealtimeNotificationService _realtimeNotificationService;
   StreamSubscription<RealtimeNotificationEvent>? _realtimeSubscription;
   Timer? _realtimeRefreshTimer;
@@ -17,6 +19,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   DashboardBloc({RemoteDashboardService? remoteDashboardService})
     : _remoteDashboardService =
           remoteDashboardService ?? RemoteDashboardService(),
+      _dashboardCacheService = DashboardCacheService(),
       _realtimeNotificationService = RealtimeNotificationService(),
       super(DashboardInitial()) {
     on<LoadDashboardData>(_onLoadDashboardData);
@@ -47,34 +50,90 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     LoadDashboardData event,
     Emitter<DashboardState> emit,
   ) async {
-    emit(DashboardLoading());
+    CachedDashboardSnapshot? cachedSnapshot;
+    try {
+      cachedSnapshot = await _dashboardCacheService.loadSnapshot();
+    } catch (_) {
+      cachedSnapshot = null;
+    }
+
+    if (cachedSnapshot != null) {
+      emit(
+        _buildLoadedState(
+          cachedSnapshot.snapshot,
+          lastSyncedAt: cachedSnapshot.lastSyncedAt,
+          isFromCache: true,
+          isSyncing: true,
+          statusMessage: "Synchronisation en cours...",
+          statusVariant: DashboardStatusVariant.info,
+        ),
+      );
+    } else {
+      emit(DashboardLoading());
+    }
+
     try {
       final snapshot = await _remoteDashboardService.fetchDashboardSnapshot();
+      final lastSyncedAt = DateTime.now();
+      await _dashboardCacheService.saveSnapshot(
+        snapshot,
+        lastSyncedAt: lastSyncedAt,
+      );
       emit(
-        DashboardLoaded(
-          goals: snapshot.goals,
-          availableBalance: snapshot.availableBalance,
-          tontineBalance: snapshot.tontineBalance,
-          tontineCycle: snapshot.tontineCycle,
-          tontineHistory: snapshot.tontineHistory,
-          tontineArchives: snapshot.tontineArchives,
-          availableBalanceHistory: snapshot.availableBalanceHistory,
-          withdrawals: snapshot.withdrawals,
-          marketOffers: snapshot.marketOffers,
-          marketOrders: snapshot.marketOrders,
-          notifications: snapshot.notifications,
-          favoriteOfferIds: snapshot.favoriteOfferIds,
-          profile: snapshot.profile,
-          preferences: snapshot.preferences,
+        _buildLoadedState(
+          snapshot,
+          lastSyncedAt: lastSyncedAt,
         ),
       );
       _ensureRealtimeSubscription();
     } on ApiException catch (error) {
-      emit(_mapApiError(error));
-    } catch (error) {
+      if (error.type == ApiErrorType.sessionExpired ||
+          error.type == ApiErrorType.unauthorized) {
+        emit(_mapApiError(error));
+        return;
+      }
+
+      if (cachedSnapshot != null) {
+        emit(
+          _buildLoadedState(
+            cachedSnapshot.snapshot,
+            lastSyncedAt: cachedSnapshot.lastSyncedAt,
+            isFromCache: true,
+            isSyncing: false,
+            statusMessage: _syncStatusMessage(error),
+            statusVariant: _syncStatusVariant(error),
+          ),
+        );
+        return;
+      }
+
       emit(
-        DashboardError(
-          "Impossible de charger les donnees depuis le serveur. ${error.toString()}",
+        DashboardOffline(
+          title: _offlineTitleFor(error),
+          message: _offlineMessageFor(error),
+        ),
+      );
+    } catch (error) {
+      if (cachedSnapshot != null) {
+        emit(
+          _buildLoadedState(
+            cachedSnapshot.snapshot,
+            lastSyncedAt: cachedSnapshot.lastSyncedAt,
+            isFromCache: true,
+            isSyncing: false,
+            statusMessage:
+                "Synchronisation impossible pour le moment. Les donnees locales restent visibles.",
+            statusVariant: DashboardStatusVariant.warning,
+          ),
+        );
+        return;
+      }
+
+      emit(
+        DashboardOffline(
+          title: "Connexion indisponible",
+          message:
+              "Impossible de charger votre espace. Verifiez votre connexion puis reessayez.",
         ),
       );
     }
@@ -284,6 +343,37 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     );
   }
 
+  DashboardLoaded _buildLoadedState(
+    RemoteDashboardSnapshot snapshot, {
+    DateTime? lastSyncedAt,
+    bool isFromCache = false,
+    bool isSyncing = false,
+    String? statusMessage,
+    DashboardStatusVariant statusVariant = DashboardStatusVariant.info,
+  }) {
+    return DashboardLoaded(
+      goals: snapshot.goals,
+      availableBalance: snapshot.availableBalance,
+      tontineBalance: snapshot.tontineBalance,
+      tontineCycle: snapshot.tontineCycle,
+      tontineHistory: snapshot.tontineHistory,
+      tontineArchives: snapshot.tontineArchives,
+      availableBalanceHistory: snapshot.availableBalanceHistory,
+      withdrawals: snapshot.withdrawals,
+      marketOffers: snapshot.marketOffers,
+      marketOrders: snapshot.marketOrders,
+      notifications: snapshot.notifications,
+      favoriteOfferIds: snapshot.favoriteOfferIds,
+      profile: snapshot.profile,
+      preferences: snapshot.preferences,
+      lastSyncedAt: lastSyncedAt,
+      isFromCache: isFromCache,
+      isSyncing: isSyncing,
+      statusMessage: statusMessage,
+      statusVariant: statusVariant,
+    );
+  }
+
   Future<void> _runMutation(
     Emitter<DashboardState> emit,
     Future<void> Function() action, {
@@ -297,31 +387,51 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       }
 
       final snapshot = await _remoteDashboardService.fetchDashboardSnapshot();
+      final lastSyncedAt = DateTime.now();
+      await _dashboardCacheService.saveSnapshot(
+        snapshot,
+        lastSyncedAt: lastSyncedAt,
+      );
       emit(
-        DashboardLoaded(
-          goals: snapshot.goals,
-          availableBalance: snapshot.availableBalance,
-          tontineBalance: snapshot.tontineBalance,
-          tontineCycle: snapshot.tontineCycle,
-          tontineHistory: snapshot.tontineHistory,
-          tontineArchives: snapshot.tontineArchives,
-          availableBalanceHistory: snapshot.availableBalanceHistory,
-          withdrawals: snapshot.withdrawals,
-          marketOffers: snapshot.marketOffers,
-          marketOrders: snapshot.marketOrders,
-          notifications: snapshot.notifications,
-          favoriteOfferIds: snapshot.favoriteOfferIds,
-          profile: snapshot.profile,
-          preferences: snapshot.preferences,
+        _buildLoadedState(
+          snapshot,
+          lastSyncedAt: lastSyncedAt,
         ),
       );
       _ensureRealtimeSubscription();
     } on ApiException catch (error) {
+      if (error.type == ApiErrorType.sessionExpired ||
+          error.type == ApiErrorType.unauthorized) {
+        emit(_mapApiError(error));
+        return;
+      }
+
+      if (state is DashboardLoaded) {
+        emit(
+          (state as DashboardLoaded).copyWith(
+            isSyncing: false,
+            statusMessage: _mutationStatusMessage(error),
+            statusVariant: _mutationStatusVariant(error),
+          ),
+        );
+        return;
+      }
+
       emit(_mapApiError(error));
     } catch (error) {
-      emit(
-        DashboardError("Une erreur serveur est survenue. ${error.toString()}"),
-      );
+      if (state is DashboardLoaded) {
+        emit(
+          (state as DashboardLoaded).copyWith(
+            isSyncing: false,
+            statusMessage:
+                "L'action a echoue. Les donnees locales restent disponibles.",
+            statusVariant: DashboardStatusVariant.warning,
+          ),
+        );
+        return;
+      }
+
+      emit(DashboardError("Une erreur serveur est survenue. ${error.toString()}"));
     }
   }
 
@@ -364,5 +474,89 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       case ApiErrorType.unknown:
         return DashboardError(error.message);
     }
+  }
+
+  String _offlineTitleFor(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network => "Connexion indisponible",
+      ApiErrorType.server => "Serveur indisponible",
+      ApiErrorType.validation => "Action impossible",
+      ApiErrorType.sessionExpired => "Session expiree",
+      ApiErrorType.unauthorized => "Acces refuse",
+      ApiErrorType.unknown => "Synchronisation indisponible",
+    };
+  }
+
+  String _offlineMessageFor(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network =>
+        "Aucune donnee locale n'est disponible pour le moment. Connectez-vous a internet puis reessayez.",
+      ApiErrorType.server =>
+        "Le serveur ne repond pas. Connectez-vous a nouveau pour charger votre espace.",
+      ApiErrorType.validation =>
+        error.message.isEmpty ? "Requete invalide." : error.message,
+      ApiErrorType.sessionExpired =>
+        "Votre session a expire. Reconnectez-vous pour continuer.",
+      ApiErrorType.unauthorized =>
+        error.message.isEmpty ? "Acces refuse." : error.message,
+      ApiErrorType.unknown =>
+        "Impossible de charger votre espace pour le moment. Reessayez plus tard.",
+    };
+  }
+
+  String _syncStatusMessage(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network =>
+        "Mode hors ligne. Les donnees affichees proviennent du dernier chargement reussi.",
+      ApiErrorType.server =>
+        "Serveur indisponible. Les donnees locales restent visibles.",
+      ApiErrorType.validation =>
+        error.message.isEmpty ? "Action refusee." : error.message,
+      ApiErrorType.sessionExpired =>
+        "Session expiree. Reconnectez-vous pour continuer.",
+      ApiErrorType.unauthorized =>
+        error.message.isEmpty ? "Acces refuse." : error.message,
+      ApiErrorType.unknown =>
+        "Synchronisation indisponible. Les donnees locales restent visibles.",
+    };
+  }
+
+  DashboardStatusVariant _syncStatusVariant(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network => DashboardStatusVariant.warning,
+      ApiErrorType.server => DashboardStatusVariant.warning,
+      ApiErrorType.validation => DashboardStatusVariant.error,
+      ApiErrorType.sessionExpired => DashboardStatusVariant.error,
+      ApiErrorType.unauthorized => DashboardStatusVariant.error,
+      ApiErrorType.unknown => DashboardStatusVariant.warning,
+    };
+  }
+
+  String _mutationStatusMessage(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network =>
+        "Action impossible hors ligne. La modification n'a pas ete envoyee.",
+      ApiErrorType.server =>
+        "Serveur indisponible. La modification a ete interrompue.",
+      ApiErrorType.validation =>
+        error.message.isEmpty ? "Action invalide." : error.message,
+      ApiErrorType.sessionExpired =>
+        "Votre session a expire. Reconnectez-vous pour continuer.",
+      ApiErrorType.unauthorized =>
+        error.message.isEmpty ? "Acces refuse." : error.message,
+      ApiErrorType.unknown =>
+        "Action interrompue. Les donnees locales restent visibles.",
+    };
+  }
+
+  DashboardStatusVariant _mutationStatusVariant(ApiException error) {
+    return switch (error.type) {
+      ApiErrorType.network => DashboardStatusVariant.warning,
+      ApiErrorType.server => DashboardStatusVariant.warning,
+      ApiErrorType.validation => DashboardStatusVariant.error,
+      ApiErrorType.sessionExpired => DashboardStatusVariant.error,
+      ApiErrorType.unauthorized => DashboardStatusVariant.error,
+      ApiErrorType.unknown => DashboardStatusVariant.warning,
+    };
   }
 }

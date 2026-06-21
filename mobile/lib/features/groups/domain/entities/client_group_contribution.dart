@@ -37,6 +37,19 @@ class ClientGroupContribution {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'turnNumber': turnNumber,
+      'dueDate': dueDate?.toIso8601String(),
+      'amount': amount,
+      'status': status,
+      'paymentSource': paymentSource,
+      'paidAt': paidAt?.toIso8601String(),
+      'beneficiary': beneficiary?.toMap(),
+    };
+  }
+
   static int _toInt(dynamic value) {
     if (value is int) {
       return value;
@@ -76,5 +89,13 @@ class ClientGroupContributionParty {
       displayName: '${map['displayName'] ?? ''}',
       phoneNumber: '${map['phoneNumber'] ?? ''}',
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'phoneNumber': phoneNumber,
+    };
   }
 }

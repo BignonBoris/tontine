@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 class AppInputRules {
   AppInputRules._();
 
+  static const int financialAmountStep = 100;
+
   static final List<TextInputFormatter> phoneFormatters = [
     FilteringTextInputFormatter.digitsOnly,
     LengthLimitingTextInputFormatter(10),
