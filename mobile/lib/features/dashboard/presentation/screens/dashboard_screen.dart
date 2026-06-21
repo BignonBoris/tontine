@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/core/widgets/cached_remote_image.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -155,6 +157,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             return const _DashboardLoadingView();
           }
 
+          if (state is DashboardOffline) {
+            return DashboardOfflineView(
+              title: state.title,
+              message: state.message,
+              inline: true,
+            );
+          }
+
           if (state is DashboardError) {
             return DashboardErrorView(
               title: state.title,
@@ -186,6 +196,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
+                  if (state.statusMessage != null) ...[
+                    _DashboardStatusBanner(
+                      message: state.statusMessage!,
+                      statusVariant: state.statusVariant,
+                      isSyncing: state.isSyncing,
+                      lastSyncedAt: state.lastSyncedAt,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   BalanceCardWidget(
                     availableBalance: state.availableBalance,
                     tontineBalance: state.tontineBalance,
@@ -284,9 +303,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   else
                     SizedBox(
                       height: 238,
-                      child: PageView.builder(
-                        controller: _marketplaceController,
-                        itemCount: offers.length,
+                  child: PageView.builder(
+                    controller: _marketplaceController,
+                    itemCount: offers.length,
                         onPageChanged: (index) {
                           _currentMarketplaceIndex = index;
                         },
@@ -297,10 +316,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: GestureDetector(
                               onTap: () =>
                                   showMarketOfferDetailLauncher(context, index),
-                              child: MarketOfferGridCard(
-                                offer: offer,
-                                formattedPrice: formatFCFA(offer.price ?? 0),
-                              ),
+                            child: MarketOfferGridCard(
+                              offer: offer,
+                              formattedPrice: formatFCFA(offer.price ?? 0),
+                            ),
                             ),
                           );
                         },
@@ -417,9 +436,9 @@ class MarketOfferGridCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -427,17 +446,13 @@ class MarketOfferGridCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Image.network(
-              offer.imageUrl,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+            child: CachedRemoteImage(
+              imageUrl: offer.imageUrl,
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                height: 120,
-                color: Colors.grey.shade200,
-                child: const Icon(Icons.broken_image, color: Colors.grey),
-              ),
             ),
           ),
           Padding(
@@ -596,6 +611,101 @@ class _DashboardWordmark extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _DashboardStatusBanner extends StatelessWidget {
+  final String message;
+  final DashboardStatusVariant statusVariant;
+  final bool isSyncing;
+  final DateTime? lastSyncedAt;
+
+  const _DashboardStatusBanner({
+    required this.message,
+    required this.statusVariant,
+    required this.isSyncing,
+    required this.lastSyncedAt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = _accentColor(statusVariant);
+    final backgroundColor = accentColor.withValues(alpha: 0.10);
+    final borderColor = accentColor.withValues(alpha: 0.20);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isSyncing)
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: accentColor,
+              ),
+            )
+          else
+            Icon(
+              _iconFor(statusVariant),
+              color: accentColor,
+              size: 20,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                    height: 1.35,
+                  ),
+                ),
+                if (lastSyncedAt != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Derniere synchro: ${DateFormat('dd/MM/yyyy HH:mm').format(lastSyncedAt!)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppTheme.textSecondaryColor,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _accentColor(DashboardStatusVariant variant) {
+    return switch (variant) {
+      DashboardStatusVariant.info => AppTheme.primaryColor,
+      DashboardStatusVariant.warning => const Color(0xFFE65100),
+      DashboardStatusVariant.error => AppTheme.errorColor,
+    };
+  }
+
+  IconData _iconFor(DashboardStatusVariant variant) {
+    return switch (variant) {
+      DashboardStatusVariant.info => Icons.sync_rounded,
+      DashboardStatusVariant.warning => Icons.cloud_off_rounded,
+      DashboardStatusVariant.error => Icons.error_outline_rounded,
+    };
   }
 }
 

@@ -93,7 +93,7 @@ class _ConfigureTontineStakeModalState
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    "Choisissez votre mise tontine. Elle doit etre un multiple de 500 et restera active jusqu'a la fin du cycle.",
+                    "Choisissez votre mise tontine. Elle doit etre un multiple de ${AppInputRules.financialAmountStep} et restera active jusqu'a la fin du cycle.",
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: AppTheme.textSecondaryColor,
@@ -115,8 +115,8 @@ class _ConfigureTontineStakeModalState
                       if (amount == null || amount <= 0) {
                         return "Entrez une mise valide.";
                       }
-                      if (amount % 500 != 0) {
-                        return "La mise doit etre un multiple de 500.";
+                      if (amount % AppInputRules.financialAmountStep != 0) {
+                        return "La mise doit etre un multiple de ${AppInputRules.financialAmountStep}.";
                       }
                       return null;
                     },

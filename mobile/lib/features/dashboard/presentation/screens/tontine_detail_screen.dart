@@ -81,6 +81,14 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
+        if (state is DashboardOffline) {
+          return DashboardOfflineView(
+            title: state.title,
+            message: state.message,
+            inline: true,
+          );
+        }
+
         if (state is DashboardError) {
           return DashboardErrorView(
             title: state.title,
@@ -367,7 +375,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                "Le montant sera preleve de votre solde disponible. Il doit etre un multiple de 500 et ne peut pas depasser l'objectif du cycle.",
+                "Le montant sera preleve de votre solde disponible. Il doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser l'objectif du cycle.",
                 style: GoogleFonts.inter(
                   color: AppTheme.textSecondaryColor,
                   fontSize: 13,
@@ -410,10 +418,10 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                       setSheetState(() => errorMessage = "Montant invalide");
                       return;
                     }
-                    if (amount % 500 != 0) {
+                    if (amount % AppInputRules.financialAmountStep != 0) {
                       setSheetState(
                         () => errorMessage =
-                            "Le montant doit etre un multiple de 500",
+                            "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
                       );
                       return;
                     }

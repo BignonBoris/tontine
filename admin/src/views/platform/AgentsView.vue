@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import Card from "@/components/ui/card/Card.vue";
+import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import {
   Dialog,
   DialogContent,
@@ -144,13 +145,19 @@ async function submitTopUp() {
     return;
   }
 
+  const amount = Number(topUpForm.amount);
+  if (!amount || amount <= 0 || amount % FINANCIAL_AMOUNT_STEP !== 0) {
+    topUpError.value = `Le montant doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
+    return;
+  }
+
   mutationAgentId.value = selectedAgent.value.id;
   topUpError.value = "";
   topUpSuccess.value = "";
 
   try {
     const result = await agentService.topUp(selectedAgent.value.id, {
-      amount: Number(topUpForm.amount),
+      amount,
       reason: topUpForm.reason.trim(),
     });
     topUpSuccess.value = `Approvisionnement confirme. Reference ${result.topUp.reference}. Nouvelle caisse: ${formatCurrency(result.topUp.agentBalanceAfter)} F`;
@@ -358,17 +365,20 @@ onMounted(fetchAgents);
           {{ topUpError }}
         </div>
 
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Montant</label>
-          <input
-            v-model="topUpForm.amount"
-            type="number"
-            min="500"
-            step="500"
-            placeholder="Ex: 5000"
-            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
-          />
-        </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Montant</label>
+            <input
+              v-model="topUpForm.amount"
+              type="number"
+            :min="FINANCIAL_AMOUNT_STEP"
+            :step="FINANCIAL_AMOUNT_STEP"
+              placeholder="Ex: 5000"
+              class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+            />
+            <p class="text-xs text-muted-foreground">
+              Le montant doit etre un multiple de {{ FINANCIAL_AMOUNT_STEP }} F.
+            </p>
+          </div>
 
         <div class="space-y-2">
           <label class="text-sm font-medium">Motif</label>

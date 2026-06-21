@@ -85,10 +85,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => Navigator.pushReplacementNamed(
-                      context,
-                      '/auth_choice',
-                    ),
+                    onPressed: () =>
+                        Navigator.pushReplacementNamed(context, '/auth_choice'),
                     child: Text(
                       'Passer',
                       style: GoogleFonts.inter(
@@ -105,7 +103,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _pageController,
                 onPageChanged: (value) => setState(() => _currentPage = value),
                 itemCount: _pages.length,
-                itemBuilder: (context, index) => _buildPageContent(_pages[index]),
+                itemBuilder: (context, index) =>
+                    _buildPageContent(_pages[index]),
               ),
             ),
             Padding(
@@ -131,7 +130,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       }
                     },
                     child: Text(
-                      _currentPage == _pages.length - 1 ? 'Commencer' : 'Suivant',
+                      _currentPage == _pages.length - 1
+                          ? 'Commencer'
+                          : 'Suivant',
                     ),
                   ),
                 ],
@@ -147,6 +148,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 620;
+        final imageHeight = compact ? 340.0 : 460.0;
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
           child: ConstrainedBox(
@@ -154,57 +156,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
+                SizedBox(
                   width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  padding: EdgeInsets.fromLTRB(18, compact ? 16 : 20, 18, 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(36),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.10),
-                        blurRadius: 28,
-                        offset: const Offset(0, 18),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentColor.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            'Projets',
-                            style: GoogleFonts.inter(
-                              color: AppTheme.accentDarkColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: compact ? 12 : 18),
-                      AspectRatio(
-                        aspectRatio: compact ? 1.15 : 1.05,
-                        child: Image.asset(
-                          data.imageAsset,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ],
+                  height: imageHeight,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 4),
+                    child: Image.asset(
+                      data.imageAsset,
+                      height: imageHeight,
+                      width: double.infinity,
+                      // fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
                 ),
-                SizedBox(height: compact ? 26 : 40),
+                SizedBox(height: compact ? 6 : 10),
                 Text(
                   data.title,
                   textAlign: TextAlign.center,

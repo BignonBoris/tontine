@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/core/widgets/cached_remote_image.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
 
 class MarketOfferDetailSheet extends StatefulWidget {
@@ -99,20 +100,11 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(24),
                       ),
-                      child: Image.network(
-                        offer.imageUrl,
+                      child: CachedRemoteImage(
+                        imageUrl: offer.imageUrl,
                         height: 190,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 190,
-                          color: Colors.grey.shade200,
-                          child: const Icon(
-                            Icons.broken_image,
-                            color: Colors.grey,
-                            size: 44,
-                          ),
-                        ),
                       ),
                     ),
                     Padding(

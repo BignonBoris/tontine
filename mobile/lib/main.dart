@@ -9,13 +9,16 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
+import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/auth/screens/auth_choice_screen.dart';
 import 'package:mobile/features/auth/screens/auth_identification_screen.dart';
 import 'package:mobile/features/auth/screens/auth_otp_screen.dart';
 import 'package:mobile/features/auth/screens/auth_pin_setup_screen.dart';
+import 'package:mobile/features/dashboard/data/services/dashboard_cache_service.dart';
 import 'package:mobile/features/dashboard/data/services/notification_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_transaction.dart';
+import 'package:mobile/features/groups/data/services/groups_cache_service.dart';
 import 'package:mobile/features/groups/presentation/screens/group_invitation_screen.dart';
 import 'package:mobile/features/groups/presentation/screens/group_qr_scanner_screen.dart';
 import 'package:mobile/features/navigation/presentation/bloc/navigation_bloc.dart';
@@ -39,6 +42,12 @@ void main() async {
 
   await Hive.openBox<TontineGoal>('goals_box');
   await Hive.openBox('wallet_box');
+  await Hive.openBox('dashboard_cache_box');
+  await Hive.openBox('groups_cache_box');
+  SessionStorage.registerBeforeClearHook(() async {
+    await DashboardCacheService().clear();
+    await GroupsCacheService().clear();
+  });
   runApp(const MaTontineApp());
 }
 

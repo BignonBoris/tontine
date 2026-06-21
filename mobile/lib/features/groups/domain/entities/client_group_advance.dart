@@ -40,6 +40,19 @@ class ClientGroupAdvance {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'amount': amount,
+      'recoveredAmount': recoveredAmount,
+      'remainingAmount': remainingAmount,
+      'status': status,
+      'advancedAt': advancedAt?.toIso8601String(),
+      'beneficiary': beneficiary?.toMap(),
+      'contribution': contribution?.toMap(),
+    };
+  }
+
   static double _toDouble(dynamic value) {
     if (value is num) {
       return value.toDouble();
@@ -70,6 +83,13 @@ class ClientGroupAdvanceParty {
       displayName: '${map['displayName'] ?? ''}',
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'displayName': displayName,
+    };
+  }
 }
 
 class ClientGroupAdvanceContribution {
@@ -89,5 +109,13 @@ class ClientGroupAdvanceContribution {
       turnNumber: int.tryParse('${map['turnNumber'] ?? ''}') ?? 0,
       dueDate: ClientGroupAdvance._toDate(map['dueDate']),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'turnNumber': turnNumber,
+      'dueDate': dueDate?.toIso8601String(),
+    };
   }
 }

@@ -127,3 +127,77 @@ class DashboardErrorView extends StatelessWidget {
     return Scaffold(backgroundColor: const Color(0xFFF8F9FE), body: content);
   }
 }
+
+class DashboardOfflineView extends StatelessWidget {
+  final String message;
+  final String title;
+  final bool inline;
+
+  const DashboardOfflineView({
+    super.key,
+    required this.message,
+    this.title = "Mode hors ligne",
+    this.inline = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                size: 34,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppTheme.textSecondaryColor,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: () {
+                context.read<DashboardBloc>().add(LoadDashboardData());
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text("Reessayer"),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (inline) {
+      return content;
+    }
+
+    return Scaffold(backgroundColor: const Color(0xFFF8F9FE), body: content);
+  }
+}

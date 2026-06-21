@@ -45,6 +45,87 @@ class RemoteDashboardSnapshot {
     required this.profile,
     required this.preferences,
   });
+
+  factory RemoteDashboardSnapshot.fromMap(Map<dynamic, dynamic> map) {
+    return RemoteDashboardSnapshot(
+      goals: _asList(map['goals'])
+          .map((entry) => TontineGoal.fromMap(_asMap(entry)))
+          .toList(),
+      availableBalance: _toDouble(map['availableBalance']),
+      tontineBalance: _toDouble(map['tontineBalance']),
+      tontineCycle: map['tontineCycle'] == null
+          ? null
+          : TontineCycle.fromMap(_asMap(map['tontineCycle'])),
+      tontineHistory: _asList(map['tontineHistory'])
+          .map((entry) => TontineHistoryEntry.fromMap(_asMap(entry)))
+          .toList(),
+      tontineArchives: _asList(map['tontineArchives'])
+          .map((entry) => TontineArchiveEntry.fromMap(_asMap(entry)))
+          .toList(),
+      availableBalanceHistory: _asList(map['availableBalanceHistory'])
+          .map((entry) => AvailableBalanceHistoryEntry.fromMap(_asMap(entry)))
+          .toList(),
+      withdrawals: _asList(map['withdrawals'])
+          .map((entry) => WithdrawalSummary.fromMap(_asMap(entry)))
+          .toList(),
+      marketOrders: _asList(map['marketOrders'])
+          .map((entry) => MarketOrder.fromMap(_asMap(entry)))
+          .toList(),
+      notifications: _asList(map['notifications'])
+          .map((entry) => AppNotificationItem.fromMap(_asMap(entry)))
+          .toList(),
+      favoriteOfferIds: _asList(map['favoriteOfferIds'])
+          .map((entry) => entry.toString())
+          .where((value) => value.isNotEmpty)
+          .toList(),
+      marketOffers: _asList(map['marketOffers'])
+          .map((entry) => MarketOffer.fromMap(_asMap(entry)))
+          .toList(),
+      profile: UserProfile.fromMap(_asMap(map['profile'])),
+      preferences: ProfilePreferences.fromMap(_asMap(map['preferences'])),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'goals': goals.map((goal) => goal.toMap()).toList(),
+      'availableBalance': availableBalance,
+      'tontineBalance': tontineBalance,
+      'tontineCycle': tontineCycle?.toMap(),
+      'tontineHistory': tontineHistory.map((entry) => entry.toMap()).toList(),
+      'tontineArchives': tontineArchives.map((entry) => entry.toMap()).toList(),
+      'availableBalanceHistory':
+          availableBalanceHistory.map((entry) => entry.toMap()).toList(),
+      'withdrawals': withdrawals.map((entry) => entry.toMap()).toList(),
+      'marketOrders': marketOrders.map((entry) => entry.toMap()).toList(),
+      'notifications': notifications.map((entry) => entry.toMap()).toList(),
+      'favoriteOfferIds': favoriteOfferIds,
+      'marketOffers': marketOffers.map((entry) => entry.toMap()).toList(),
+      'profile': profile.toMap(),
+      'preferences': preferences.toMap(),
+    };
+  }
+
+  static Map<dynamic, dynamic> _asMap(dynamic raw) {
+    if (raw is Map) {
+      return Map<dynamic, dynamic>.from(raw);
+    }
+    return <dynamic, dynamic>{};
+  }
+
+  static List<dynamic> _asList(dynamic raw) {
+    if (raw is List) {
+      return List<dynamic>.from(raw);
+    }
+    return <dynamic>[];
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value') ?? 0;
+  }
 }
 
 class RemoteDashboardService {
@@ -299,7 +380,7 @@ class RemoteDashboardService {
       startDate: _toDateTime(map['startDate']),
       endDate: _toDateTime(map['endDate']),
       linkedOfferId: map['linkedOfferId'] as String?,
-      quantity: _toInt(map['quantity']).clamp(1, 999999),
+      quantity: _toInt(map['quantity']).clamp(1, 999999).toInt(),
       unitPrice: map['unitPrice'] == null ? null : _toDouble(map['unitPrice']),
     );
   }

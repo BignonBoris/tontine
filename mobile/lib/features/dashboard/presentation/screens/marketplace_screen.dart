@@ -36,6 +36,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
+        if (state is DashboardOffline) {
+          return DashboardOfflineView(
+            title: state.title,
+            message: state.message,
+            inline: true,
+          );
+        }
+
         if (state is DashboardError) {
           return DashboardErrorView(
             title: state.title,

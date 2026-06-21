@@ -42,6 +42,21 @@ class WithdrawalSummary {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'reference': reference,
+      'amount': amount,
+      'status': status,
+      'requestedAt': requestedAt.toIso8601String(),
+      'paidAt': paidAt?.toIso8601String(),
+      'cancelledAt': cancelledAt?.toIso8601String(),
+      'cancellationReason': cancellationReason,
+      'confirmationCodeExpiresAt': confirmationCodeExpiresAt?.toIso8601String(),
+      'isConfirmationCodeExpired': isConfirmationCodeExpired,
+    };
+  }
+
   static double _toDouble(dynamic value) {
     if (value is num) {
       return value.toDouble();
