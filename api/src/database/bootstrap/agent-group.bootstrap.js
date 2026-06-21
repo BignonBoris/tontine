@@ -88,8 +88,8 @@ async function ensureAgentGroupCompatibility(sequelize) {
     sequelize,
     columns,
     'contribution_amount',
-    '`contribution_amount` DECIMAL(18,2) NOT NULL DEFAULT 500',
-    'UPDATE agent_groups SET contribution_amount = 500 WHERE contribution_amount IS NULL OR contribution_amount <= 0',
+    '`contribution_amount` DECIMAL(18,2) NOT NULL DEFAULT 100',
+    'UPDATE agent_groups SET contribution_amount = 100 WHERE contribution_amount IS NULL OR contribution_amount <= 0',
   );
   await ensureColumn(
     sequelize,

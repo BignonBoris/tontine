@@ -3,6 +3,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { Op, fn, col, where } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
+const {
+  FINANCIAL_AMOUNT_STEP,
+} = require('../../common/constants/finance');
 const { models, sequelize } = require('../../database/models');
 const env = require('../../config/env');
 const {
@@ -376,8 +379,15 @@ async function createClient(payload, requestContext = {}) {
   if (!address || address.length < 3) {
     throw new AppError("L'adresse du client est requise.", 422);
   }
-  if (!stakeAmount || stakeAmount <= 0 || stakeAmount % 500 !== 0) {
-    throw new AppError('La mise doit etre un multiple positif de 500.', 422);
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    throw new AppError(
+      `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
   }
 
   const existingUser = await models.User.findOne({ where: { phoneNumber } });
@@ -642,9 +652,13 @@ async function startTontine(userId, stakeAmount, requestContext = {}) {
 async function recordClientContribution(userId, amount, requestContext = {}) {
   const normalizedAmount = Number(amount);
 
-  if (!normalizedAmount || normalizedAmount <= 0 || normalizedAmount % 500 !== 0) {
+  if (
+    !normalizedAmount ||
+    normalizedAmount <= 0 ||
+    normalizedAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
     throw new AppError(
-      'La cotisation doit etre un multiple positif de 500.',
+      `La cotisation doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
       422,
     );
   }
@@ -936,9 +950,13 @@ async function topUpAgentCash(agentId, payload, requestContext = {}) {
   const amount = Number(payload.amount);
   const reason = String(payload.reason || '').trim();
 
-  if (!amount || amount <= 0 || amount % 500 !== 0) {
+  if (
+    !amount ||
+    amount <= 0 ||
+    amount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
     throw new AppError(
-      "L'approvisionnement admin doit etre un multiple positif de 500.",
+      `L'approvisionnement admin doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
       422,
     );
   }
