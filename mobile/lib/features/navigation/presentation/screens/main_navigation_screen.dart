@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
+import 'package:mobile/core/services/read_model_bootstrap_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -35,6 +36,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(PushNotificationService.instance.start());
+    unawaited(ReadModelBootstrapService().warmUpCurrentSession());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingInvitationIfNeeded();
     });

@@ -12,6 +12,8 @@ import '../../domain/entities/withdrawal_summary.dart';
 
 abstract class DashboardState {}
 
+enum DashboardStatusVariant { info, warning, error }
+
 class DashboardInitial extends DashboardState {}
 
 class DashboardLoading extends DashboardState {}
@@ -31,6 +33,11 @@ class DashboardLoaded extends DashboardState {
   final List<String> favoriteOfferIds;
   final UserProfile profile;
   final ProfilePreferences preferences;
+  final String? statusMessage;
+  final DashboardStatusVariant statusVariant;
+  final bool isSyncing;
+  final DateTime? lastSyncedAt;
+  final bool isFromCache;
 
   DashboardLoaded({
     required this.goals,
@@ -47,6 +54,11 @@ class DashboardLoaded extends DashboardState {
     required this.favoriteOfferIds,
     required this.profile,
     required this.preferences,
+    this.statusMessage,
+    this.statusVariant = DashboardStatusVariant.info,
+    this.isSyncing = false,
+    this.lastSyncedAt,
+    this.isFromCache = false,
   });
 
   DashboardLoaded copyWith({
@@ -64,6 +76,11 @@ class DashboardLoaded extends DashboardState {
     List<String>? favoriteOfferIds,
     UserProfile? profile,
     ProfilePreferences? preferences,
+    String? statusMessage,
+    DashboardStatusVariant? statusVariant,
+    bool? isSyncing,
+    DateTime? lastSyncedAt,
+    bool? isFromCache,
   }) {
     return DashboardLoaded(
       goals: goals ?? this.goals,
@@ -81,8 +98,23 @@ class DashboardLoaded extends DashboardState {
       favoriteOfferIds: favoriteOfferIds ?? this.favoriteOfferIds,
       profile: profile ?? this.profile,
       preferences: preferences ?? this.preferences,
+      statusMessage: statusMessage ?? this.statusMessage,
+      statusVariant: statusVariant ?? this.statusVariant,
+      isSyncing: isSyncing ?? this.isSyncing,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      isFromCache: isFromCache ?? this.isFromCache,
     );
   }
+}
+
+class DashboardOffline extends DashboardState {
+  final String title;
+  final String message;
+
+  DashboardOffline({
+    this.title = "Mode hors ligne",
+    required this.message,
+  });
 }
 
 class DashboardError extends DashboardState {

@@ -55,4 +55,50 @@ class TontineCycle {
       endedAt: endedAt ?? this.endedAt,
     );
   }
+
+  factory TontineCycle.fromMap(Map<dynamic, dynamic> map) {
+    return TontineCycle(
+      stakeAmount: _toDouble(map['stakeAmount']),
+      cumulativeAmount: _toDouble(map['cumulativeAmount']),
+      status: TontineCycleStatus.values.firstWhere(
+        (value) => value.name == map['status'],
+        orElse: () => TontineCycleStatus.active,
+      ),
+      startedAt: _toNullableDateTime(map['startedAt']),
+      expectedEndAt: _toNullableDateTime(map['expectedEndAt']),
+      endedAt: _toNullableDateTime(map['endedAt']),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'stakeAmount': stakeAmount,
+      'cumulativeAmount': cumulativeAmount,
+      'status': status.name,
+      'startedAt': startedAt?.toIso8601String(),
+      'expectedEndAt': expectedEndAt?.toIso8601String(),
+      'endedAt': endedAt?.toIso8601String(),
+    };
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value') ?? 0;
+  }
+
+  static DateTime? _toNullableDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    return DateTime.tryParse('$value');
+  }
+
+  static DateTime _toDateTime(dynamic value) {
+    return _toNullableDateTime(value) ?? DateTime.now();
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
+import 'package:mobile/core/widgets/cached_remote_image.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
 
 class MarketplaceOfferCompactCard extends StatelessWidget {
@@ -47,16 +48,11 @@ class MarketplaceOfferCompactCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               child: Stack(
                 children: [
-                  Image.network(
-                    offer.imageUrl,
+                  CachedRemoteImage(
+                    imageUrl: offer.imageUrl,
                     height: 130,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 130,
-                      color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image, color: Colors.grey),
-                    ),
                   ),
                   Positioned(
                     top: 10,

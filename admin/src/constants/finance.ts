@@ -1,0 +1,1 @@
+export const FINANCIAL_AMOUNT_STEP = 100;

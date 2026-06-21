@@ -29,6 +29,18 @@ class MarketOffer {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'imageUrl': imageUrl,
+      'category': category,
+      'price': price,
+      'brand': brand,
+    };
+  }
+
   static double? _parseDouble(dynamic value) {
     if (value == null) {
       return null;

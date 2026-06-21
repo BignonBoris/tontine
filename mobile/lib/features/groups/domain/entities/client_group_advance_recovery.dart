@@ -27,6 +27,16 @@ class ClientGroupAdvanceRecovery {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'reference': reference,
+      'amount': amount,
+      'recoveredAt': recoveredAt?.toIso8601String(),
+      'contribution': contribution?.toMap(),
+    };
+  }
+
   static double _toDouble(dynamic value) {
     if (value is num) {
       return value.toDouble();
@@ -61,5 +71,13 @@ class ClientGroupAdvanceRecoveryContribution {
       turnNumber: int.tryParse('${map['turnNumber'] ?? ''}') ?? 0,
       dueDate: ClientGroupAdvanceRecovery._toDate(map['dueDate']),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'turnNumber': turnNumber,
+      'dueDate': dueDate?.toIso8601String(),
+    };
   }
 }

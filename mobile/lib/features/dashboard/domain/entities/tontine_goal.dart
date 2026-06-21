@@ -111,4 +111,86 @@ class TontineGoal extends HiveObject {
       unitPrice: unitPrice,
     );
   }
+
+  factory TontineGoal.fromMap(Map<dynamic, dynamic> map) {
+    final transactions = _asList(map['transactions'])
+        .map((entry) => TontineTransaction.fromMap(_asMap(entry)))
+        .toList();
+
+    return TontineGoal(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      targetAmount: _toDouble(map['targetAmount']),
+      currentAmount: _toDouble(map['currentAmount']),
+      iconCodePoint: _toInt(map['iconCodePoint']),
+      colorValue: _toInt(map['colorValue']),
+      isPriority: map['isPriority'] as bool? ?? false,
+      status: GoalStatus.values.firstWhere(
+        (value) => value.name == map['status'],
+        orElse: () => GoalStatus.active,
+      ),
+      transactions: transactions,
+      startDate: _toDateTime(map['startDate']),
+      endDate: _toDateTime(map['endDate']),
+      linkedOfferId: map['linkedOfferId']?.toString(),
+      quantity: _toInt(map['quantity'], defaultValue: 1)
+          .clamp(1, 999999)
+          .toInt(),
+      unitPrice: map['unitPrice'] == null ? null : _toDouble(map['unitPrice']),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'targetAmount': targetAmount,
+      'currentAmount': currentAmount,
+      'iconCodePoint': iconCodePoint,
+      'colorValue': colorValue,
+      'isPriority': isPriority,
+      'status': status.name,
+      'transactions': transactions.map((transaction) => transaction.toMap()).toList(),
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'linkedOfferId': linkedOfferId,
+      'quantity': quantity,
+      'unitPrice': unitPrice,
+    };
+  }
+
+  static Map<dynamic, dynamic> _asMap(dynamic raw) {
+    if (raw is Map) {
+      return Map<dynamic, dynamic>.from(raw);
+    }
+    return <dynamic, dynamic>{};
+  }
+
+  static List<dynamic> _asList(dynamic raw) {
+    if (raw is List) {
+      return List<dynamic>.from(raw);
+    }
+    return <dynamic>[];
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value') ?? 0;
+  }
+
+  static int _toInt(dynamic value, {int defaultValue = 0}) {
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse('$value') ?? defaultValue;
+  }
+
+  static DateTime _toDateTime(dynamic value) {
+    if (value is DateTime) {
+      return value;
+    }
+    return DateTime.tryParse('$value') ?? DateTime.now();
+  }
 }
