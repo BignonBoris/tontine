@@ -1,4 +1,5 @@
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
@@ -44,11 +45,11 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
     _turnIntervalValueController = TextEditingController(
       text: initialGroup != null ? initialGroup.turnIntervalValue.toString() : '1',
     );
-    _contributionAmountController = TextEditingController(
-      text: initialGroup != null
-          ? initialGroup.contributionAmount.toStringAsFixed(0)
-          : '500',
-    );
+      _contributionAmountController = TextEditingController(
+        text: initialGroup != null
+            ? initialGroup.contributionAmount.toStringAsFixed(0)
+            : AgentInputRules.financialAmountStep.toString(),
+      );
     _commissionAmountController = TextEditingController(
       text: initialGroup != null
           ? initialGroup.commissionAmount.toStringAsFixed(0)
@@ -218,8 +219,12 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
                     onChanged: (_) => setState(() {}),
                     validator: (value) {
                       final parsed = double.tryParse((value ?? '').trim());
-                      if (parsed == null || parsed <= 0 || parsed % 500 != 0) {
-                        return 'Entrez un multiple positif de 500.';
+                      if (
+                        parsed == null ||
+                        parsed <= 0 ||
+                        parsed % AgentInputRules.financialAmountStep != 0
+                      ) {
+                        return 'Entrez un multiple positif de ${AgentInputRules.financialAmountStep}.';
                       }
                       return null;
                     },

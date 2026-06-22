@@ -9,6 +9,13 @@ export interface ClientListParams {
   pageSize?: number;
 }
 
+export interface ClientUpdatePayload {
+  displayName: string;
+  phoneNumber: string;
+  address: string;
+  agentId?: string | null;
+}
+
 export const clientService = {
   list(params: ClientListParams = {}) {
     return unwrapEnvelope<PaginatedResponse<ClientItem>>(
@@ -25,6 +32,12 @@ export const clientService = {
   }) {
     return unwrapEnvelope<ClientDetail>(
       apiClient.post("/admin/clients", payload)
+    );
+  },
+
+  update(userId: string, payload: ClientUpdatePayload) {
+    return unwrapEnvelope<ClientDetail>(
+      apiClient.patch(`/admin/clients/${userId}`, payload)
     );
   },
 

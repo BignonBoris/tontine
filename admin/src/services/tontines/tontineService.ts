@@ -9,6 +9,10 @@ export interface TontineListParams {
   status?: string;
 }
 
+export interface TontineCycleUpdatePayload {
+  stakeAmount: number;
+}
+
 export const tontineService = {
   list(params: TontineListParams = {}) {
     return unwrapEnvelope<PaginatedResponse<TontineCycleItem>>(
@@ -19,6 +23,12 @@ export const tontineService = {
   getCalendar(cycleId: string) {
     return unwrapEnvelope<TontineCycleCalendar>(
       apiClient.get(`/admin/tontines/${cycleId}/calendar`)
+    );
+  },
+
+  updateCycle(cycleId: string, payload: TontineCycleUpdatePayload) {
+    return unwrapEnvelope<TontineCycleItem>(
+      apiClient.patch(`/admin/tontines/${cycleId}`, payload)
     );
   },
 };

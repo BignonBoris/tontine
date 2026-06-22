@@ -71,6 +71,15 @@ async function createClient(req, res) {
   return ok(res, data, 'Client cree avec succes.', 201);
 }
 
+async function updateClient(req, res) {
+  const data = await service.updateClient(req.params.userId, req.body, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Client mis a jour.');
+}
+
 async function clientDetail(req, res) {
   const data = await service.getClientDetail(req.params.userId);
   return ok(res, data, 'Detail client charge.');
@@ -84,6 +93,15 @@ async function tontines(req, res) {
 async function tontineCalendar(req, res) {
   const data = await service.getTontineCalendar(req.params.cycleId);
   return ok(res, data, 'Carte de tontine chargee.');
+}
+
+async function updateTontineCycle(req, res) {
+  const data = await service.updateTontineCycle(req.params.cycleId, req.body, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Cycle de tontine mis a jour.');
 }
 
 async function startTontine(req, res) {
@@ -181,9 +199,11 @@ module.exports = {
   updateMarketplaceOfferStatus,
   clients,
   createClient,
+  updateClient,
   clientDetail,
   tontines,
   tontineCalendar,
+  updateTontineCycle,
   startTontine,
   recordContribution,
   updateClientStatus,
