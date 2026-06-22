@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { X } from "lucide-vue-next";
+import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import Card from "@/components/ui/card/Card.vue";
 import {
   Dialog,
@@ -36,6 +37,14 @@ const selectedTontineCalendar = ref<TontineCycleCalendar | null>(null);
 const calendarDialogOpen = ref(false);
 const calendarLoadingId = ref<string | null>(null);
 const calendarError = ref("");
+const cycleEditDialogOpen = ref(false);
+const editingCycleId = ref<string | null>(null);
+const editingCycleLabel = ref("");
+const isUpdatingCycle = ref(false);
+const cycleEditError = ref("");
+const cycleEditForm = reactive({
+  stakeAmount: null as number | null,
+});
 
 type CardCellStatus = "paid" | "partial" | "remaining";
 
@@ -69,6 +78,10 @@ const calendarSummary = computed(() => {
 });
 
 const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.total / pagination.value.pageSize)));
+
+function isEditableTontineCycle(cycle: TontineCycleItem) {
+  return ["nonConfiguree", "active"].includes(cycle.status) && cycle.cumulativeAmount <= 0;
+}
 
 function getCardCellClasses(status: CardCellStatus) {
   switch (status) {
@@ -153,6 +166,35 @@ function setTontineCalendarOpen(value: boolean) {
   closeTontineCalendar();
 }
 
+function openCycleEditDialog(cycle: TontineCycleItem) {
+  editingCycleId.value = cycle.id;
+  editingCycleLabel.value = cycle.client.displayName;
+  cycleEditForm.stakeAmount = cycle.stakeAmount;
+  cycleEditError.value = "";
+  cycleEditDialogOpen.value = true;
+}
+
+function closeCycleEditDialog() {
+  if (isUpdatingCycle.value) {
+    return;
+  }
+
+  cycleEditDialogOpen.value = false;
+  editingCycleId.value = null;
+  editingCycleLabel.value = "";
+  cycleEditError.value = "";
+  cycleEditForm.stakeAmount = null;
+}
+
+function setCycleEditDialogOpen(value: boolean) {
+  if (value) {
+    cycleEditDialogOpen.value = true;
+    return;
+  }
+
+  closeCycleEditDialog();
+}
+
 async function openTontineCalendar(tontine: TontineCycleItem) {
   const requestedId = tontine.id;
   selectedTontinePreview.value = tontine;
@@ -174,6 +216,51 @@ async function openTontineCalendar(tontine: TontineCycleItem) {
     if (calendarLoadingId.value === requestedId) {
       calendarLoadingId.value = null;
     }
+  }
+}
+
+async function handleUpdateCycle() {
+  if (isUpdatingCycle.value) return;
+
+  const cycleId = editingCycleId.value;
+  const stakeAmount = Number(cycleEditForm.stakeAmount);
+
+  if (!cycleId) {
+    cycleEditError.value = "Selectionnez un cycle valide.";
+    return;
+  }
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    cycleEditError.value = `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
+    return;
+  }
+
+  cycleEditError.value = "";
+  isUpdatingCycle.value = true;
+
+  try {
+    const updatedCycle = await tontineStore.updateTontineCycle(cycleId, {
+      stakeAmount,
+    });
+
+    if (calendarDialogOpen.value && selectedTontinePreview.value?.id === cycleId) {
+      await openTontineCalendar(updatedCycle);
+    } else if (selectedTontinePreview.value?.id === cycleId) {
+      selectedTontinePreview.value = {
+        ...selectedTontinePreview.value,
+        ...updatedCycle,
+      };
+    }
+
+    closeCycleEditDialog();
+    await fetchTontines(currentPage.value);
+  } catch (error) {
+    cycleEditError.value = getErrorMessage(error, "Mise a jour du cycle impossible.");
+  } finally {
+    isUpdatingCycle.value = false;
   }
 }
 
@@ -279,6 +366,7 @@ onMounted(fetchTontines);
               <th class="px-3 py-3 text-left font-medium">Statut</th>
               <th class="px-3 py-3 text-left font-medium">Debut</th>
               <th class="px-3 py-3 text-left font-medium">Fin prevue</th>
+              <th class="px-3 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -324,9 +412,27 @@ onMounted(fetchTontines);
               </td>
               <td class="px-3 py-3 text-muted-foreground">{{ formatDateTime(tontine.startedAt) }}</td>
               <td class="px-3 py-3 text-muted-foreground">{{ formatDateTime(tontine.expectedEndAt) }}</td>
+              <td class="px-3 py-3">
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-if="isEditableTontineCycle(tontine)"
+                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                    @click="openCycleEditDialog(tontine)"
+                  >
+                    Modifier
+                  </button>
+                  <span
+                    v-else
+                    class="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                    title="Ce cycle a deja commence"
+                  >
+                    Verrouille
+                  </span>
+                </div>
+              </td>
             </tr>
             <tr v-if="!tontines.length && !tontineStore.isLoading">
-              <td colspan="7" class="px-3 py-12 text-center text-sm text-muted-foreground">
+              <td colspan="8" class="px-3 py-12 text-center text-sm text-muted-foreground">
                 Aucune tontine trouvee.
               </td>
             </tr>
@@ -357,6 +463,66 @@ onMounted(fetchTontines);
       </div>
     </div>
   </Card>
+
+  <Dialog :open="cycleEditDialogOpen" @update:open="setCycleEditDialogOpen">
+    <DialogContent
+      class="sm:max-w-[520px]"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader>
+        <div class="flex items-center justify-between">
+          <DialogTitle>Modifier le cycle</DialogTitle>
+          <DialogClose class="rounded-lg p-1 opacity-70 transition hover:bg-muted hover:opacity-100">
+            <X class="h-4 w-4" />
+            <span class="sr-only">Fermer</span>
+          </DialogClose>
+        </div>
+        <DialogDescription>
+          <span v-if="editingCycleLabel">Client: {{ editingCycleLabel }}</span>
+          <span v-else>Cycle selectionne.</span>
+          <span class="block">Seuls les cycles sans cotisation recue peuvent etre modifies.</span>
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="cycleEditError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ cycleEditError }}
+      </div>
+
+      <div class="grid gap-4 py-4">
+        <div class="grid gap-2">
+          <label for="stakeAmountEdit" class="text-sm font-medium">Mise journaliere (F CFA)</label>
+          <input
+            id="stakeAmountEdit"
+            v-model.number="cycleEditForm.stakeAmount"
+            type="number"
+            :step="FINANCIAL_AMOUNT_STEP"
+            :min="FINANCIAL_AMOUNT_STEP"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+          <p class="text-[10px] text-muted-foreground">La mise doit etre un multiple de {{ FINANCIAL_AMOUNT_STEP }} F.</p>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="isUpdatingCycle"
+          @click="closeCycleEditDialog"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+          :disabled="isUpdatingCycle"
+          @click="handleUpdateCycle"
+        >
+          <span v-if="isUpdatingCycle">Mise a jour...</span>
+          <span v-else>Enregistrer les modifications</span>
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <Dialog :open="calendarDialogOpen" @update:open="setTontineCalendarOpen">
     <DialogContent

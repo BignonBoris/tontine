@@ -230,8 +230,8 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     if (amount == null || amount <= 0) {
       return 'Entrez une mise valide';
     }
-    if (amount % 500 != 0) {
-      return 'La mise doit etre un multiple de 500';
+    if (amount % AgentInputRules.financialAmountStep != 0) {
+      return 'La mise doit etre un multiple de ${AgentInputRules.financialAmountStep}';
     }
     return null;
   }
@@ -245,8 +245,8 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     if (amount == null || amount < 0) {
       return 'Montant invalide';
     }
-    if (amount % 500 != 0) {
-      return 'Le depot doit etre un multiple de 500';
+    if (amount % AgentInputRules.financialAmountStep != 0) {
+      return 'Le depot doit etre un multiple de ${AgentInputRules.financialAmountStep}';
     }
     return null;
   }

@@ -2,7 +2,11 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import type { PaginatedResponse } from "@/types/api";
 import type { ClientItem } from "@/types/platform";
-import { clientService, type ClientListParams } from "@/services/clients/clientService";
+import {
+  clientService,
+  type ClientListParams,
+  type ClientUpdatePayload,
+} from "@/services/clients/clientService";
 
 export const useClientStore = defineStore("clients", () => {
   const collection = ref<PaginatedResponse<ClientItem> | null>(null);
@@ -34,6 +38,16 @@ export const useClientStore = defineStore("clients", () => {
     }
   }
 
+  async function updateClient(userId: string, payload: ClientUpdatePayload) {
+    isLoading.value = true;
+    try {
+      const result = await clientService.update(userId, payload);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function startTontine(userId: string, stakeAmount: number) {
     isLoading.value = true;
     try {
@@ -59,6 +73,7 @@ export const useClientStore = defineStore("clients", () => {
     isLoading,
     fetchClients,
     createClient,
+    updateClient,
     startTontine,
     recordContribution,
   };

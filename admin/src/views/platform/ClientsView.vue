@@ -64,6 +64,18 @@ const contributionForm = reactive<{ amount: number | null }>({
   amount: null,
 });
 
+type EditableClientSource = {
+  id: string;
+  displayName: string;
+  phoneNumber: string;
+  address: string | null;
+  createdByAgent: {
+    id: string;
+    agentCode: string;
+    fullName: string;
+  } | null;
+};
+
 const createDialogOpen = ref(false);
 const isCreating = ref(false);
 const createError = ref("");
@@ -78,6 +90,22 @@ const createForm = reactive<{
   phoneNumber: "",
   address: "",
   stakeAmount: null,
+  agentId: "",
+});
+
+const editDialogOpen = ref(false);
+const editingClientId = ref<string | null>(null);
+const isUpdatingClient = ref(false);
+const editError = ref("");
+const editForm = reactive<{
+  displayName: string;
+  phoneNumber: string;
+  address: string;
+  agentId: string;
+}>({
+  displayName: "",
+  phoneNumber: "",
+  address: "",
   agentId: "",
 });
 
@@ -130,6 +158,43 @@ function openCreateDialog() {
   if (!agents.value.length) {
     agentStore.fetchAgents({ pageSize: 100 });
   }
+}
+
+function openEditClientDialog(client: EditableClientSource) {
+  editDialogOpen.value = true;
+  editError.value = "";
+  editingClientId.value = client.id;
+  editForm.displayName = client.displayName;
+  editForm.phoneNumber = client.phoneNumber;
+  editForm.address = client.address || "";
+  editForm.agentId = client.createdByAgent?.id || "";
+
+  if (!agents.value.length) {
+    agentStore.fetchAgents({ pageSize: 100 });
+  }
+}
+
+function closeEditClientDialog() {
+  if (isUpdatingClient.value) {
+    return;
+  }
+
+  editDialogOpen.value = false;
+  editingClientId.value = null;
+  editError.value = "";
+  editForm.displayName = "";
+  editForm.phoneNumber = "";
+  editForm.address = "";
+  editForm.agentId = "";
+}
+
+function setEditClientDialogOpen(value: boolean) {
+  if (value) {
+    editDialogOpen.value = true;
+    return;
+  }
+
+  closeEditClientDialog();
 }
 
 function clearStartTontineSuccessTimer() {
@@ -271,6 +336,59 @@ async function handleCreateClient() {
     createError.value = getErrorMessage(error, "Erreur lors de la creation du client.");
   } finally {
     isCreating.value = false;
+  }
+}
+
+async function handleUpdateClient() {
+  if (isUpdatingClient.value) return;
+
+  const clientId = editingClientId.value;
+  if (!clientId) {
+    editError.value = "Selectionnez un client valide.";
+    return;
+  }
+
+  const displayName = editForm.displayName.trim();
+  const phoneNumber = editForm.phoneNumber.trim();
+  const address = editForm.address.trim();
+
+  if (displayName.length < 3) {
+    editError.value = "Le nom du client est requis.";
+    return;
+  }
+  if (!phoneNumber) {
+    editError.value = "Le numero du client est invalide.";
+    return;
+  }
+  if (address.length < 3) {
+    editError.value = "L'adresse du client est requise.";
+    return;
+  }
+
+  editError.value = "";
+  isUpdatingClient.value = true;
+  mutationClientId.value = clientId;
+
+  try {
+    const updatedDetail = await clientStore.updateClient(clientId, {
+      displayName,
+      phoneNumber,
+      address,
+      agentId: editForm.agentId || null,
+    });
+
+    if (detailDialogOpen.value && selectedClientId.value === clientId) {
+      detailData.value = updatedDetail;
+      syncContributionAmount(updatedDetail);
+    }
+
+    closeEditClientDialog();
+    await fetchClients(currentPage.value);
+  } catch (error) {
+    editError.value = getErrorMessage(error, "Mise a jour du client impossible.");
+  } finally {
+    mutationClientId.value = null;
+    isUpdatingClient.value = false;
   }
 }
 
@@ -543,6 +661,13 @@ onUnmounted(() => {
                   >
                     <span v-if="mutationClientId === client.id">Traitement...</span>
                     <span v-else>{{ client.isActive ? "Suspendre" : "Reactiver" }}</span>
+                  </button>
+                  <button
+                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                    :disabled="mutationClientId === client.id"
+                    @click="openEditClientDialog(client)"
+                  >
+                    Modifier
                   </button>
                   <button
                     class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
@@ -914,6 +1039,94 @@ onUnmounted(() => {
         >
           <span v-if="isCreating">Creation...</span>
           <span v-else>Creer le client</span>
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="editDialogOpen" @update:open="setEditClientDialogOpen">
+    <DialogContent
+      class="sm:max-w-[540px]"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader>
+        <div class="flex items-center justify-between">
+          <DialogTitle>Modifier le client</DialogTitle>
+          <DialogClose class="rounded-lg p-1 opacity-70 transition hover:bg-muted hover:opacity-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </DialogClose>
+        </div>
+        <DialogDescription>
+          Corrigez les informations d'identite ou l'affectation agent du client. Le statut reste gere separement.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div v-if="editError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ editError }}
+      </div>
+
+      <div class="grid gap-4 py-4">
+        <div class="grid gap-2">
+          <label for="editDisplayName" class="text-sm font-medium">Nom complet</label>
+          <input
+            id="editDisplayName"
+            v-model="editForm.displayName"
+            type="text"
+            placeholder="Ex: Jean Dupont"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="editPhoneNumber" class="text-sm font-medium">Numero de telephone</label>
+          <input
+            id="editPhoneNumber"
+            v-model="editForm.phoneNumber"
+            type="text"
+            placeholder="Ex: 0102030405"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="editAddress" class="text-sm font-medium">Adresse</label>
+          <input
+            id="editAddress"
+            v-model="editForm.address"
+            type="text"
+            placeholder="Quartier, Ville"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="grid gap-2">
+          <label for="editAgentId" class="text-sm font-medium">Agent affecte (Optionnel)</label>
+          <select
+            id="editAgentId"
+            v-model="editForm.agentId"
+            class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          >
+            <option value="">Aucun (Canal direct)</option>
+            <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+              {{ agent.fullName }} ({{ agent.agentCode }})
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="isUpdatingClient"
+          @click="closeEditClientDialog"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+          :disabled="isUpdatingClient"
+          @click="handleUpdateClient"
+        >
+          <span v-if="isUpdatingClient">Mise a jour...</span>
+          <span v-else>Enregistrer les modifications</span>
         </button>
       </DialogFooter>
     </DialogContent>
