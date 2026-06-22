@@ -2,7 +2,11 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import type { PaginatedResponse } from "@/types/api";
 import type { TontineCycleItem } from "@/types/platform";
-import { tontineService, type TontineListParams } from "@/services/tontines/tontineService";
+import {
+  tontineService,
+  type TontineCycleUpdatePayload,
+  type TontineListParams,
+} from "@/services/tontines/tontineService";
 
 export const useTontineStore = defineStore("tontines", () => {
   const collection = ref<PaginatedResponse<TontineCycleItem> | null>(null);
@@ -18,9 +22,23 @@ export const useTontineStore = defineStore("tontines", () => {
     }
   }
 
+  async function updateTontineCycle(
+    cycleId: string,
+    payload: TontineCycleUpdatePayload,
+  ) {
+    isLoading.value = true;
+    try {
+      const result = await tontineService.updateCycle(cycleId, payload);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     collection,
     isLoading,
     fetchTontines,
+    updateTontineCycle,
   };
 });

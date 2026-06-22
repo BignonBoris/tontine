@@ -46,6 +46,40 @@ function toNumber(value) {
   return Number(value) || 0;
 }
 
+function canUpdateUnstartedTontineCycle(cycle) {
+  return (
+    ['nonConfiguree', 'active'].includes(cycle.status) &&
+    toNumber(cycle.cumulativeAmount) <= 0
+  );
+}
+
+function serializeTontineCycleListItem(entry) {
+  const stakeAmount = toNumber(entry.stakeAmount);
+  const cumulativeAmount = toNumber(entry.cumulativeAmount);
+
+  return {
+    id: entry.id,
+    stakeAmount,
+    cumulativeAmount,
+    targetAmount: stakeAmount * 31,
+    progress:
+      stakeAmount > 0
+        ? Math.min(cumulativeAmount / (stakeAmount * 31), 1)
+        : 0,
+    status: entry.status,
+    startedAt: entry.startedAt,
+    expectedEndAt: entry.expectedEndAt,
+    endedAt: entry.endedAt,
+    createdAt: entry.createdAt,
+    client: {
+      id: entry.user.id,
+      displayName: entry.user.displayName,
+      phoneNumber: entry.user.phoneNumber,
+      tontineBalance: toNumber(entry.user.wallet?.tontineBalance),
+    },
+  };
+}
+
 function buildPastDays(days) {
   const values = [];
   const now = new Date();
@@ -443,6 +477,118 @@ async function createClient(payload, requestContext = {}) {
   return getClientDetail(client.id);
 }
 
+async function updateClient(userId, payload, requestContext = {}) {
+  const client = await models.User.findByPk(userId, {
+    include: [
+      { model: models.AgentProfile, as: 'agentProfile', required: false },
+      { model: models.AgentProfile, as: 'creatorAgent', required: false },
+    ],
+  });
+
+  if (!client) {
+    throw new AppError('Client introuvable.', 404);
+  }
+  if (client.agentProfile) {
+    throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+  }
+
+  const nextDisplayName =
+    payload.displayName !== undefined
+      ? normalizeDisplayName(payload.displayName)
+      : client.displayName;
+  if (!isValidDisplayName(nextDisplayName)) {
+    throw new AppError('Le nom du client est requis.', 422);
+  }
+
+  const nextPhoneNumber =
+    payload.phoneNumber !== undefined
+      ? normalizePhone(String(payload.phoneNumber || '').trim())
+      : client.phoneNumber;
+  if (payload.phoneNumber !== undefined && nextPhoneNumber.length !== 10) {
+    throw new AppError('Le numero du client est invalide.', 422);
+  }
+
+  const nextAddress =
+    payload.address !== undefined
+      ? String(payload.address || '').trim()
+      : client.address;
+  if (payload.address !== undefined && (!nextAddress || nextAddress.length < 3)) {
+    throw new AppError("L'adresse du client est requise.", 422);
+  }
+
+  const nextAgentId =
+    payload.agentId !== undefined
+      ? String(payload.agentId || '').trim() || null
+      : client.createdByAgentProfileId || null;
+
+  if (payload.phoneNumber !== undefined && nextPhoneNumber !== client.phoneNumber) {
+    const duplicateUser = await models.User.findOne({
+      where: {
+        phoneNumber: nextPhoneNumber,
+        id: {
+          [Op.ne]: userId,
+        },
+      },
+    });
+
+    if (duplicateUser) {
+      throw new AppError('Un client existe deja avec ce numero.', 409);
+    }
+  }
+
+  if (nextAgentId) {
+    const agent = await models.AgentProfile.findByPk(nextAgentId);
+    if (!agent) {
+      throw new AppError('Agent introuvable.', 404);
+    }
+  }
+
+  await sequelize.transaction(async (transaction) => {
+    await client.update(
+      {
+        displayName: nextDisplayName,
+        phoneNumber: nextPhoneNumber,
+        address: nextAddress,
+        createdByAgentProfileId: nextAgentId,
+      },
+      { transaction },
+    );
+
+    await writeAuditLog({
+      userId: null,
+      action: 'admin.client_updated',
+      entityType: 'client',
+      entityId: client.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        changes: {
+          displayName: {
+            before: client.previous('displayName'),
+            after: nextDisplayName,
+          },
+          phoneNumber: {
+            before: client.previous('phoneNumber'),
+            after: nextPhoneNumber,
+          },
+          address: {
+            before: client.previous('address'),
+            after: nextAddress,
+          },
+          createdByAgentProfileId: {
+            before: client.previous('createdByAgentProfileId'),
+            after: nextAgentId,
+          },
+        },
+      },
+      transaction,
+    });
+  });
+
+  return getClientDetail(client.id);
+}
+
 async function listTontines(query = {}) {
   const { page, pageSize, offset, limit } = parsePagination(query);
   const search = String(query.search || '').trim();
@@ -488,28 +634,7 @@ async function listTontines(query = {}) {
     limit,
   });
 
-  const items = result.rows.map((entry) => {
-    const stakeAmount = toNumber(entry.stakeAmount);
-    const cumulativeAmount = toNumber(entry.cumulativeAmount);
-    return {
-      id: entry.id,
-      stakeAmount,
-      cumulativeAmount,
-      targetAmount: stakeAmount * 31,
-      progress: stakeAmount > 0 ? Math.min(cumulativeAmount / (stakeAmount * 31), 1) : 0,
-      status: entry.status,
-      startedAt: entry.startedAt,
-      expectedEndAt: entry.expectedEndAt,
-      endedAt: entry.endedAt,
-      createdAt: entry.createdAt,
-      client: {
-        id: entry.user.id,
-        displayName: entry.user.displayName,
-        phoneNumber: entry.user.phoneNumber,
-        tontineBalance: toNumber(entry.user.wallet?.tontineBalance),
-      },
-    };
-  });
+  const items = result.rows.map(serializeTontineCycleListItem);
 
   return {
     items,
@@ -594,6 +719,87 @@ async function getTontineCalendar(cycleId) {
       initiatorType: entry.initiatorType,
     })),
   };
+}
+
+async function updateTontineCycle(cycleId, payload, requestContext = {}) {
+  const stakeAmount = Number(payload.stakeAmount);
+  if (
+    !stakeAmount ||
+    stakeAmount <= 0 ||
+    stakeAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    throw new AppError(
+      `La mise doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+
+  const cycle = await models.TontineCycle.findByPk(cycleId, {
+    include: [
+      {
+        model: models.User,
+        as: 'user',
+        required: true,
+        include: [
+          {
+            model: models.AgentProfile,
+            as: 'agentProfile',
+            required: false,
+          },
+          {
+            model: models.Wallet,
+            as: 'wallet',
+            required: false,
+          },
+        ],
+      },
+    ],
+  });
+
+  if (!cycle) {
+    throw new AppError('Cycle de tontine introuvable.', 404);
+  }
+  if (cycle.user?.agentProfile) {
+    throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+  }
+  if (!canUpdateUnstartedTontineCycle(cycle)) {
+    throw new AppError(
+      'Ce cycle a deja demarre et ne peut plus etre modifie.',
+      409,
+    );
+  }
+
+  await sequelize.transaction(async (transaction) => {
+    await cycle.update(
+      {
+        stakeAmount,
+      },
+      { transaction },
+    );
+
+    await writeAuditLog({
+      userId: null,
+      action: 'admin.tontine_cycle_updated',
+      entityType: 'tontineCycle',
+      entityId: cycle.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        changes: {
+          stakeAmount: {
+            before: Number(cycle.previous('stakeAmount')),
+            after: stakeAmount,
+          },
+          status: cycle.status,
+          cumulativeAmount: Number(cycle.cumulativeAmount),
+        },
+      },
+      transaction,
+    });
+  });
+
+  return serializeTontineCycleListItem(cycle);
 }
 
 async function startTontine(userId, stakeAmount, requestContext = {}) {
@@ -2107,8 +2313,10 @@ module.exports = {
   listMarketplaceGoals,
   listClients,
   createClient,
+  updateClient,
   listTontines,
   getTontineCalendar,
+  updateTontineCycle,
   startTontine,
   recordClientContribution,
   getClientDetail,
