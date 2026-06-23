@@ -57,16 +57,28 @@ async function runSeeds(models) {
     defaults: { userId: user.id },
   });
 
-  await AgentProfile.upsert({
-    userId: user.id,
-    agentCode: defaultAgentCode,
-    pinHash: hashPin(defaultAgentPin),
-    fullName: defaultAgentName,
-    agentBalance: Number.isFinite(defaultAgentBalance)
-      ? Math.max(defaultAgentBalance, 0)
-      : 0,
-    isActive: true,
+  const [agentProfile, created] = await AgentProfile.findOrCreate({
+    where: { userId: user.id },
+    defaults: {
+      userId: user.id,
+      agentCode: defaultAgentCode,
+      pinHash: hashPin(defaultAgentPin),
+      fullName: defaultAgentName,
+      agentBalance: Number.isFinite(defaultAgentBalance)
+        ? Math.max(defaultAgentBalance, 0)
+        : 0,
+      isActive: true,
+    },
   });
+
+  if (!created) {
+    await agentProfile.update({
+      agentCode: defaultAgentCode,
+      pinHash: hashPin(defaultAgentPin),
+      fullName: defaultAgentName,
+      isActive: true,
+    });
+  }
 
   return {
     phoneNumber: defaultAgentPhone,
