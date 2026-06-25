@@ -4,11 +4,11 @@ import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/core/network/api_config.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/dashboard/data/services/notification_service.dart';
+import 'package:mobile/firebase_options.dart';
 
 class PushNotificationService {
   static final PushNotificationService instance =
@@ -21,6 +21,7 @@ class PushNotificationService {
   bool _clearHookRegistered = false;
   bool _clearHookSuspended = false;
   bool _firebaseDisabled = false;
+  bool _messagingPermissionHandled = false;
   Future<bool>? _firebaseInitializationFuture;
   int _sessionSyncGeneration = 0;
   String _appName = 'mobile';
@@ -29,7 +30,7 @@ class PushNotificationService {
   String? _lastRegisteredAppName;
 
   Future<void> start({String appName = 'mobile'}) async {
-    if (kIsWeb) {
+    if (!_supportsPushNotifications()) {
       return;
     }
 
@@ -39,6 +40,7 @@ class PushNotificationService {
       return;
     }
 
+    await _ensureMessagingPermissions();
     _registerListeners();
     _registerClearHookOnce();
     await syncCurrentToken(appName: appName);
@@ -48,7 +50,7 @@ class PushNotificationService {
     String appName = 'mobile',
     bool force = false,
   }) async {
-    if (kIsWeb) {
+    if (!_supportsPushNotifications()) {
       return;
     }
 
@@ -58,6 +60,7 @@ class PushNotificationService {
       return;
     }
 
+    await _ensureMessagingPermissions();
     _registerListeners();
     _registerClearHookOnce();
 
@@ -67,6 +70,7 @@ class PushNotificationService {
     }
 
     final pushToken = await FirebaseMessaging.instance.getToken();
+    print("pushToken = " + pushToken.toString());
     if (pushToken == null || pushToken.isEmpty) {
       return;
     }
@@ -84,15 +88,11 @@ class PushNotificationService {
         return;
       }
 
-      await _postAuthenticatedJson(
-        '/notifications/devices/register',
-        {
-          'token': pushToken,
-          'platform': _detectPlatform(),
-          'appName': appName,
-        },
-        authToken: sessionToken,
-      );
+      await _postAuthenticatedJson('/notifications/devices/register', {
+        'token': pushToken,
+        'platform': _detectPlatform(),
+        'appName': appName,
+      }, authToken: sessionToken);
 
       if (syncGeneration != _sessionSyncGeneration) {
         return;
@@ -152,6 +152,45 @@ class PushNotificationService {
     _clearLocalCache();
   }
 
+  Future<void> _ensureMessagingPermissions() async {
+    if (!_supportsPushNotifications()) {
+      return;
+    }
+    if (_messagingPermissionHandled) {
+      return;
+    }
+
+    try {
+      final NotificationSettings settings = await FirebaseMessaging.instance
+          .requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+            provisional: false,
+          );
+      _messagingPermissionHandled = true;
+
+      if (kDebugMode &&
+          settings.authorizationStatus == AuthorizationStatus.denied) {
+        print('Push notification permission denied by user.');
+      }
+
+      if (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        await FirebaseMessaging.instance
+            .setForegroundNotificationPresentationOptions(
+              alert: true,
+              badge: true,
+              sound: true,
+            );
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        print('Push notification permission setup failed: $error');
+      }
+    }
+  }
+
   void _registerListeners() {
     if (_listenersRegistered) {
       return;
@@ -160,10 +199,12 @@ class PushNotificationService {
     _listenersRegistered = true;
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      final title = message.notification?.title ??
+      final title =
+          message.notification?.title ??
           message.data['title']?.toString() ??
           'Nouvelle notification';
-      final body = message.notification?.body ??
+      final body =
+          message.notification?.body ??
           message.data['message']?.toString() ??
           '';
       final payload = jsonEncode(message.data);
@@ -216,10 +257,10 @@ class PushNotificationService {
   }
 
   Future<void> _unregisterCurrentDevice() async {
-    final authToken = (await SessionStorage.getToken()) ??
-        _lastRegisteredSessionToken;
-    final pushToken = await FirebaseMessaging.instance.getToken() ??
-        _lastRegisteredPushToken;
+    final authToken =
+        (await SessionStorage.getToken()) ?? _lastRegisteredSessionToken;
+    final pushToken =
+        await FirebaseMessaging.instance.getToken() ?? _lastRegisteredPushToken;
 
     if (authToken == null ||
         authToken.isEmpty ||
@@ -229,15 +270,11 @@ class PushNotificationService {
     }
 
     try {
-      await _postAuthenticatedJson(
-        '/notifications/devices/unregister',
-        {
-          'token': pushToken,
-          'platform': _detectPlatform(),
-          'appName': _appName,
-        },
-        authToken: authToken,
-      );
+      await _postAuthenticatedJson('/notifications/devices/unregister', {
+        'token': pushToken,
+        'platform': _detectPlatform(),
+        'appName': _appName,
+      }, authToken: authToken);
     } catch (error) {
       if (kDebugMode) {
         print('Push notification unregister failed: $error');
@@ -290,38 +327,9 @@ class PushNotificationService {
       return true;
     }
 
-    final apiKey = dotenv.env['FIREBASE_API_KEY']?.trim() ?? '';
-    final appId = dotenv.env['FIREBASE_APP_ID']?.trim() ?? '';
-    final projectId = dotenv.env['FIREBASE_PROJECT_ID']?.trim() ?? '';
-    final senderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID']?.trim() ?? '';
-
-    if (apiKey.isEmpty ||
-        appId.isEmpty ||
-        projectId.isEmpty ||
-        senderId.isEmpty) {
-      _firebaseDisabled = true;
-      if (kDebugMode) {
-        print(
-          'Push notifications disabled: Firebase configuration is incomplete.',
-        );
-      }
-      return false;
-    }
-
     try {
       await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: apiKey,
-          appId: appId,
-          messagingSenderId: senderId,
-          projectId: projectId,
-          storageBucket: _nullIfBlank(
-            dotenv.env['FIREBASE_STORAGE_BUCKET']?.trim(),
-          ),
-          iosBundleId: _nullIfBlank(
-            dotenv.env['FIREBASE_IOS_BUNDLE_ID']?.trim(),
-          ),
-        ),
+        options: DefaultFirebaseOptions.currentPlatform,
       );
       _firebaseReady = true;
       return true;
@@ -334,9 +342,17 @@ class PushNotificationService {
     }
   }
 
-  String? _nullIfBlank(String? value) {
-    final normalized = value?.trim() ?? '';
-    return normalized.isEmpty ? null : normalized;
+  bool _supportsPushNotifications() {
+    if (kIsWeb) {
+      return false;
+    }
+
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => true,
+      TargetPlatform.iOS => true,
+      TargetPlatform.macOS => true,
+      _ => false,
+    };
   }
 
   String _detectPlatform() {
