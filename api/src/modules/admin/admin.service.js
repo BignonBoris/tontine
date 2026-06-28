@@ -30,6 +30,9 @@ const {
 } = require('../commission/commission.service');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 
+const ONGOING_TONTINE_STATUSES = ['active', 'enAttenteValidationFin'];
+const ACTIVE_GOAL_STATUS = 'active';
+
 function parsePagination(query = {}) {
   const page = Math.max(Number(query.page || 1), 1);
   const pageSize = Math.min(Math.max(Number(query.pageSize || 10), 1), 100);
@@ -47,6 +50,24 @@ function toNumber(value) {
     return 0;
   }
   return Number(value) || 0;
+}
+
+function computeClientFinancialStats({
+  availableBalance,
+  ongoingTontineAmount,
+  coffersAmount,
+}) {
+  const normalizedAvailableBalance = toNumber(availableBalance);
+  const normalizedOngoingTontineAmount = toNumber(ongoingTontineAmount);
+  const normalizedCoffersAmount = toNumber(coffersAmount);
+
+  return {
+    availableBalance: normalizedAvailableBalance,
+    ongoingTontineAmount: normalizedOngoingTontineAmount,
+    estimatedBalance:
+      normalizedAvailableBalance + normalizedOngoingTontineAmount,
+    coffersAmount: normalizedCoffersAmount,
+  };
 }
 
 function canUpdateUnstartedTontineCycle(cycle) {
@@ -174,6 +195,9 @@ async function getOverview() {
     totalPaidWithdrawals,
     totalAvailableBalances,
     totalAgentBalances,
+    totalOngoingTontineCycles,
+    totalOngoingTontineAmount,
+    totalCoffersAmount,
     recentAuditLogs,
     totalReservedWithdrawals,
     newClientsSeriesRows,
@@ -212,6 +236,25 @@ async function getOverview() {
     models.Withdrawal.sum('amount', { where: { status: 'paid' } }),
     models.Wallet.sum('availableBalance'),
     models.AgentProfile.sum('agentBalance'),
+    models.TontineCycle.count({
+      where: {
+        status: {
+          [Op.in]: ONGOING_TONTINE_STATUSES,
+        },
+      },
+    }),
+    models.TontineCycle.sum('cumulativeAmount', {
+      where: {
+        status: {
+          [Op.in]: ONGOING_TONTINE_STATUSES,
+        },
+      },
+    }),
+    models.Goal.sum('currentAmount', {
+      where: {
+        status: ACTIVE_GOAL_STATUS,
+      },
+    }),
     models.AuditLog.findAll({
       limit: 8,
       order: [['createdAt', 'DESC']],
@@ -220,8 +263,8 @@ async function getOverview() {
     models.Wallet.sum('reservedWithdrawalBalance'),
     models.User.findAll({
       attributes: [
-        [fn('DATE', col('created_at')), 'day'],
-        [fn('COUNT', col('id')), 'count'],
+        [fn('DATE', col('User.created_at')), 'day'],
+        [fn('COUNT', col('User.id')), 'count'],
       ],
       include: [
         {
@@ -237,24 +280,24 @@ async function getOverview() {
           [Op.gte]: firstDay,
         },
       },
-      group: [fn('DATE', col('created_at'))],
+      group: [fn('DATE', col('User.created_at'))],
       raw: true,
     }),
     models.Withdrawal.findAll({
       attributes: [
-        [fn('DATE', col('created_at')), 'day'],
-        [fn('SUM', col('amount')), 'totalAmount'],
+        [fn('DATE', col('Withdrawal.created_at')), 'day'],
+        [fn('SUM', col('Withdrawal.amount')), 'totalAmount'],
       ],
       where: {
         createdAt: {
           [Op.gte]: firstDay,
         },
       },
-      group: [fn('DATE', col('created_at'))],
+      group: [fn('DATE', col('Withdrawal.created_at'))],
       raw: true,
     }),
     models.Withdrawal.findAll({
-      attributes: ['status', [fn('COUNT', col('id')), 'count']],
+      attributes: ['status', [fn('COUNT', col('Withdrawal.id')), 'count']],
       group: ['status'],
       raw: true,
     }),
@@ -271,6 +314,11 @@ async function getOverview() {
       totalPaidWithdrawals: toNumber(totalPaidWithdrawals),
       totalAvailableBalances: toNumber(totalAvailableBalances),
       totalAgentBalances: toNumber(totalAgentBalances),
+      totalOngoingTontineCycles: toNumber(totalOngoingTontineCycles),
+      totalOngoingTontineAmount: toNumber(totalOngoingTontineAmount),
+      totalEstimatedBalance:
+        toNumber(totalAvailableBalances) + toNumber(totalOngoingTontineAmount),
+      totalCoffersAmount: toNumber(totalCoffersAmount),
       totalReservedWithdrawals: toNumber(totalReservedWithdrawals),
     },
     charts: {
@@ -1222,7 +1270,15 @@ async function getClientDetail(userId) {
     throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
   }
 
-  const [cycles, goals, withdrawals, balanceHistory, tontineHistory] =
+  const [
+    cycles,
+    goals,
+    withdrawals,
+    balanceHistory,
+    tontineHistory,
+    ongoingTontineAmount,
+    coffersAmount,
+  ] =
     await Promise.all([
       models.TontineCycle.findAll({
         where: { userId },
@@ -1250,7 +1306,27 @@ async function getClientDetail(userId) {
         order: [['occurredAt', 'DESC']],
         limit: 10,
       }),
+      models.TontineCycle.sum('cumulativeAmount', {
+        where: {
+          userId,
+          status: {
+            [Op.in]: ONGOING_TONTINE_STATUSES,
+          },
+        },
+      }),
+      models.Goal.sum('currentAmount', {
+        where: {
+          userId,
+          status: ACTIVE_GOAL_STATUS,
+        },
+      }),
     ]);
+
+  const financialStats = computeClientFinancialStats({
+    availableBalance: client.wallet?.availableBalance,
+    ongoingTontineAmount,
+    coffersAmount,
+  });
 
   return {
     client: {
@@ -1277,6 +1353,7 @@ async function getClientDetail(userId) {
           }
         : null,
     },
+    stats: financialStats,
     cycles: cycles.map((entry) => ({
       id: entry.id,
       stakeAmount: toNumber(entry.stakeAmount),

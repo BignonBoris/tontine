@@ -64,6 +64,23 @@ const contributionRemaining = computed(() => {
     0,
   );
 });
+const detailFinancialSummary = computed(() => ({
+  availableBalance:
+    detailData.value?.stats?.availableBalance ??
+    detailData.value?.client.wallet.availableBalance ??
+    0,
+  reservedWithdrawalBalance:
+    detailData.value?.client.wallet.reservedWithdrawalBalance ?? 0,
+  ongoingTontineAmount:
+    detailData.value?.stats?.ongoingTontineAmount ??
+    detailData.value?.client.wallet.tontineBalance ??
+    0,
+  estimatedBalance:
+    detailData.value?.stats?.estimatedBalance ??
+    (detailData.value?.client.wallet.availableBalance ?? 0) +
+      (detailData.value?.client.wallet.tontineBalance ?? 0),
+  coffersAmount: detailData.value?.stats?.coffersAmount ?? 0,
+}));
 const isRecordingContribution = ref(false);
 const contributionError = ref("");
 const contributionSuccess = ref("");
@@ -788,22 +805,26 @@ onUnmounted(() => {
         Chargement du detail client...
       </div>
       <div v-else-if="detailData" class="space-y-6">
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Disponible</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.availableBalance) }} F</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.availableBalance) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Reserve</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.reservedWithdrawalBalance) }} F</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.reservedWithdrawalBalance) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
-            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tontine</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.tontineBalance) }} F</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tontine en cours</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.ongoingTontineAmount) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
-            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Statut</p>
-            <p class="mt-2 text-2xl font-semibold">{{ detailData.client.isActive ? "Actif" : "Inactif" }}</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Solde estime</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.estimatedBalance) }} F</p>
+          </div>
+          <div class="rounded-2xl border border-border bg-muted/30 p-4">
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Coffres</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.coffersAmount) }} F</p>
           </div>
         </div>
 
@@ -872,6 +893,7 @@ onUnmounted(() => {
             <p class="mt-3 text-sm">Adresse: {{ detailData.client.address || "N/A" }}</p>
             <p class="text-sm">Origine: {{ detailData.client.createdByAgent?.fullName || "Canal direct" }}</p>
             <p class="text-sm">Membre depuis: {{ formatDateTime(detailData.client.memberSince) }}</p>
+            <p class="text-sm">Statut: {{ detailData.client.isActive ? "Actif" : "Inactif" }}</p>
           </div>
           <div class="rounded-2xl border border-border/60 p-4">
             <h4 class="font-medium">Retraits recents</h4>
