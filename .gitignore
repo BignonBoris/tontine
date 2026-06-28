@@ -34,3 +34,15 @@ logs/
 # iOS
 *.ipa
 Podfile.lock
+
+./api/service-account.json
+./api/
+
+**/.node_modules/
+**/.env
+
+**/api/node_modules/.package-lock.json
+**/api/node_modules/hasown/CHANGELOG.md
+**/api/node_modules/hasown/index.d.ts
+**/api/node_modules/hasown/package.json
+**/api/package-lock.json

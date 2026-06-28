@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
-import { X } from "lucide-vue-next";
+import {
+  Eye,
+  Loader2,
+  Lock,
+  PauseCircle,
+  PencilLine,
+  Play,
+  X,
+} from "lucide-vue-next";
 import Card from "@/components/ui/card/Card.vue";
 import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import {
@@ -56,6 +64,23 @@ const contributionRemaining = computed(() => {
     0,
   );
 });
+const detailFinancialSummary = computed(() => ({
+  availableBalance:
+    detailData.value?.stats?.availableBalance ??
+    detailData.value?.client.wallet.availableBalance ??
+    0,
+  reservedWithdrawalBalance:
+    detailData.value?.client.wallet.reservedWithdrawalBalance ?? 0,
+  ongoingTontineAmount:
+    detailData.value?.stats?.ongoingTontineAmount ??
+    detailData.value?.client.wallet.tontineBalance ??
+    0,
+  estimatedBalance:
+    detailData.value?.stats?.estimatedBalance ??
+    (detailData.value?.client.wallet.availableBalance ?? 0) +
+      (detailData.value?.client.wallet.tontineBalance ?? 0),
+  coffersAmount: detailData.value?.stats?.coffersAmount ?? 0,
+}));
 const isRecordingContribution = ref(false);
 const contributionError = ref("");
 const contributionSuccess = ref("");
@@ -267,6 +292,10 @@ function showContributionSuccess(message: string) {
     contributionSuccess.value = "";
     contributionSuccessTimer.value = null;
   }, 4000);
+}
+
+function getClientToggleLabel(isActive: boolean) {
+  return isActive ? "Suspendre le client" : "Reactiver le client";
 }
 
 function openStartTontineDialog(client: { id: string; displayName: string }) {
@@ -655,41 +684,64 @@ onUnmounted(() => {
               <td class="px-3 py-3">
                 <div class="flex flex-wrap gap-2">
                   <button
-                    class="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted"
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="mutationClientId === client.id"
+                    :title="getClientToggleLabel(client.isActive)"
+                    :aria-label="getClientToggleLabel(client.isActive)"
                     @click="toggleClientStatus(client.id, client.isActive)"
                   >
-                    <span v-if="mutationClientId === client.id">Traitement...</span>
-                    <span v-else>{{ client.isActive ? "Suspendre" : "Reactiver" }}</span>
+                    <Loader2
+                      v-if="mutationClientId === client.id"
+                      class="h-4 w-4 animate-spin"
+                    />
+                    <PauseCircle v-else-if="client.isActive" class="h-4 w-4" />
+                    <Play v-else class="h-4 w-4" />
+                    <span class="sr-only">{{ getClientToggleLabel(client.isActive) }}</span>
                   </button>
                   <button
-                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="mutationClientId === client.id"
+                    title="Modifier le client"
+                    aria-label="Modifier le client"
                     @click="openEditClientDialog(client)"
                   >
-                    Modifier
+                    <PencilLine class="h-4 w-4" />
+                    <span class="sr-only">Modifier le client</span>
                   </button>
                   <button
-                    class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 transition hover:bg-sky-100"
+                    title="Voir le detail"
+                    aria-label="Voir le detail"
                     @click="openDetailDialog(client.id)"
                   >
-                    Voir detail
+                    <Eye class="h-4 w-4" />
+                    <span class="sr-only">Voir le detail</span>
                   </button>
                   <button
                     v-if="client.isActive && !client.hasActiveTontine"
-                    class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"
                     title="Demarrer une nouvelle tontine"
+                    aria-label="Demarrer une nouvelle tontine"
                     @click="openStartTontineDialog(client)"
                   >
-                    Demarrer Tontine
+                    <Play class="h-4 w-4" />
+                    <span class="sr-only">Demarrer une nouvelle tontine</span>
                   </button>
-                  <span
+                  <button
                     v-else-if="client.isActive && client.hasActiveTontine"
-                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700"
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700"
+                    disabled
                     title="Une tontine active ou en attente bloque un nouveau cycle"
+                    aria-label="Une tontine active ou en attente bloque un nouveau cycle"
                   >
-                    Tontine en cours
-                  </span>
+                    <Lock class="h-4 w-4" />
+                    <span class="sr-only">Tontine en cours</span>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -753,22 +805,26 @@ onUnmounted(() => {
         Chargement du detail client...
       </div>
       <div v-else-if="detailData" class="space-y-6">
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Disponible</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.availableBalance) }} F</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.availableBalance) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Reserve</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.reservedWithdrawalBalance) }} F</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.reservedWithdrawalBalance) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
-            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tontine</p>
-            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailData.client.wallet.tontineBalance) }} F</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tontine en cours</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.ongoingTontineAmount) }} F</p>
           </div>
           <div class="rounded-2xl border border-border bg-muted/30 p-4">
-            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Statut</p>
-            <p class="mt-2 text-2xl font-semibold">{{ detailData.client.isActive ? "Actif" : "Inactif" }}</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Solde estime</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.estimatedBalance) }} F</p>
+          </div>
+          <div class="rounded-2xl border border-border bg-muted/30 p-4">
+            <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Coffres</p>
+            <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(detailFinancialSummary.coffersAmount) }} F</p>
           </div>
         </div>
 
@@ -837,6 +893,7 @@ onUnmounted(() => {
             <p class="mt-3 text-sm">Adresse: {{ detailData.client.address || "N/A" }}</p>
             <p class="text-sm">Origine: {{ detailData.client.createdByAgent?.fullName || "Canal direct" }}</p>
             <p class="text-sm">Membre depuis: {{ formatDateTime(detailData.client.memberSince) }}</p>
+            <p class="text-sm">Statut: {{ detailData.client.isActive ? "Actif" : "Inactif" }}</p>
           </div>
           <div class="rounded-2xl border border-border/60 p-4">
             <h4 class="font-medium">Retraits recents</h4>

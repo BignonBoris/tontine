@@ -35,10 +35,21 @@ export const useTontineStore = defineStore("tontines", () => {
     }
   }
 
+  async function closeTontineCycle(cycleId: string) {
+    isLoading.value = true;
+    try {
+      const result = await tontineService.closeCycle(cycleId);
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     collection,
     isLoading,
     fetchTontines,
     updateTontineCycle,
+    closeTontineCycle,
   };
 });

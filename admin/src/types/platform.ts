@@ -39,6 +39,10 @@ export interface OverviewData {
     totalPaidWithdrawals: number;
     totalAvailableBalances: number;
     totalAgentBalances: number;
+    totalOngoingTontineCycles: number;
+    totalOngoingTontineAmount: number;
+    totalEstimatedBalance: number;
+    totalCoffersAmount: number;
     totalReservedWithdrawals: number;
   };
   charts: {
@@ -257,6 +261,12 @@ export interface ClientDetail {
       agentCode: string;
       fullName: string;
     } | null;
+  };
+  stats: {
+    availableBalance: number;
+    ongoingTontineAmount: number;
+    estimatedBalance: number;
+    coffersAmount: number;
   };
   cycles: Array<{
     id: string;

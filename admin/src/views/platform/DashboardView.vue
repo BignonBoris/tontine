@@ -7,6 +7,33 @@ import { formatCurrency, formatDateTime } from "@/utils/formatters";
 const dashboardStore = useDashboardStore();
 const overview = computed(() => dashboardStore.overview);
 const anomalies = computed(() => dashboardStore.anomalies);
+const financialCards = computed(() => [
+  {
+    label: "Cycles de tontine en cours",
+    value: `${overview.value?.totals.totalOngoingTontineCycles || 0}`,
+    hint: "Cycles actifs ou en attente de validation.",
+  },
+  {
+    label: "Montant tontines en cours",
+    value: `${formatCurrency(overview.value?.totals.totalOngoingTontineAmount || 0)} F`,
+    hint: "Somme des cumuls des cycles ouverts.",
+  },
+  {
+    label: "Solde disponible clients",
+    value: `${formatCurrency(overview.value?.totals.totalAvailableBalances || 0)} F`,
+    hint: "Liquidite clients immediatement mobilisable.",
+  },
+  {
+    label: "Solde estime clients",
+    value: `${formatCurrency(overview.value?.totals.totalEstimatedBalance || 0)} F`,
+    hint: "Disponible + tontines en cours, hors coffres.",
+  },
+  {
+    label: "Coffres actifs",
+    value: `${formatCurrency(overview.value?.totals.totalCoffersAmount || 0)} F`,
+    hint: "Montants reserves dans les coffres actifs.",
+  },
+]);
 
 async function refreshAll() {
   await Promise.all([
@@ -16,9 +43,7 @@ async function refreshAll() {
 }
 
 onMounted(async () => {
-  if (!dashboardStore.overview || !dashboardStore.anomalies) {
-    await refreshAll();
-  }
+  await refreshAll();
 });
 </script>
 
@@ -69,6 +94,33 @@ onMounted(async () => {
             <p class="text-sm text-muted-foreground">{{ item.label }}</p>
             <h3 class="mt-3 text-3xl font-semibold">{{ item.value }}</h3>
             <p class="mt-2 text-xs text-muted-foreground">{{ item.hint }}</p>
+          </div>
+        </Card>
+      </div>
+
+      <div class="col-span-12">
+        <Card class="border border-border/60">
+          <div class="p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 class="text-lg font-semibold">Synthese financiere clients</h3>
+                <p class="text-sm text-muted-foreground">
+                  Agregats consolides des soldes, tontines en cours et coffres actifs.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div
+                v-for="item in financialCards"
+                :key="item.label"
+                class="rounded-2xl border border-border/60 bg-muted/20 p-4"
+              >
+                <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">{{ item.label }}</p>
+                <p class="mt-2 text-2xl font-semibold">{{ item.value }}</p>
+                <p class="mt-2 text-xs text-muted-foreground">{{ item.hint }}</p>
+              </div>
+            </div>
           </div>
         </Card>
       </div>

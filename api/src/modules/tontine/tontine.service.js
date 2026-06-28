@@ -560,7 +560,7 @@ async function confirmCyclePayout(userId, requestContext = {}) {
     await cycle.update(
       {
         status: 'terminee',
-        cumulativeAmount: 0,
+        cumulativeAmount: Number(cycle.cumulativeAmount),
         endedAt: new Date(),
       },
       { transaction },
@@ -660,7 +660,7 @@ async function stopCycleEarly(userId, requestContext = {}) {
     await cycle.update(
       {
         status: 'arretee',
-        cumulativeAmount: 0,
+        cumulativeAmount: Number(cycle.cumulativeAmount),
         endedAt: new Date(),
       },
       { transaction },
