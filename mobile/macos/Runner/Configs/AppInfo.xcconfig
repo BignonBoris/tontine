@@ -8,7 +8,7 @@
 PRODUCT_NAME = mobile
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.votreentreprise.mobile
+PRODUCT_BUNDLE_IDENTIFIER = com.viziobox.client
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.votreentreprise. All rights reserved.

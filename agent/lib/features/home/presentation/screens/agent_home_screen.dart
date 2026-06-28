@@ -56,9 +56,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   Future<void> _openNotificationsCenter() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const AgentNotificationsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const AgentNotificationsScreen()),
     );
 
     if (!mounted) {
@@ -167,8 +165,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
           FutureBuilder<AgentOverview>(
             future: _overviewFuture,
             builder: (context, snapshot) {
-              final unreadCount =
-                  snapshot.data?.unreadNotificationsCount ?? 0;
+              final unreadCount = snapshot.data?.unreadNotificationsCount ?? 0;
 
               return Padding(
                 padding: const EdgeInsets.only(right: 4),
@@ -350,73 +347,73 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _openNotificationsCenter,
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 42,
-                                    height: 42,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: const Icon(
-                                      Icons.notifications_none_rounded,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Notifications',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          overview.unreadNotificationsCount > 0
-                                              ? '${overview.unreadNotificationsCount} alerte(s) non lue(s)'
-                                              : 'Aucune alerte en attente',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            color: Colors.white70,
-                                            height: 1.35,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Colors.white70,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                        // const SizedBox(height: 14),
+                        // Material(
+                        //   color: Colors.transparent,
+                        //   child: InkWell(
+                        //     onTap: _openNotificationsCenter,
+                        //     borderRadius: BorderRadius.circular(20),
+                        //     child: Container(
+                        //       width: double.infinity,
+                        //       padding: const EdgeInsets.all(16),
+                        //       decoration: BoxDecoration(
+                        //         color: Colors.white.withValues(alpha: 0.08),
+                        //         borderRadius: BorderRadius.circular(20),
+                        //       ),
+                        //       child: Row(
+                        //         children: [
+                        //           Container(
+                        //             width: 42,
+                        //             height: 42,
+                        //             decoration: BoxDecoration(
+                        //               color: Colors.white.withValues(
+                        //                 alpha: 0.12,
+                        //               ),
+                        //               borderRadius: BorderRadius.circular(14),
+                        //             ),
+                        //             child: const Icon(
+                        //               Icons.notifications_none_rounded,
+                        //               color: Colors.white,
+                        //               size: 22,
+                        //             ),
+                        //           ),
+                        //           const SizedBox(width: 12),
+                        //           Expanded(
+                        //             child: Column(
+                        //               crossAxisAlignment:
+                        //                   CrossAxisAlignment.start,
+                        //               children: [
+                        //                 Text(
+                        //                   'Notifications',
+                        //                   style: GoogleFonts.poppins(
+                        //                     fontSize: 14,
+                        //                     fontWeight: FontWeight.w700,
+                        //                     color: Colors.white,
+                        //                   ),
+                        //                 ),
+                        //                 const SizedBox(height: 3),
+                        //                 Text(
+                        //                   overview.unreadNotificationsCount > 0
+                        //                       ? '${overview.unreadNotificationsCount} alerte(s) non lue(s)'
+                        //                       : 'Aucune alerte en attente',
+                        //                   style: GoogleFonts.inter(
+                        //                     fontSize: 12,
+                        //                     color: Colors.white70,
+                        //                     height: 1.35,
+                        //                   ),
+                        //                 ),
+                        //               ],
+                        //             ),
+                        //           ),
+                        //           const Icon(
+                        //             Icons.chevron_right_rounded,
+                        //             color: Colors.white70,
+                        //           ),
+                        //         ],
+                        //       ),
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
@@ -451,7 +448,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                       ),
                       AgentQuickActionCard(
                         icon: Icons.receipt_long_outlined,
-                        title: 'Historique du jour',
+                        title: 'Mon historique',
                         subtitle: 'Verifier les operations recentes',
                         tint: AgentAppTheme.accentColor,
                         onTap: widget.onOpenHistory,
@@ -459,7 +456,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                       AgentQuickActionCard(
                         icon: Icons.payments_outlined,
                         title: 'Retrait client',
-                        subtitle: 'Payer un retrait par reference et code client',
+                        subtitle:
+                            'Payer un retrait par reference et code client',
                         tint: AgentAppTheme.accentColor,
                         onTap: _openWithdrawalPaymentSheet,
                       ),

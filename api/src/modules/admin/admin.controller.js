@@ -104,6 +104,15 @@ async function updateTontineCycle(req, res) {
   return ok(res, data, 'Cycle de tontine mis a jour.');
 }
 
+async function closeTontineCycle(req, res) {
+  const data = await service.closeTontineCycle(req.params.cycleId, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Tontine cloturee avec succes.');
+}
+
 async function startTontine(req, res) {
   const data = await service.startTontine(req.params.userId, req.body.stakeAmount, {
     ipAddress: req.ip || null,
@@ -204,6 +213,7 @@ module.exports = {
   tontines,
   tontineCalendar,
   updateTontineCycle,
+  closeTontineCycle,
   startTontine,
   recordContribution,
   updateClientStatus,

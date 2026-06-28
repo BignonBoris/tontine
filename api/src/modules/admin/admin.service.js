@@ -25,7 +25,13 @@ const {
   depositToCycle,
   hasActiveOrAwaitingCycle,
 } = require('../tontine/tontine.service');
+const {
+  createWithdrawalReserve,
+} = require('../commission/commission.service');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
+
+const ONGOING_TONTINE_STATUSES = ['active', 'enAttenteValidationFin'];
+const ACTIVE_GOAL_STATUS = 'active';
 
 function parsePagination(query = {}) {
   const page = Math.max(Number(query.page || 1), 1);
@@ -44,6 +50,24 @@ function toNumber(value) {
     return 0;
   }
   return Number(value) || 0;
+}
+
+function computeClientFinancialStats({
+  availableBalance,
+  ongoingTontineAmount,
+  coffersAmount,
+}) {
+  const normalizedAvailableBalance = toNumber(availableBalance);
+  const normalizedOngoingTontineAmount = toNumber(ongoingTontineAmount);
+  const normalizedCoffersAmount = toNumber(coffersAmount);
+
+  return {
+    availableBalance: normalizedAvailableBalance,
+    ongoingTontineAmount: normalizedOngoingTontineAmount,
+    estimatedBalance:
+      normalizedAvailableBalance + normalizedOngoingTontineAmount,
+    coffersAmount: normalizedCoffersAmount,
+  };
 }
 
 function canUpdateUnstartedTontineCycle(cycle) {
@@ -171,6 +195,9 @@ async function getOverview() {
     totalPaidWithdrawals,
     totalAvailableBalances,
     totalAgentBalances,
+    totalOngoingTontineCycles,
+    totalOngoingTontineAmount,
+    totalCoffersAmount,
     recentAuditLogs,
     totalReservedWithdrawals,
     newClientsSeriesRows,
@@ -209,6 +236,25 @@ async function getOverview() {
     models.Withdrawal.sum('amount', { where: { status: 'paid' } }),
     models.Wallet.sum('availableBalance'),
     models.AgentProfile.sum('agentBalance'),
+    models.TontineCycle.count({
+      where: {
+        status: {
+          [Op.in]: ONGOING_TONTINE_STATUSES,
+        },
+      },
+    }),
+    models.TontineCycle.sum('cumulativeAmount', {
+      where: {
+        status: {
+          [Op.in]: ONGOING_TONTINE_STATUSES,
+        },
+      },
+    }),
+    models.Goal.sum('currentAmount', {
+      where: {
+        status: ACTIVE_GOAL_STATUS,
+      },
+    }),
     models.AuditLog.findAll({
       limit: 8,
       order: [['createdAt', 'DESC']],
@@ -217,8 +263,8 @@ async function getOverview() {
     models.Wallet.sum('reservedWithdrawalBalance'),
     models.User.findAll({
       attributes: [
-        [fn('DATE', col('created_at')), 'day'],
-        [fn('COUNT', col('id')), 'count'],
+        [fn('DATE', col('User.created_at')), 'day'],
+        [fn('COUNT', col('User.id')), 'count'],
       ],
       include: [
         {
@@ -234,24 +280,24 @@ async function getOverview() {
           [Op.gte]: firstDay,
         },
       },
-      group: [fn('DATE', col('created_at'))],
+      group: [fn('DATE', col('User.created_at'))],
       raw: true,
     }),
     models.Withdrawal.findAll({
       attributes: [
-        [fn('DATE', col('created_at')), 'day'],
-        [fn('SUM', col('amount')), 'totalAmount'],
+        [fn('DATE', col('Withdrawal.created_at')), 'day'],
+        [fn('SUM', col('Withdrawal.amount')), 'totalAmount'],
       ],
       where: {
         createdAt: {
           [Op.gte]: firstDay,
         },
       },
-      group: [fn('DATE', col('created_at'))],
+      group: [fn('DATE', col('Withdrawal.created_at'))],
       raw: true,
     }),
     models.Withdrawal.findAll({
-      attributes: ['status', [fn('COUNT', col('id')), 'count']],
+      attributes: ['status', [fn('COUNT', col('Withdrawal.id')), 'count']],
       group: ['status'],
       raw: true,
     }),
@@ -268,6 +314,11 @@ async function getOverview() {
       totalPaidWithdrawals: toNumber(totalPaidWithdrawals),
       totalAvailableBalances: toNumber(totalAvailableBalances),
       totalAgentBalances: toNumber(totalAgentBalances),
+      totalOngoingTontineCycles: toNumber(totalOngoingTontineCycles),
+      totalOngoingTontineAmount: toNumber(totalOngoingTontineAmount),
+      totalEstimatedBalance:
+        toNumber(totalAvailableBalances) + toNumber(totalOngoingTontineAmount),
+      totalCoffersAmount: toNumber(totalCoffersAmount),
       totalReservedWithdrawals: toNumber(totalReservedWithdrawals),
     },
     charts: {
@@ -802,6 +853,290 @@ async function updateTontineCycle(cycleId, payload, requestContext = {}) {
   return serializeTontineCycleListItem(cycle);
 }
 
+async function closeTontineCycle(cycleId, requestContext = {}) {
+  const cycle = await models.TontineCycle.findByPk(cycleId, {
+    include: [
+      {
+        model: models.User,
+        as: 'user',
+        required: true,
+        include: [
+          {
+            model: models.AgentProfile,
+            as: 'agentProfile',
+            required: false,
+          },
+          {
+            model: models.Wallet,
+            as: 'wallet',
+            required: false,
+          },
+        ],
+      },
+    ],
+  });
+
+  if (!cycle) {
+    throw new AppError('Cycle de tontine introuvable.', 404);
+  }
+  if (cycle.user?.agentProfile) {
+    throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+  }
+  if (!['active', 'enAttenteValidationFin'].includes(cycle.status)) {
+    throw new AppError('Ce cycle ne peut plus etre cloture.', 409);
+  }
+  if (cycle.status === 'active' && Number(cycle.cumulativeAmount) <= 0) {
+    throw new AppError('Aucun cycle eligible a un arret anticipe.', 409);
+  }
+
+  const statusBefore = cycle.status;
+  const cumulativeBefore = Number(cycle.cumulativeAmount);
+  const stakeAmount = Number(cycle.stakeAmount);
+  const isCompletedClosure = statusBefore === 'enAttenteValidationFin';
+  const adminActor = {
+    ...requestContext,
+    initiatedByUserId: null,
+    initiatorType: 'admin',
+  };
+
+  await sequelize.transaction(async (transaction) => {
+    const wallet = await models.Wallet.findOne({
+      where: { userId: cycle.userId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!wallet) {
+      throw new AppError('Portefeuille introuvable.', 404);
+    }
+
+    if (isCompletedClosure) {
+      const netPayoutAmount = stakeAmount * 30;
+      const commissionResult = await createWithdrawalReserve({
+        transaction,
+        cycle,
+        userId: cycle.userId,
+        respected: true,
+        sourceAmount: netPayoutAmount,
+        initiatedByUserId: adminActor.initiatedByUserId,
+        initiatorType: adminActor.initiatorType,
+        requestContext,
+      });
+
+      await wallet.update(
+        {
+          availableBalance:
+            Number(wallet.availableBalance || 0) +
+            netPayoutAmount +
+            Number(commissionResult.bonusAmount || 0),
+          tontineBalance: 0,
+        },
+        { transaction },
+      );
+
+      await models.AvailableBalanceHistory.create(
+        {
+          userId: cycle.userId,
+          type: 'tontinePayout',
+          amount: netPayoutAmount,
+          label: 'Fin de cycle tontine',
+          isCredit: true,
+        },
+        { transaction },
+      );
+
+      if (Number(commissionResult.bonusAmount || 0) > 0) {
+        await models.AvailableBalanceHistory.create(
+          {
+            userId: cycle.userId,
+            type: 'tontineBonus',
+            amount: Number(commissionResult.bonusAmount),
+            label: 'Bonus fidelite tontine',
+            isCredit: true,
+          },
+          { transaction },
+        );
+      }
+
+      await models.TontineHistory.create(
+        {
+          userId: cycle.userId,
+          cycleId: cycle.id,
+          type: 'payoutConfirmed',
+          amount: netPayoutAmount,
+          label: 'Reversement confirme',
+          note: null,
+          initiatedByUserId: adminActor.initiatedByUserId || cycle.userId,
+          initiatorType: adminActor.initiatorType,
+        },
+        { transaction },
+      );
+
+      await models.TontineArchive.create(
+        {
+          userId: cycle.userId,
+          stakeAmount,
+          targetAmount: stakeAmount * 31,
+          cumulativeAmount: cumulativeBefore,
+          commissionAmount: stakeAmount,
+          netPayoutAmount,
+          status: 'completed',
+          startedAt: cycle.startedAt,
+          expectedEndAt: cycle.expectedEndAt,
+          endedAt: new Date(),
+        },
+        { transaction },
+      );
+
+      await cycle.update(
+        {
+          status: 'terminee',
+          cumulativeAmount: cumulativeBefore,
+          endedAt: new Date(),
+        },
+        { transaction },
+      );
+
+      await models.Notification.create(
+        {
+          userId: cycle.userId,
+          type: 'cycle',
+          title: 'Reversement confirme',
+          message: `${netPayoutAmount} F ajoutes a votre solde disponible.`,
+        },
+        { transaction },
+      );
+
+      await writeAuditLog({
+        userId: null,
+        action: 'admin.tontine_cycle_closed',
+        entityType: 'tontineCycle',
+        entityId: cycle.id,
+        ipAddress: requestContext.ipAddress,
+        userAgent: requestContext.userAgent,
+        metadata: {
+          adminUsername: requestContext.adminUsername || null,
+          clientUserId: cycle.userId,
+          closureType: 'completed',
+          statusBefore,
+          cumulativeAmountBefore: cumulativeBefore,
+          netPayoutAmount,
+          bonusAmount: Number(commissionResult.bonusAmount || 0),
+          reserveAmount: Number(commissionResult.reserve?.initialReservedAmount || 0),
+          floatingAmount: Number(commissionResult.floatingAmount || 0),
+        },
+        transaction,
+      });
+    } else {
+      const netAmount = Math.max(cumulativeBefore - stakeAmount, 0);
+      const commissionResult = await createWithdrawalReserve({
+        transaction,
+        cycle,
+        userId: cycle.userId,
+        respected: false,
+        sourceAmount: netAmount,
+        initiatedByUserId: adminActor.initiatedByUserId,
+        initiatorType: adminActor.initiatorType,
+        requestContext,
+      });
+
+      await wallet.update(
+        {
+          availableBalance: Number(wallet.availableBalance || 0) + netAmount,
+          tontineBalance: 0,
+        },
+        { transaction },
+      );
+
+      await models.AvailableBalanceHistory.create(
+        {
+          userId: cycle.userId,
+          type: 'tontineEarlyStop',
+          amount: netAmount,
+          label: 'Arret anticipe tontine',
+          isCredit: true,
+        },
+        { transaction },
+      );
+
+      await models.TontineHistory.create(
+        {
+          userId: cycle.userId,
+          cycleId: cycle.id,
+          type: 'earlyStop',
+          amount: netAmount,
+          label: 'Arret anticipe',
+          note: null,
+          initiatedByUserId: adminActor.initiatedByUserId || cycle.userId,
+          initiatorType: adminActor.initiatorType,
+        },
+        { transaction },
+      );
+
+      await models.TontineArchive.create(
+        {
+          userId: cycle.userId,
+          stakeAmount,
+          targetAmount: stakeAmount * 31,
+          cumulativeAmount: cumulativeBefore,
+          commissionAmount: stakeAmount,
+          netPayoutAmount: netAmount,
+          status: 'stoppedEarly',
+          startedAt: cycle.startedAt,
+          expectedEndAt: cycle.expectedEndAt,
+          endedAt: new Date(),
+        },
+        { transaction },
+      );
+
+      await cycle.update(
+        {
+          status: 'arretee',
+          cumulativeAmount: cumulativeBefore,
+          endedAt: new Date(),
+        },
+        { transaction },
+      );
+
+      await models.Notification.create(
+        {
+          userId: cycle.userId,
+          type: 'cycle',
+          title: 'Tontine arretee',
+          message: `${netAmount} F reverses au solde disponible apres penalite.`,
+        },
+        { transaction },
+      );
+
+      await writeAuditLog({
+        userId: null,
+        action: 'admin.tontine_cycle_closed',
+        entityType: 'tontineCycle',
+        entityId: cycle.id,
+        ipAddress: requestContext.ipAddress,
+        userAgent: requestContext.userAgent,
+        metadata: {
+          adminUsername: requestContext.adminUsername || null,
+          clientUserId: cycle.userId,
+          closureType: 'stoppedEarly',
+          statusBefore,
+          cumulativeAmountBefore: cumulativeBefore,
+          netAmount,
+          penaltyAmount: stakeAmount,
+          reserveAmount: Number(commissionResult.reserve?.initialReservedAmount || 0),
+          floatingAmount: Number(commissionResult.floatingAmount || 0),
+          forfeitedBonusAmount: Number(commissionResult.bonusAmount || 0),
+        },
+        transaction,
+      });
+    }
+
+    cycle.user.wallet = wallet;
+  });
+
+  return serializeTontineCycleListItem(cycle);
+}
+
 async function startTontine(userId, stakeAmount, requestContext = {}) {
   const user = await models.User.findByPk(userId, {
     include: [
@@ -935,7 +1270,15 @@ async function getClientDetail(userId) {
     throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
   }
 
-  const [cycles, goals, withdrawals, balanceHistory, tontineHistory] =
+  const [
+    cycles,
+    goals,
+    withdrawals,
+    balanceHistory,
+    tontineHistory,
+    ongoingTontineAmount,
+    coffersAmount,
+  ] =
     await Promise.all([
       models.TontineCycle.findAll({
         where: { userId },
@@ -963,7 +1306,27 @@ async function getClientDetail(userId) {
         order: [['occurredAt', 'DESC']],
         limit: 10,
       }),
+      models.TontineCycle.sum('cumulativeAmount', {
+        where: {
+          userId,
+          status: {
+            [Op.in]: ONGOING_TONTINE_STATUSES,
+          },
+        },
+      }),
+      models.Goal.sum('currentAmount', {
+        where: {
+          userId,
+          status: ACTIVE_GOAL_STATUS,
+        },
+      }),
     ]);
+
+  const financialStats = computeClientFinancialStats({
+    availableBalance: client.wallet?.availableBalance,
+    ongoingTontineAmount,
+    coffersAmount,
+  });
 
   return {
     client: {
@@ -990,6 +1353,7 @@ async function getClientDetail(userId) {
           }
         : null,
     },
+    stats: financialStats,
     cycles: cycles.map((entry) => ({
       id: entry.id,
       stakeAmount: toNumber(entry.stakeAmount),
@@ -2317,6 +2681,7 @@ module.exports = {
   listTontines,
   getTontineCalendar,
   updateTontineCycle,
+  closeTontineCycle,
   startTontine,
   recordClientContribution,
   getClientDetail,
