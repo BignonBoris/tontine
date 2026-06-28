@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { X } from "lucide-vue-next";
+import {
+  Ban,
+  CheckCircle2,
+  Lock,
+  Loader2,
+  PencilLine,
+  X,
+} from "lucide-vue-next";
 import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import Card from "@/components/ui/card/Card.vue";
 import {
@@ -41,6 +48,7 @@ const cycleEditDialogOpen = ref(false);
 const editingCycleId = ref<string | null>(null);
 const editingCycleLabel = ref("");
 const isUpdatingCycle = ref(false);
+const closingCycleId = ref<string | null>(null);
 const cycleEditError = ref("");
 const cycleEditForm = reactive({
   stakeAmount: null as number | null,
@@ -81,6 +89,30 @@ const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.total /
 
 function isEditableTontineCycle(cycle: TontineCycleItem) {
   return ["nonConfiguree", "active"].includes(cycle.status) && cycle.cumulativeAmount <= 0;
+}
+
+function canCloseTontineCycle(cycle: TontineCycleItem) {
+  return ["active", "enAttenteValidationFin"].includes(cycle.status) && cycle.cumulativeAmount > 0;
+}
+
+function getTontineActionClasses(cycle: TontineCycleItem, action: "edit" | "close" | "lock") {
+  if (action === "edit") {
+    return "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50";
+  }
+
+  if (action === "close") {
+    return cycle.status === "enAttenteValidationFin"
+      ? "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+      : "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50";
+  }
+
+  return "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground";
+}
+
+function getCloseTontineActionLabel(cycle: TontineCycleItem) {
+  return cycle.status === "enAttenteValidationFin"
+    ? "Confirmer la cloture"
+    : "Cloturer la tontine";
 }
 
 function getCardCellClasses(status: CardCellStatus) {
@@ -264,6 +296,36 @@ async function handleUpdateCycle() {
   }
 }
 
+async function handleCloseTontineCycle(cycle: TontineCycleItem) {
+  if (closingCycleId.value || tontineStore.isLoading || !canCloseTontineCycle(cycle)) {
+    return;
+  }
+
+  const confirmMessage =
+    cycle.status === "enAttenteValidationFin"
+      ? `Confirmer le reversement et cloturer la tontine de ${cycle.client.displayName} ?`
+      : `Cloturer de facon anticipee la tontine de ${cycle.client.displayName} ? Les regles de penalite existantes s'appliqueront.`;
+
+  if (!window.confirm(confirmMessage)) {
+    return;
+  }
+
+  closingCycleId.value = cycle.id;
+  try {
+    await tontineStore.closeTontineCycle(cycle.id);
+
+    if (calendarDialogOpen.value && selectedTontinePreview.value?.id === cycle.id) {
+      closeTontineCalendar();
+    }
+
+    await fetchTontines(currentPage.value);
+  } catch (error) {
+    window.alert(getErrorMessage(error, "Cloture du cycle impossible."));
+  } finally {
+    closingCycleId.value = null;
+  }
+}
+
 function getStatusClass(status: string) {
   switch (status) {
     case 'active':
@@ -416,18 +478,43 @@ onMounted(fetchTontines);
                 <div class="flex flex-wrap gap-2">
                   <button
                     v-if="isEditableTontineCycle(tontine)"
-                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                    type="button"
+                    :class="getTontineActionClasses(tontine, 'edit')"
                     @click="openCycleEditDialog(tontine)"
+                    :title="'Modifier le cycle'"
+                    :aria-label="'Modifier le cycle'"
                   >
-                    Modifier
+                    <PencilLine class="h-4 w-4" />
+                    <span class="sr-only">Modifier le cycle</span>
                   </button>
-                  <span
-                    v-else
-                    class="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground"
-                    title="Ce cycle a deja commence"
+                  <button
+                    v-else-if="canCloseTontineCycle(tontine)"
+                    type="button"
+                    :class="getTontineActionClasses(tontine, 'close')"
+                    :disabled="closingCycleId === tontine.id || tontineStore.isLoading"
+                    @click="handleCloseTontineCycle(tontine)"
+                    :title="getCloseTontineActionLabel(tontine)"
+                    :aria-label="getCloseTontineActionLabel(tontine)"
                   >
-                    Verrouille
-                  </span>
+                    <Loader2
+                      v-if="closingCycleId === tontine.id"
+                      class="h-4 w-4 animate-spin"
+                    />
+                    <CheckCircle2 v-else-if="tontine.status === 'enAttenteValidationFin'" class="h-4 w-4" />
+                    <Ban v-else class="h-4 w-4" />
+                    <span class="sr-only">{{ getCloseTontineActionLabel(tontine) }}</span>
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    :class="getTontineActionClasses(tontine, 'lock')"
+                    disabled
+                    title="Ce cycle est verrouille"
+                    aria-label="Ce cycle est verrouille"
+                  >
+                    <Lock class="h-4 w-4" />
+                    <span class="sr-only">Ce cycle est verrouille</span>
+                  </button>
                 </div>
               </td>
             </tr>

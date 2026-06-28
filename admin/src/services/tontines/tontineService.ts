@@ -31,4 +31,10 @@ export const tontineService = {
       apiClient.patch(`/admin/tontines/${cycleId}`, payload)
     );
   },
+
+  closeCycle(cycleId: string) {
+    return unwrapEnvelope<TontineCycleItem>(
+      apiClient.post(`/admin/tontines/${cycleId}/close`)
+    );
+  },
 };

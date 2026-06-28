@@ -25,6 +25,7 @@ router.post('/clients/:userId/contributions', asyncHandler(controller.recordCont
 router.get('/tontines', asyncHandler(controller.tontines));
 router.get('/tontines/:cycleId/calendar', asyncHandler(controller.tontineCalendar));
 router.patch('/tontines/:cycleId', asyncHandler(controller.updateTontineCycle));
+router.post('/tontines/:cycleId/close', asyncHandler(controller.closeTontineCycle));
 router.patch('/clients/:userId/status', asyncHandler(controller.updateClientStatus));
 router.get('/agents', asyncHandler(controller.agents));
 router.patch('/agents/:agentId/status', asyncHandler(controller.updateAgentStatus));
