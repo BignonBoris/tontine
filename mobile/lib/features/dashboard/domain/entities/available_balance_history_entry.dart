@@ -3,6 +3,7 @@ enum AvailableBalanceHistoryType {
   tontineEarlyStop,
   goalFunding,
   tontineFunding,
+  tontineFundingReversal,
   withdrawalRequested,
   withdrawalCancelled,
 }

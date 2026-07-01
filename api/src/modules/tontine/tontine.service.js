@@ -9,6 +9,7 @@ const {
   createCycleCommissionSnapshot,
   createWithdrawalReserve,
   postDepositCommissions,
+  reverseCommissionCredits,
 } = require('../commission/commission.service');
 
 function ensureStakeMultiple(stakeAmount) {
@@ -99,14 +100,16 @@ async function appendAvailableHistory(
   amount,
   label,
   isCredit,
+  extra = {},
 ) {
-  await models.AvailableBalanceHistory.create(
+  return models.AvailableBalanceHistory.create(
     {
       userId,
       type,
       amount,
       label,
       isCredit,
+      ...extra,
     },
     { transaction },
   );
@@ -121,8 +124,9 @@ async function appendCycleHistory(
   label,
   note = null,
   actor = {},
+  extra = {},
 ) {
-  await models.TontineHistory.create(
+  return models.TontineHistory.create(
     {
       userId,
       cycleId,
@@ -132,15 +136,150 @@ async function appendCycleHistory(
       note,
       initiatedByUserId: actor.initiatedByUserId || null,
       initiatorType: actor.initiatorType || null,
+      ...extra,
     },
     { transaction },
   );
 }
 
 function resolveActorForUser(userId, requestContext = {}) {
+  const initiatorType = requestContext.initiatorType || 'client';
   return {
-    initiatedByUserId: requestContext.initiatedByUserId || userId,
-    initiatorType: requestContext.initiatorType || 'client',
+    initiatedByUserId:
+      requestContext.initiatedByUserId ||
+      (initiatorType === 'client' ? userId : null),
+    initiatorType,
+  };
+}
+
+async function findWalletFundingHistoryForDeposit(originalHistory, transaction) {
+  if (originalHistory.availableBalanceHistoryId) {
+    const linkedFundingHistory = await models.AvailableBalanceHistory.findOne({
+      where: {
+        id: originalHistory.availableBalanceHistoryId,
+        userId: originalHistory.userId,
+      },
+      transaction,
+    });
+
+    if (linkedFundingHistory) {
+      return linkedFundingHistory;
+    }
+  }
+
+  const occurredAt = originalHistory.occurredAt
+    ? new Date(originalHistory.occurredAt)
+    : null;
+  const timeWindow = occurredAt
+    ? {
+        [Op.between]: [
+          new Date(occurredAt.getTime() - 5 * 60 * 1000),
+          new Date(occurredAt.getTime() + 5 * 60 * 1000),
+        ],
+      }
+    : undefined;
+
+  return models.AvailableBalanceHistory.findOne({
+    where: {
+      userId: originalHistory.userId,
+      type: 'tontineFunding',
+      amount: Number(originalHistory.amount),
+      isCredit: false,
+      ...(timeWindow ? { occurredAt: timeWindow } : {}),
+    },
+    order: [['occurredAt', 'DESC']],
+    transaction,
+  });
+}
+
+async function reverseDepositCommissions({
+  transaction,
+  originalHistory,
+  reason,
+  requestContext = {},
+}) {
+  const candidateSourceIds = [];
+
+  if (originalHistory.linkedProvisioningId) {
+    candidateSourceIds.push(originalHistory.linkedProvisioningId);
+  }
+
+  if (originalHistory.initiatorType === 'agent' && !originalHistory.linkedProvisioningId) {
+    const provisioning = await models.Provisioning.findOne({
+      where: {
+        clientUserId: originalHistory.userId,
+        cycleId: originalHistory.cycleId,
+        amount: Number(originalHistory.amount),
+        status: 'validated',
+      },
+      order: [['validatedAt', 'DESC']],
+      transaction,
+    });
+
+    if (provisioning) {
+      candidateSourceIds.unshift(provisioning.id);
+    }
+  }
+
+  candidateSourceIds.push(originalHistory.id);
+
+  if (candidateSourceIds.length === 0) {
+    candidateSourceIds.push(originalHistory.cycleId);
+  }
+
+  const uniqueSourceIds = [...new Set(candidateSourceIds.filter(Boolean))];
+  for (const sourceId of uniqueSourceIds) {
+    const commissionReversal = await reverseCommissionCredits({
+      transaction,
+      sourceType: 'tontine_deposit',
+      sourceId,
+      initiatedByUserId: requestContext.initiatedByUserId || null,
+      initiatorType: requestContext.initiatorType || 'admin',
+      reason,
+      requestContext,
+    });
+
+    if (commissionReversal.reversedEntriesCount > 0) {
+      return {
+        ...commissionReversal,
+        sourceId,
+      };
+    }
+  }
+
+  const depositCount = await models.TontineHistory.count({
+    where: {
+      cycleId: originalHistory.cycleId,
+      type: 'deposit',
+    },
+    transaction,
+  });
+
+  if (depositCount === 1) {
+    const cycleCommissionReversal = await reverseCommissionCredits({
+      transaction,
+      sourceType: 'tontine_deposit',
+      sourceId: originalHistory.cycleId,
+      initiatedByUserId: requestContext.initiatedByUserId || null,
+      initiatorType: requestContext.initiatorType || 'admin',
+      reason,
+      requestContext,
+    });
+
+    if (cycleCommissionReversal.reversedEntriesCount > 0) {
+      return {
+        ...cycleCommissionReversal,
+        sourceId: originalHistory.cycleId,
+      };
+    }
+  }
+
+  return {
+    reversedEntriesCount: 0,
+    totalReversedAmount: 0,
+    reversalEntries: [],
+    sourceId: uniqueSourceIds[0] || originalHistory.id || originalHistory.cycleId || null,
+    skipped: true,
   };
 }
 
@@ -277,14 +416,6 @@ async function depositToCycle(
         },
         { transaction },
       );
-      await appendAvailableHistory(
-        transaction,
-        userId,
-        'tontineFunding',
-        amount,
-        'Retour vers tontine',
-        false,
-      );
     }
 
     await cycle.update(
@@ -295,7 +426,20 @@ async function depositToCycle(
       { transaction },
     );
     await wallet.update({ tontineBalance: nextAmount }, { transaction });
-    await appendCycleHistory(
+
+    const availableHistory =
+      source === 'wallet'
+        ? await appendAvailableHistory(
+            transaction,
+            userId,
+            'tontineFunding',
+            amount,
+            'Retour vers tontine',
+            false,
+          )
+        : null;
+
+    const cycleHistory = await appendCycleHistory(
       transaction,
       userId,
       cycle.id,
@@ -304,6 +448,11 @@ async function depositToCycle(
       source === 'wallet' ? 'Versement depuis disponible' : 'Versement tontine',
       null,
       actor,
+      {
+        paymentSource: source,
+        linkedProvisioningId: requestContext.provisioningId || null,
+        availableBalanceHistoryId: availableHistory?.id || null,
+      },
     );
 
     if (nextStatus === 'enAttenteValidationFin') {
@@ -350,19 +499,35 @@ async function depositToCycle(
       transaction,
     });
 
+    const commissionSourceId = requestContext.provisioningId || cycleHistory.id;
     await postDepositCommissions({
       transaction,
       cycle,
       userId,
       amount,
       sourceType: 'tontine_deposit',
-      sourceId: requestContext.provisioningId || cycle.id,
+      sourceId: commissionSourceId,
       initiatedByUserId: actor.initiatedByUserId,
       initiatorType: actor.initiatorType,
       requestContext,
     });
 
-    return serializeCycle(cycle);
+    if (requestContext.provisioningId) {
+      await models.TontineHistory.update(
+        {
+          linkedProvisioningId: requestContext.provisioningId,
+        },
+        {
+          where: { id: cycleHistory.id },
+          transaction,
+        },
+      );
+    }
+
+    return {
+      ...serializeCycle(cycle),
+      historyId: cycleHistory.id,
+    };
   };
 
   if (requestContext.transaction) {
@@ -370,6 +535,252 @@ async function depositToCycle(
   }
 
   return sequelize.transaction(executeDeposit);
+}
+
+function resolveDepositPaymentSource(originalHistory) {
+  if (originalHistory.paymentSource) {
+    return originalHistory.paymentSource;
+  }
+
+  if (
+    originalHistory.availableBalanceHistoryId ||
+    String(originalHistory.label || '').includes('depuis disponible')
+  ) {
+    return 'wallet';
+  }
+
+  return 'external';
+}
+
+async function reverseTontineDepositByAdmin(
+  userId,
+  historyId,
+  payload = {},
+  requestContext = {},
+) {
+  const reason = String(payload?.reason || '').trim();
+  if (!reason) {
+    throw new AppError('Le motif de correction est requis.', 422);
+  }
+
+  return sequelize.transaction(async (transaction) => {
+    const client = await models.User.findByPk(userId, {
+      include: [
+        {
+          model: models.AgentProfile,
+          as: 'agentProfile',
+          required: false,
+        },
+      ],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!client) {
+      throw new AppError('Client introuvable.', 404);
+    }
+    if (client.agentProfile) {
+      throw new AppError("Cette fiche correspond a un agent, pas a un client.", 422);
+    }
+
+    const originalHistory = await models.TontineHistory.findOne({
+      where: {
+        id: historyId,
+        userId,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!originalHistory) {
+      throw new AppError('Operation tontine introuvable.', 404);
+    }
+    if (originalHistory.type !== 'deposit') {
+      throw new AppError(
+        "Seules les cotisations tontine peuvent etre annulees automatiquement.",
+        409,
+      );
+    }
+    if (originalHistory.reversalOfHistoryId) {
+      throw new AppError('Cette operation est deja une annulation.', 409);
+    }
+
+    const reversalExists = await models.TontineHistory.findOne({
+      where: {
+        reversalOfHistoryId: originalHistory.id,
+      },
+      transaction,
+    });
+
+    if (reversalExists) {
+      throw new AppError('Cette operation a deja ete annulee.', 409);
+    }
+
+    const cycle = await models.TontineCycle.findOne({
+      where: {
+        id: originalHistory.cycleId,
+        userId,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!cycle) {
+      throw new AppError('Cycle de tontine introuvable.', 404);
+    }
+    if (!['active', 'enAttenteValidationFin'].includes(cycle.status)) {
+      throw new AppError(
+        "Cette operation ne peut plus etre annulee car le cycle n'est plus ouvert.",
+        409,
+      );
+    }
+
+    const amount = Number(originalHistory.amount);
+    const currentAmount = Number(cycle.cumulativeAmount);
+    if (currentAmount < amount) {
+      throw new AppError(
+        'Le montant a annuler depasse le cumul actuel du cycle.',
+        409,
+      );
+    }
+
+    const paymentSource = resolveDepositPaymentSource(originalHistory);
+    const wallet = await models.Wallet.findOne({
+      where: { userId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!wallet) {
+      throw new AppError('Portefeuille introuvable.', 404);
+    }
+
+    const targetAmount = Number(cycle.stakeAmount) * 31;
+    const nextAmount = currentAmount - amount;
+    const nextStatus =
+      nextAmount > 0 && nextAmount >= targetAmount
+        ? 'enAttenteValidationFin'
+        : 'active';
+
+    let linkedFundingHistory = null;
+    if (paymentSource === 'wallet') {
+      linkedFundingHistory = await findWalletFundingHistoryForDeposit(
+        originalHistory,
+        transaction,
+      );
+
+      if (!linkedFundingHistory) {
+        throw new AppError(
+          "Impossible de retrouver l'ecriture de solde liee a cette cotisation.",
+          409,
+        );
+      }
+
+      await wallet.update(
+        {
+          availableBalance: Number(wallet.availableBalance) + amount,
+          tontineBalance: nextAmount,
+        },
+        { transaction },
+      );
+
+      await appendAvailableHistory(
+        transaction,
+        userId,
+        'tontineFundingReversal',
+        amount,
+        'Annulation versement tontine',
+        true,
+        {
+          reversalOfHistoryId: linkedFundingHistory.id,
+        },
+      );
+    } else {
+      await wallet.update({ tontineBalance: nextAmount }, { transaction });
+    }
+
+    await cycle.update(
+      {
+        cumulativeAmount: nextAmount,
+        status: nextStatus,
+      },
+      { transaction },
+    );
+
+    const reversalHistory = await appendCycleHistory(
+      transaction,
+      userId,
+      cycle.id,
+      'depositReversal',
+      amount,
+      'Annulation cotisation',
+      reason,
+      {
+        initiatedByUserId: requestContext.initiatedByUserId || null,
+        initiatorType: requestContext.initiatorType || 'admin',
+      },
+      {
+        paymentSource,
+        linkedProvisioningId: originalHistory.linkedProvisioningId || null,
+        availableBalanceHistoryId: linkedFundingHistory?.id || null,
+        reversalOfHistoryId: originalHistory.id,
+      },
+    );
+
+    const commissionReversal = await reverseDepositCommissions({
+      transaction,
+      originalHistory,
+      reason,
+      requestContext: {
+        initiatedByUserId: requestContext.initiatedByUserId || null,
+        initiatorType: requestContext.initiatorType || 'admin',
+        ipAddress: requestContext.ipAddress,
+        userAgent: requestContext.userAgent,
+      },
+    });
+
+    await appendNotification(
+      transaction,
+      userId,
+      'deposit',
+      'Cotisation annulee',
+      `${amount} F ont ete annules par un administrateur.`,
+    );
+
+    await writeAuditLog({
+      userId: requestContext.initiatedByUserId || null,
+      action: 'admin.tontine_deposit_reversed',
+      entityType: 'tontineCycle',
+      entityId: cycle.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        clientUserId: userId,
+        cycleId: cycle.id,
+        originalHistoryId: originalHistory.id,
+        reversalHistoryId: reversalHistory.id,
+        amount,
+        reason,
+        paymentSource,
+        commissionSourceId: commissionReversal.sourceId,
+        reversedCommissionEntriesCount:
+          commissionReversal.reversedEntriesCount,
+        reversedCommissionAmount: commissionReversal.totalReversedAmount,
+      },
+      transaction,
+    });
+
+    return {
+      cycle: serializeCycle(cycle),
+      reversal: {
+        id: reversalHistory.id,
+        amount,
+        reason,
+        occurredAt: reversalHistory.occurredAt,
+      },
+    };
+  });
 }
 
 async function reverseProvisioningDepositOnCycle({
@@ -701,6 +1112,7 @@ module.exports = {
   depositToCycle,
   hasActiveOrAwaitingCycle,
   getOpenCycleForFunding,
+  reverseTontineDepositByAdmin,
   reverseProvisioningDepositOnCycle,
   confirmCyclePayout,
   stopCycleEarly,

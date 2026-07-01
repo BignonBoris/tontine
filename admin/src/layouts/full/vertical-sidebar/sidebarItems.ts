@@ -55,6 +55,12 @@ const sidebarItem: menu[] = [
 
   },
   {
+    title: "Operations",
+    icon: "receipt-2-linear",
+    to: "/operations",
+    subCaption: "Depots et retraits",
+  },
+  {
     title: "Clients",
     icon: "users-group-rounded-linear",
     to: "/clients",
