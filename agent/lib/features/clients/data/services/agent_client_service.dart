@@ -36,19 +36,22 @@ class AgentClientService {
 
   Future<AgentClient> createClient({
     required String displayName,
-    required String phoneNumber,
+    String? phoneNumber,
     required String address,
     required double stakeAmount,
     double initialDeposit = 0,
   }) async {
+    final normalizedPhone = phoneNumber == null
+        ? ''
+        : phoneNumber.replaceAll(RegExp(r'\D'), '');
     final data = await _apiClient.post(
           '/agent/clients',
           body: {
             'displayName': displayName,
-            'phoneNumber': phoneNumber.replaceAll(RegExp(r'\D'), ''),
             'address': address,
             'stakeAmount': stakeAmount,
             'initialDeposit': initialDeposit,
+            if (normalizedPhone.isNotEmpty) 'phoneNumber': normalizedPhone,
           },
         )
         as Map<dynamic, dynamic>;
