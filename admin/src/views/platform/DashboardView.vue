@@ -239,7 +239,7 @@ onMounted(async () => {
                     <div class="flex items-start justify-between gap-3">
                       <div>
                         <p class="font-medium">{{ item.reference }}</p>
-                        <p class="text-sm text-muted-foreground">{{ item.client.displayName }} · {{ item.client.phoneNumber }}</p>
+                        <p class="text-sm text-muted-foreground">{{ item.client.displayName }} · {{ item.client.phoneNumber || "Non renseigne" }}</p>
                       </div>
                       <span class="text-sm font-medium">{{ formatCurrency(item.amount) }} F</span>
                     </div>

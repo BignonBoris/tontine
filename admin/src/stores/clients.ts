@@ -24,7 +24,7 @@ export const useClientStore = defineStore("clients", () => {
 
   async function createClient(payload: {
     displayName: string;
-    phoneNumber: string;
+    phoneNumber?: string | null;
     address: string;
     stakeAmount: number;
     agentId?: string | null;

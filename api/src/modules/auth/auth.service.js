@@ -12,13 +12,17 @@ function normalizePhone(phoneNumber) {
 }
 
 function displayPhone(phoneNumber) {
-  if (phoneNumber.length !== 10) {
-    return `+229 ${phoneNumber}`;
+  const normalizedPhone = String(phoneNumber || '').trim();
+  if (!normalizedPhone) {
+    return 'Non renseigne';
   }
-  return `+229 ${phoneNumber.slice(0, 2)} ${phoneNumber.slice(
+  if (normalizedPhone.length !== 10) {
+    return `+229 ${normalizedPhone}`;
+  }
+  return `+229 ${normalizedPhone.slice(0, 2)} ${normalizedPhone.slice(
     2,
     4,
-  )} ${phoneNumber.slice(4, 6)} ${phoneNumber.slice(6, 8)} ${phoneNumber.slice(
+  )} ${normalizedPhone.slice(4, 6)} ${normalizedPhone.slice(6, 8)} ${normalizedPhone.slice(
     8,
     10,
   )}`;

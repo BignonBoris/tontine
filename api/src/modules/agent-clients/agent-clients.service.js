@@ -155,7 +155,7 @@ async function getMyClientDetail(agentProfileId, clientId) {
 
 async function createClient(agentProfile, payload, requestContext = {}) {
   const displayName = normalizeDisplayName(payload.displayName);
-  const rawPhoneNumber = String(payload.phoneNumber || '').trim();
+  const rawPhoneNumber = String(payload.phoneNumber ?? '').trim();
   const address = String(payload.address || '').trim();
   const stakeAmount = Number(payload.stakeAmount);
   const initialDeposit = payload.initialDeposit == null
@@ -165,8 +165,8 @@ async function createClient(agentProfile, payload, requestContext = {}) {
   if (!isValidDisplayName(displayName)) {
     throw new AppError('Le nom du client est requis.', 422);
   }
-  const phoneNumber = normalizePhone(rawPhoneNumber);
-  if (phoneNumber.length !== 10) {
+  const phoneNumber = rawPhoneNumber ? normalizePhone(rawPhoneNumber) : null;
+  if (rawPhoneNumber && phoneNumber.length !== 10) {
     throw new AppError('Le numero du client est invalide.', 422);
   }
   if (!address || address.length < 3) {
@@ -189,9 +189,11 @@ async function createClient(agentProfile, payload, requestContext = {}) {
     );
   }
 
-  const existingUser = await models.User.findOne({ where: { phoneNumber } });
-  if (existingUser) {
-    throw new AppError('Un client existe deja avec ce numero.', 409);
+  if (phoneNumber) {
+    const existingUser = await models.User.findOne({ where: { phoneNumber } });
+    if (existingUser) {
+      throw new AppError('Un client existe deja avec ce numero.', 409);
+    }
   }
 
   const client = await sequelize.transaction(async (transaction) => {
