@@ -1,3 +1,4 @@
+const { DataTypes } = require('sequelize');
 const { AVAILABLE_BALANCE_HISTORY_TYPES } = require('../../common/constants/enums');
 
 async function tableExists(queryInterface, tableName) {
@@ -21,12 +22,18 @@ async function ensureAvailableBalanceHistoryCompatibility(sequelize) {
     await sequelize.query(
       `ALTER TABLE available_balance_histories ADD \`type\` ENUM(${AVAILABLE_BALANCE_HISTORY_TYPES.map((value) => `'${value}'`).join(', ')}) NOT NULL;`,
     );
-    return;
+  } else {
+    await sequelize.query(
+      `ALTER TABLE available_balance_histories MODIFY \`type\` ENUM(${AVAILABLE_BALANCE_HISTORY_TYPES.map((value) => `'${value}'`).join(', ')}) NOT NULL;`,
+    );
   }
 
-  await sequelize.query(
-    `ALTER TABLE available_balance_histories MODIFY \`type\` ENUM(${AVAILABLE_BALANCE_HISTORY_TYPES.map((value) => `'${value}'`).join(', ')}) NOT NULL;`,
-  );
+  if (!columns.reversal_of_history_id) {
+    await queryInterface.addColumn('available_balance_histories', 'reversal_of_history_id', {
+      type: DataTypes.UUID,
+      allowNull: true,
+    });
+  }
 }
 
 module.exports = { ensureAvailableBalanceHistoryCompatibility };

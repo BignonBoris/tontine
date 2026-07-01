@@ -10,6 +10,7 @@ const GOAL_STATUSES = ['active', 'closed'];
 const TONTINE_HISTORY_TYPES = [
   'configuration',
   'deposit',
+  'depositReversal',
   'cycleCompleted',
   'payoutConfirmed',
   'earlyStop',
@@ -25,6 +26,7 @@ const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'withdrawalPaid',
   'goalFunding',
   'tontineFunding',
+  'tontineFundingReversal',
   'groupContribution',
 ];
 const APP_NOTIFICATION_TYPES = [

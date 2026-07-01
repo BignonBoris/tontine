@@ -22,6 +22,22 @@ const TontineHistory = sequelize.define(
       type: DataTypes.ENUM(...TONTINE_HISTORY_TYPES),
       allowNull: false,
     },
+    paymentSource: {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    },
+    linkedProvisioningId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    availableBalanceHistoryId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    reversalOfHistoryId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
     amount: {
       type: DataTypes.DECIMAL(18, 2),
       allowNull: false,
@@ -61,6 +77,9 @@ const TontineHistory = sequelize.define(
       { fields: ['cycle_id', 'occurred_at'] },
       { fields: ['user_id', 'type'] },
       { fields: ['initiated_by_user_id', 'occurred_at'] },
+      { fields: ['linked_provisioning_id'] },
+      { fields: ['available_balance_history_id'] },
+      { fields: ['reversal_of_history_id'] },
     ],
   },
 );

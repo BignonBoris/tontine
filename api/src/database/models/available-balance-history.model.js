@@ -38,6 +38,10 @@ const AvailableBalanceHistory = sequelize.define(
       type: DataTypes.BOOLEAN,
       allowNull: false,
     },
+    reversalOfHistoryId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
     occurredAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -49,6 +53,7 @@ const AvailableBalanceHistory = sequelize.define(
     indexes: [
       { fields: ['user_id', 'occurred_at'] },
       { fields: ['user_id', 'type'] },
+      { fields: ['reversal_of_history_id'] },
     ],
   },
 );

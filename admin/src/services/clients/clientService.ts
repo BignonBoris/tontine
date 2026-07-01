@@ -16,6 +16,10 @@ export interface ClientUpdatePayload {
   agentId?: string | null;
 }
 
+export interface ReverseContributionPayload {
+  reason: string;
+}
+
 export const clientService = {
   list(params: ClientListParams = {}) {
     return unwrapEnvelope<PaginatedResponse<ClientItem>>(
@@ -50,6 +54,19 @@ export const clientService = {
   recordContribution(userId: string, amount: number) {
     return unwrapEnvelope<ClientDetail>(
       apiClient.post(`/admin/clients/${userId}/contributions`, { amount })
+    );
+  },
+
+  reverseContribution(
+    userId: string,
+    historyId: string,
+    payload: ReverseContributionPayload
+  ) {
+    return unwrapEnvelope<ClientDetail>(
+      apiClient.post(
+        `/admin/clients/${userId}/contributions/${historyId}/reverse`,
+        payload
+      )
     );
   },
 

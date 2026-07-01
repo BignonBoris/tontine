@@ -16,12 +16,15 @@ router.patch('/marketplace/offers/:offerId/status', asyncHandler(controller.upda
 router.get('/marketplace/orders', asyncHandler(controller.marketplaceOrders));
 router.get('/marketplace/goals', asyncHandler(controller.marketplaceGoals));
 router.get('/anomalies', asyncHandler(controller.anomalies));
+router.get('/operations', asyncHandler(controller.operations));
+router.post('/operations/withdrawals', asyncHandler(controller.recordWithdrawal));
 router.get('/clients', asyncHandler(controller.clients));
 router.post('/clients', asyncHandler(controller.createClient));
 router.get('/clients/:userId', asyncHandler(controller.clientDetail));
 router.patch('/clients/:userId', asyncHandler(controller.updateClient));
 router.post('/clients/:userId/start-tontine', asyncHandler(controller.startTontine));
 router.post('/clients/:userId/contributions', asyncHandler(controller.recordContribution));
+router.post('/clients/:userId/contributions/:historyId/reverse', asyncHandler(controller.reverseContribution));
 router.get('/tontines', asyncHandler(controller.tontines));
 router.get('/tontines/:cycleId/calendar', asyncHandler(controller.tontineCalendar));
 router.patch('/tontines/:cycleId', asyncHandler(controller.updateTontineCycle));
