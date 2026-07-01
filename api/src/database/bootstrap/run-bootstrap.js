@@ -10,6 +10,9 @@ const { ensureWalletCompatibility } = require('./wallet.bootstrap');
 const {
   ensureAvailableBalanceHistoryCompatibility,
 } = require('./available-balance-history.bootstrap');
+const {
+  ensureTontineHistoryCompatibility,
+} = require('./tontine-history.bootstrap');
 const { ensureCommissionCompatibility } = require('./commission.bootstrap');
 const { ensureMarketOfferCompatibility } = require('./market-offer.bootstrap');
 const { ensureAgentGroupCompatibility } = require('./agent-group.bootstrap');
@@ -30,6 +33,7 @@ async function runBootstrap(sequelize) {
   await ensureUserPreferenceCompatibility(sequelize);
   await ensureWalletCompatibility(sequelize);
   await ensureAvailableBalanceHistoryCompatibility(sequelize);
+  await ensureTontineHistoryCompatibility(sequelize);
   await ensureGoalCompatibility(sequelize);
   await ensureCommissionCompatibility(sequelize, models);
   await ensureMarketOfferCompatibility(sequelize);

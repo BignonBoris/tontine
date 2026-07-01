@@ -135,6 +135,38 @@ async function recordContribution(req, res) {
   return ok(res, data, 'Cotisation enregistree avec succes.', 201);
 }
 
+async function operations(req, res) {
+  const data = await service.listOperations(req.query);
+  return ok(res, data, 'Operations chargees.');
+}
+
+async function recordWithdrawal(req, res) {
+  const data = await service.recordClientWithdrawal(
+    req.body.userId,
+    req.body.amount,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait enregistre avec succes.', 201);
+}
+
+async function reverseContribution(req, res) {
+  const data = await service.reverseClientContribution(
+    req.params.userId,
+    req.params.historyId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Cotisation annulee avec succes.');
+}
+
 async function updateClientStatus(req, res) {
   const data = await service.updateClientStatus(req.params.userId, req.body);
   return ok(res, data, 'Statut client mis a jour.');
@@ -210,12 +242,15 @@ module.exports = {
   createClient,
   updateClient,
   clientDetail,
+  operations,
   tontines,
   tontineCalendar,
   updateTontineCycle,
   closeTontineCycle,
   startTontine,
   recordContribution,
+  recordWithdrawal,
+  reverseContribution,
   updateClientStatus,
   agents,
   updateAgentStatus,

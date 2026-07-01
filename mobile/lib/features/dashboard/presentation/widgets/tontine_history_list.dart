@@ -102,6 +102,8 @@ class TontineHistoryList extends StatelessWidget {
         return Icons.tune_rounded;
       case TontineHistoryType.deposit:
         return Icons.add_circle_outline_rounded;
+      case TontineHistoryType.depositReversal:
+        return Icons.undo_rounded;
       case TontineHistoryType.cycleCompleted:
         return Icons.flag_circle_rounded;
       case TontineHistoryType.payoutConfirmed:
@@ -118,6 +120,8 @@ class TontineHistoryList extends StatelessWidget {
         return AppTheme.primaryColor;
       case TontineHistoryType.deposit:
         return AppTheme.secondaryColor;
+      case TontineHistoryType.depositReversal:
+        return AppTheme.errorColor;
       case TontineHistoryType.cycleCompleted:
         return AppTheme.accentColor;
       case TontineHistoryType.payoutConfirmed:

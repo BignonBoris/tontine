@@ -5,6 +5,7 @@ import type { ClientItem } from "@/types/platform";
 import {
   clientService,
   type ClientListParams,
+  type ReverseContributionPayload,
   type ClientUpdatePayload,
 } from "@/services/clients/clientService";
 
@@ -68,6 +69,24 @@ export const useClientStore = defineStore("clients", () => {
     }
   }
 
+  async function reverseContribution(
+    userId: string,
+    historyId: string,
+    payload: ReverseContributionPayload,
+  ) {
+    isLoading.value = true;
+    try {
+      const result = await clientService.reverseContribution(
+        userId,
+        historyId,
+        payload,
+      );
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     collection,
     isLoading,
@@ -76,5 +95,6 @@ export const useClientStore = defineStore("clients", () => {
     updateClient,
     startTontine,
     recordContribution,
+    reverseContribution,
   };
 });

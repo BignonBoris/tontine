@@ -311,6 +311,9 @@ export interface ClientDetail {
     amount: number;
     label: string;
     isCredit: boolean;
+    reversalOfHistoryId: string | null;
+    isReversal: boolean;
+    isReversed: boolean;
     occurredAt: string;
   }>;
   tontineHistory: Array<{
@@ -319,6 +322,13 @@ export interface ClientDetail {
     amount: number;
     label: string;
     note: string | null;
+    cycleId: string | null;
+    paymentSource: string | null;
+    linkedProvisioningId: string | null;
+    availableBalanceHistoryId: string | null;
+    reversalOfHistoryId: string | null;
+    isReversal: boolean;
+    isReversed: boolean;
     occurredAt: string;
   }>;
 }
@@ -438,6 +448,41 @@ export interface WithdrawalDetail {
       phoneNumber: string;
     } | null;
   }>;
+}
+
+export interface OperationItem {
+  id: string;
+  type: "deposit" | "depositReversal" | "withdrawal";
+  reference: string | null;
+  label: string;
+  note: string | null;
+  amount: number;
+  status: string;
+  occurredAt: string;
+  initiatorType: string | null;
+  reversalOfHistoryId: string | null;
+  isReversal: boolean;
+  isReversed: boolean;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string | null;
+  } | null;
+}
+
+export interface OperationListResponse {
+  items: OperationItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  totals: {
+    totalDeposited: number;
+    totalWithdrawn: number;
+    totalCash: number;
+    totalCount: number;
+  };
 }
 
 export interface TontineCycleItem {

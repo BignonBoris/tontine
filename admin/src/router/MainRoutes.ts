@@ -19,6 +19,11 @@ const MainRoutes = [
         component: () => import("../views/platform/DashboardView.vue"),
       },
       {
+        name: "Operations",
+        path: "/operations",
+        component: () => import("../views/platform/OperationsView.vue"),
+      },
+      {
         name: 'Clients',
         path: '/clients',
         component: () => import('../views/platform/ClientsView.vue')

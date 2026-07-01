@@ -24,10 +24,14 @@ const {
   configureStake,
   depositToCycle,
   hasActiveOrAwaitingCycle,
+  reverseTontineDepositByAdmin,
 } = require('../tontine/tontine.service');
 const {
   createWithdrawalReserve,
 } = require('../commission/commission.service');
+const {
+  createWithdrawal: createClientWithdrawal,
+} = require('../withdrawals/withdrawals.service');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 
 const ONGOING_TONTINE_STATUSES = ['active', 'enAttenteValidationFin'];
@@ -1259,6 +1263,51 @@ async function recordClientContribution(userId, amount, requestContext = {}) {
   return getClientDetail(client.id);
 }
 
+async function recordClientWithdrawal(userId, amount, requestContext = {}) {
+  const normalizedAmount = Number(amount);
+
+  if (
+    !normalizedAmount ||
+    normalizedAmount <= 0 ||
+    normalizedAmount % FINANCIAL_AMOUNT_STEP !== 0
+  ) {
+    throw new AppError(
+      `Le montant du retrait doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+
+  const withdrawal = await createClientWithdrawal(
+    userId,
+    { amount: normalizedAmount },
+    {
+      ...requestContext,
+      initiatedByUserId: null,
+      initiatorType: 'admin',
+    },
+  );
+
+  return {
+    withdrawal,
+    client: await getClientDetail(userId),
+  };
+}
+
+async function reverseClientContribution(userId, historyId, payload, requestContext = {}) {
+  await reverseTontineDepositByAdmin(
+    userId,
+    historyId,
+    payload,
+    {
+      ...requestContext,
+      initiatedByUserId: null,
+      initiatorType: 'admin',
+    },
+  );
+
+  return getClientDetail(userId);
+}
+
 async function getClientDetail(userId) {
   const client = await models.User.findByPk(userId, {
     include: [
@@ -1332,6 +1381,16 @@ async function getClientDetail(userId) {
     ongoingTontineAmount,
     coffersAmount,
   });
+  const reversedTontineHistoryIds = new Set(
+    tontineHistory
+      .filter((entry) => entry.reversalOfHistoryId)
+      .map((entry) => entry.reversalOfHistoryId),
+  );
+  const reversedBalanceHistoryIds = new Set(
+    balanceHistory
+      .filter((entry) => entry.reversalOfHistoryId)
+      .map((entry) => entry.reversalOfHistoryId),
+  );
 
   return {
     client: {
@@ -1404,6 +1463,9 @@ async function getClientDetail(userId) {
       amount: toNumber(entry.amount),
       label: entry.label,
       isCredit: entry.isCredit,
+      reversalOfHistoryId: entry.reversalOfHistoryId || null,
+      isReversal: Boolean(entry.reversalOfHistoryId),
+      isReversed: reversedBalanceHistoryIds.has(entry.id),
       occurredAt: entry.occurredAt,
     })),
     tontineHistory: tontineHistory.map((entry) => ({
@@ -1412,6 +1474,13 @@ async function getClientDetail(userId) {
       amount: toNumber(entry.amount),
       label: entry.label,
       note: entry.note,
+      cycleId: entry.cycleId,
+      paymentSource: entry.paymentSource || null,
+      linkedProvisioningId: entry.linkedProvisioningId || null,
+      availableBalanceHistoryId: entry.availableBalanceHistoryId || null,
+      reversalOfHistoryId: entry.reversalOfHistoryId || null,
+      isReversal: Boolean(entry.reversalOfHistoryId),
+      isReversed: reversedTontineHistoryIds.has(entry.id),
       occurredAt: entry.occurredAt,
     })),
   };
@@ -1814,6 +1883,260 @@ async function reverseProvisioningForAdmin(
   requestContext = {},
 ) {
   return reverseProvisioningByAdmin(provisioningId, payload, requestContext);
+}
+
+function parseOperationDate(value, endOfDay = false) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  const dateValue = rawValue.includes('T')
+    ? new Date(rawValue)
+    : new Date(`${rawValue}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
+
+  if (Number.isNaN(dateValue.getTime())) {
+    return null;
+  }
+
+  return dateValue;
+}
+
+function buildOperationClientWhere(search) {
+  const normalizedSearch = String(search || '').trim();
+  if (!normalizedSearch) {
+    return undefined;
+  }
+
+  const like = `%${normalizedSearch.toLowerCase()}%`;
+  return {
+    [Op.or]: [
+      where(fn('LOWER', col('user.display_name')), {
+        [Op.like]: like,
+      }),
+      where(fn('LOWER', col('user.phone_number')), {
+        [Op.like]: like,
+      }),
+    ],
+  };
+}
+
+function buildOperationDateWhere(fieldName, dateFrom, dateTo) {
+  const whereClause = {};
+  const fromDate = parseOperationDate(dateFrom, false);
+  const toDate = parseOperationDate(dateTo, true);
+
+  if (fromDate) {
+    whereClause[Op.gte] = fromDate;
+  }
+  if (toDate) {
+    whereClause[Op.lte] = toDate;
+  }
+
+  return Object.keys(whereClause).length ? { [fieldName]: whereClause } : {};
+}
+
+function buildWithdrawalOperationDateWhere(dateFrom, dateTo) {
+  const branches = [];
+  const requestedWhere = buildOperationDateWhere('requestedAt', dateFrom, dateTo);
+  if (Object.keys(requestedWhere).length) {
+    branches.push({
+      status: 'requested',
+      ...requestedWhere,
+    });
+  }
+
+  const paidWhere = buildOperationDateWhere('paidAt', dateFrom, dateTo);
+  if (Object.keys(paidWhere).length) {
+    branches.push({
+      status: 'paid',
+      ...paidWhere,
+    });
+  }
+
+  return branches.length ? { [Op.or]: branches } : {};
+}
+
+function isOperationWithinDateRange(operation, dateFrom, dateTo) {
+  const fromDate = parseOperationDate(dateFrom, false);
+  const toDate = parseOperationDate(dateTo, true);
+  if (!fromDate && !toDate) {
+    return true;
+  }
+
+  const operationDate = new Date(operation.occurredAt);
+  if (Number.isNaN(operationDate.getTime())) {
+    return false;
+  }
+
+  if (fromDate && operationDate < fromDate) {
+    return false;
+  }
+
+  if (toDate && operationDate > toDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function serializeDepositOperation(entry, reversedHistoryIds = new Set()) {
+  const isReversal = Boolean(entry.reversalOfHistoryId);
+  const isReversed = !isReversal && reversedHistoryIds.has(entry.id);
+
+  return {
+    id: entry.id,
+    type: entry.type,
+    reference: entry.id,
+    label: entry.label,
+    note: entry.note || null,
+    amount: toNumber(entry.amount),
+    status: isReversal || isReversed ? 'reversed' : 'posted',
+    occurredAt: entry.occurredAt,
+    initiatorType: entry.initiatorType || null,
+    reversalOfHistoryId: entry.reversalOfHistoryId || null,
+    isReversal,
+    isReversed,
+    client: entry.user
+      ? {
+          id: entry.user.id,
+          displayName: entry.user.displayName,
+          phoneNumber: entry.user.phoneNumber,
+        }
+      : null,
+  };
+}
+
+function serializeWithdrawalOperation(entry) {
+  const occurredAt =
+    entry.status === 'paid'
+      ? entry.paidAt || entry.requestedAt
+      : entry.status === 'cancelled'
+        ? entry.cancelledAt || entry.requestedAt
+        : entry.requestedAt;
+
+  return {
+    id: entry.id,
+    type: 'withdrawal',
+    reference: entry.reference,
+    label: `Retrait ${entry.reference}`,
+    note: entry.cancellationReason || entry.notes || null,
+    amount: toNumber(entry.amount),
+    status: entry.status,
+    occurredAt,
+    initiatorType: entry.initiatorType || null,
+    reversalOfHistoryId: null,
+    isReversal: false,
+    isReversed: false,
+    client: entry.user
+      ? {
+          id: entry.user.id,
+          displayName: entry.user.displayName,
+          phoneNumber: entry.user.phoneNumber,
+        }
+      : null,
+  };
+}
+
+async function listOperations(query = {}) {
+  const { page, pageSize, offset, limit } = parsePagination(query);
+  const operationType = String(query.type || 'all').trim().toLowerCase();
+  const clientSearch = String(query.clientSearch || query.search || '').trim();
+  const dateFrom = query.dateFrom || query.fromDate || query.from || '';
+  const dateTo = query.dateTo || query.toDate || query.to || '';
+
+  const clientWhere = buildOperationClientWhere(clientSearch);
+  const depositWhere = {
+    ...buildOperationDateWhere('occurredAt', dateFrom, dateTo),
+    type: {
+      [Op.in]: ['deposit', 'depositReversal'],
+    },
+  };
+  const withdrawalWhere = {
+    status: {
+      [Op.in]: ['requested', 'paid'],
+    },
+    ...buildWithdrawalOperationDateWhere(dateFrom, dateTo),
+  };
+
+  const depositQuery =
+    operationType === 'withdrawal'
+      ? Promise.resolve([])
+      : models.TontineHistory.findAll({
+          where: depositWhere,
+          include: [
+            {
+              model: models.User,
+              as: 'user',
+              required: true,
+              where: clientWhere,
+            },
+          ],
+          order: [['occurredAt', 'DESC']],
+        });
+
+  const withdrawalQuery =
+    operationType === 'deposit'
+      ? Promise.resolve([])
+      : models.Withdrawal.findAll({
+          where: withdrawalWhere,
+          include: [
+            {
+              model: models.User,
+              as: 'user',
+              required: true,
+              where: clientWhere,
+            },
+          ],
+          order: [['requestedAt', 'DESC']],
+        });
+
+  const [depositRows, withdrawalRows] = await Promise.all([
+    depositQuery,
+    withdrawalQuery,
+  ]);
+
+  const reversedHistoryIds = new Set(
+    depositRows
+      .filter((entry) => entry.type === 'depositReversal' && entry.reversalOfHistoryId)
+      .map((entry) => entry.reversalOfHistoryId),
+  );
+  const depositItems = depositRows.map((entry) =>
+    serializeDepositOperation(entry, reversedHistoryIds),
+  );
+  const withdrawalItems = withdrawalRows.map(serializeWithdrawalOperation);
+  const items = [...depositItems, ...withdrawalItems].sort(
+    (left, right) =>
+      new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+  );
+  const filteredItems = items.filter((item) =>
+    isOperationWithinDateRange(item, dateFrom, dateTo),
+  );
+
+  const totalDeposited = filteredItems.reduce(
+    (sum, item) =>
+      sum + (item.type === 'depositReversal' ? -Number(item.amount || 0) : item.type === 'deposit' ? Number(item.amount || 0) : 0),
+    0,
+  );
+  const totalWithdrawn = filteredItems.reduce(
+    (sum, item) => sum + (item.type === 'withdrawal' ? Number(item.amount || 0) : 0),
+    0,
+  );
+
+  return {
+    items: filteredItems.slice(offset, offset + limit),
+    pagination: {
+      page,
+      pageSize,
+      total: filteredItems.length,
+    },
+    totals: {
+      totalDeposited,
+      totalWithdrawn,
+      totalCash: totalDeposited - totalWithdrawn,
+      totalCount: items.length,
+    },
+  };
 }
 
 async function listWithdrawals(query = {}) {
@@ -2680,6 +3003,7 @@ module.exports = {
   updateMarketplaceOfferStatus,
   listMarketplaceOrders,
   listMarketplaceGoals,
+  listOperations,
   listClients,
   createClient,
   updateClient,
@@ -2689,6 +3013,8 @@ module.exports = {
   closeTontineCycle,
   startTontine,
   recordClientContribution,
+  recordClientWithdrawal,
+  reverseClientContribution,
   getClientDetail,
   updateClientStatus,
   listAgents,

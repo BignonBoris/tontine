@@ -7,6 +7,7 @@ import {
   PauseCircle,
   PencilLine,
   Play,
+  RotateCcw,
   X,
 } from "lucide-vue-next";
 import Card from "@/components/ui/card/Card.vue";
@@ -53,6 +54,12 @@ const currentContributionCycle = computed(() => {
 
   return latestCycle;
 });
+const cycleStatusById = computed(
+  () =>
+    new Map(
+      (detailData.value?.cycles || []).map((cycle) => [cycle.id, cycle.status]),
+    ),
+);
 const contributionRemaining = computed(() => {
   if (!currentContributionCycle.value) {
     return 0;
@@ -82,11 +89,23 @@ const detailFinancialSummary = computed(() => ({
   coffersAmount: detailData.value?.stats?.coffersAmount ?? 0,
 }));
 const isRecordingContribution = ref(false);
-const contributionError = ref("");
-const contributionSuccess = ref("");
-const contributionSuccessTimer = ref<number | null>(null);
+const tontineActionError = ref("");
+const tontineActionSuccess = ref("");
+const tontineActionSuccessTimer = ref<number | null>(null);
 const contributionForm = reactive<{ amount: number | null }>({
   amount: null,
+});
+const reverseContributionDialogOpen = ref(false);
+const reverseContributionError = ref("");
+const isReversingContribution = ref(false);
+const reverseContributionTarget =
+  ref<ClientDetail["tontineHistory"][number] | null>(null);
+const reverseContributionForm = reactive<{
+  historyId: string;
+  reason: string;
+}>({
+  historyId: "",
+  reason: "",
 });
 
 type EditableClientSource = {
@@ -259,10 +278,10 @@ function hasOngoingTontine(cycles: ClientDetail["cycles"]) {
   return ["active", "enAttenteValidationFin"].includes(latestCycle.status);
 }
 
-function clearContributionSuccessTimer() {
-  if (contributionSuccessTimer.value !== null) {
-    window.clearTimeout(contributionSuccessTimer.value);
-    contributionSuccessTimer.value = null;
+function clearTontineActionSuccessTimer() {
+  if (tontineActionSuccessTimer.value !== null) {
+    window.clearTimeout(tontineActionSuccessTimer.value);
+    tontineActionSuccessTimer.value = null;
   }
 }
 
@@ -283,24 +302,73 @@ function syncContributionAmount(detail: ClientDetail | null) {
       : latestCycle.stakeAmount;
 }
 
-function resetContributionState(detail: ClientDetail | null) {
-  contributionError.value = "";
-  contributionSuccess.value = "";
-  clearContributionSuccessTimer();
+function resetTontineActionState(detail: ClientDetail | null) {
+  tontineActionError.value = "";
+  tontineActionSuccess.value = "";
+  clearTontineActionSuccessTimer();
   syncContributionAmount(detail);
 }
 
-function showContributionSuccess(message: string) {
-  contributionSuccess.value = message;
-  clearContributionSuccessTimer();
-  contributionSuccessTimer.value = window.setTimeout(() => {
-    contributionSuccess.value = "";
-    contributionSuccessTimer.value = null;
+function showTontineActionSuccess(message: string) {
+  tontineActionSuccess.value = message;
+  clearTontineActionSuccessTimer();
+  tontineActionSuccessTimer.value = window.setTimeout(() => {
+    tontineActionSuccess.value = "";
+    tontineActionSuccessTimer.value = null;
   }, 4000);
 }
 
 function getClientToggleLabel(isActive: boolean) {
   return isActive ? "Suspendre le client" : "Reactiver le client";
+}
+
+function canReverseTontineContribution(
+  entry: ClientDetail["tontineHistory"][number],
+) {
+  if (entry.type !== "deposit" || entry.isReversal || entry.isReversed) {
+    return false;
+  }
+
+  const cycleStatus = entry.cycleId
+    ? cycleStatusById.value.get(entry.cycleId)
+    : null;
+
+  return ["active", "enAttenteValidationFin"].includes(cycleStatus || "");
+}
+
+function openReverseContributionDialog(
+  entry: ClientDetail["tontineHistory"][number],
+) {
+  if (!canReverseTontineContribution(entry)) {
+    return;
+  }
+
+  reverseContributionDialogOpen.value = true;
+  reverseContributionError.value = "";
+  reverseContributionTarget.value = entry;
+  reverseContributionForm.historyId = entry.id;
+  reverseContributionForm.reason = "";
+}
+
+function closeReverseContributionDialog() {
+  if (isReversingContribution.value) {
+    return;
+  }
+
+  reverseContributionDialogOpen.value = false;
+  reverseContributionError.value = "";
+  reverseContributionTarget.value = null;
+  reverseContributionForm.historyId = "";
+  reverseContributionForm.reason = "";
+}
+
+function setReverseContributionDialogOpen(value: boolean) {
+  if (value) {
+    reverseContributionDialogOpen.value = true;
+    return;
+  }
+
+  closeReverseContributionDialog();
 }
 
 function openStartTontineDialog(client: { id: string; displayName: string }) {
@@ -461,15 +529,15 @@ async function handleRecordContribution() {
   const amount = Number(contributionForm.amount);
 
   if (!clientId || !detailData.value) {
-    contributionError.value = "Selectionnez un client valide.";
+    tontineActionError.value = "Selectionnez un client valide.";
     return;
   }
   if (!detailData.value.client.isActive) {
-    contributionError.value = "Ce client est inactif.";
+    tontineActionError.value = "Ce client est inactif.";
     return;
   }
   if (!cycle) {
-    contributionError.value = "Aucun cycle actif ne permet une cotisation.";
+    tontineActionError.value = "Aucun cycle actif ne permet une cotisation.";
     return;
   }
   if (
@@ -477,32 +545,84 @@ async function handleRecordContribution() {
     amount <= 0 ||
     amount % FINANCIAL_AMOUNT_STEP !== 0
   ) {
-    contributionError.value = `La cotisation doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
+    tontineActionError.value = `La cotisation doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`;
     return;
   }
   if (amount > contributionRemaining.value) {
-    contributionError.value = `Le montant depasse le reste a verser (${formatCurrency(contributionRemaining.value)} F).`;
+    tontineActionError.value = `Le montant depasse le reste a verser (${formatCurrency(contributionRemaining.value)} F).`;
     return;
   }
 
-  contributionError.value = "";
-  contributionSuccess.value = "";
+  tontineActionError.value = "";
+  tontineActionSuccess.value = "";
   isRecordingContribution.value = true;
 
   try {
     const updatedDetail = await clientStore.recordContribution(clientId, amount);
     detailData.value = updatedDetail;
     syncContributionAmount(updatedDetail);
-    showContributionSuccess(
+    await fetchClients(currentPage.value);
+    showTontineActionSuccess(
       `Cotisation de ${formatCurrency(amount)} F enregistree avec succes.`,
     );
   } catch (error) {
-    contributionError.value = getErrorMessage(
+    tontineActionError.value = getErrorMessage(
       error,
       "Enregistrement de la cotisation impossible.",
     );
   } finally {
     isRecordingContribution.value = false;
+  }
+}
+
+async function handleReverseContribution() {
+  if (isReversingContribution.value) return;
+
+  const clientId = selectedClientId.value;
+  const target = reverseContributionTarget.value;
+  const historyId = reverseContributionForm.historyId;
+  const reason = reverseContributionForm.reason.trim();
+
+  if (!clientId || !detailData.value) {
+    reverseContributionError.value = "Selectionnez un client valide.";
+    return;
+  }
+  if (!target || !historyId || historyId !== target.id) {
+    reverseContributionError.value = "Selectionnez une cotisation valide.";
+    return;
+  }
+  if (!canReverseTontineContribution(target)) {
+    reverseContributionError.value =
+      "Cette cotisation ne peut plus etre annulee.";
+    return;
+  }
+  if (!reason) {
+    reverseContributionError.value = "Le motif d'annulation est obligatoire.";
+    return;
+  }
+
+  reverseContributionError.value = "";
+  isReversingContribution.value = true;
+
+  try {
+    const updatedDetail = await clientStore.reverseContribution(clientId, historyId, {
+      reason,
+    });
+    detailData.value = updatedDetail;
+    syncContributionAmount(updatedDetail);
+    await fetchClients(currentPage.value);
+    isReversingContribution.value = false;
+    closeReverseContributionDialog();
+    showTontineActionSuccess(
+      `Cotisation de ${formatCurrency(target.amount)} F annulee avec succes.`,
+    );
+  } catch (error) {
+    reverseContributionError.value = getErrorMessage(
+      error,
+      "Annulation de la cotisation impossible.",
+    );
+  } finally {
+    isReversingContribution.value = false;
   }
 }
 
@@ -572,7 +692,7 @@ async function openDetailDialog(clientId: string) {
   selectedClientId.value = clientId;
   detailData.value = null;
   detailError.value = "";
-  resetContributionState(null);
+  resetTontineActionState(null);
   isDetailLoading.value = true;
 
   try {
@@ -590,7 +710,8 @@ function closeDetailDialog() {
   selectedClientId.value = null;
   detailData.value = null;
   detailError.value = "";
-  resetContributionState(null);
+  resetTontineActionState(null);
+  closeReverseContributionDialog();
 }
 
 onMounted(fetchClients);
@@ -598,7 +719,7 @@ onMounted(fetchClients);
 onUnmounted(() => {
   clearStartTontineSuccessTimer();
   clearStartTontineAutoCloseTimer();
-  clearContributionSuccessTimer();
+  clearTontineActionSuccessTimer();
 });
 </script>
 
@@ -861,16 +982,16 @@ onUnmounted(() => {
         </div>
 
         <div
-          v-if="contributionError"
+          v-if="tontineActionError"
           class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
-          {{ contributionError }}
+          {{ tontineActionError }}
         </div>
         <div
-          v-if="contributionSuccess"
+          v-if="tontineActionSuccess"
           class="rounded-2xl border border-emerald-200 bg-emerald-100/70 px-4 py-3 text-sm text-emerald-700"
         >
-          {{ contributionSuccess }}
+          {{ tontineActionSuccess }}
         </div>
 
         <div
@@ -985,9 +1106,15 @@ onUnmounted(() => {
           <div class="rounded-2xl border border-border/60 p-4">
             <h4 class="font-medium">Historique solde disponible</h4>
             <div class="mt-3 space-y-2">
-              <div v-for="entry in detailData.balanceHistory" :key="entry.id" class="rounded-xl border border-border/60 p-3">
+              <div
+                v-for="entry in detailData.balanceHistory"
+                :key="entry.id"
+                class="rounded-xl border border-border/60 p-3"
+              >
                 <p class="font-medium">{{ entry.label }}</p>
-                <p class="text-sm">{{ entry.isCredit ? "+" : "-" }}{{ formatCurrency(entry.amount) }} F</p>
+                <p class="text-sm">
+                  {{ entry.isCredit ? "+" : "-" }}{{ formatCurrency(entry.amount) }} F
+                </p>
                 <p class="text-xs text-muted-foreground">{{ formatDateTime(entry.occurredAt) }}</p>
               </div>
               <div v-if="!detailData.balanceHistory.length" class="text-sm text-muted-foreground">
@@ -995,13 +1122,68 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-        <div class="rounded-2xl border border-border/60 p-4">
-          <h4 class="font-medium">Historique tontine</h4>
-          <div class="mt-3 space-y-2">
-            <div v-for="entry in detailData.tontineHistory" :key="entry.id" class="rounded-xl border border-border/60 p-3">
-              <p class="font-medium">{{ entry.label }}</p>
-                <p class="text-sm">{{ formatCurrency(entry.amount) }} F</p>
-                <p class="text-xs text-muted-foreground">{{ formatDateTime(entry.occurredAt) }}</p>
+          <div class="rounded-2xl border border-border/60 p-4">
+            <h4 class="font-medium">Historique tontine</h4>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="entry in detailData.tontineHistory"
+                :key="entry.id"
+                class="rounded-xl border border-border/60 p-3"
+                :class="
+                  entry.isReversal
+                    ? 'border-red-200 bg-red-50/60'
+                    : entry.isReversed
+                      ? 'border-amber-200 bg-amber-50/60'
+                      : 'border-border/60 bg-background'
+                "
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="font-medium">{{ entry.label }}</p>
+                    <p class="text-xs text-muted-foreground">{{ formatDateTime(entry.occurredAt) }}</p>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-sm font-medium">{{ formatCurrency(entry.amount) }} F</span>
+                    <button
+                      v-if="canReverseTontineContribution(entry)"
+                      type="button"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="isReversingContribution"
+                      title="Annuler la cotisation"
+                      aria-label="Annuler la cotisation"
+                      @click="openReverseContributionDialog(entry)"
+                    >
+                      <RotateCcw class="h-4 w-4" />
+                      <span class="sr-only">Annuler la cotisation</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span
+                    v-if="entry.isReversal"
+                    class="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-700"
+                  >
+                    Annulation
+                  </span>
+                  <span
+                    v-else-if="entry.isReversed"
+                    class="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700"
+                  >
+                    Annulee
+                  </span>
+                  <span
+                    v-else
+                    class="rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700"
+                  >
+                    Cotisation
+                  </span>
+                </div>
+                <p v-if="entry.note" class="mt-2 text-xs text-muted-foreground">
+                  Motif: {{ entry.note }}
+                </p>
+                <p v-else-if="entry.isReversed" class="mt-2 text-xs text-amber-700">
+                  Cette cotisation a ete annulee par un administrateur.
+                </p>
               </div>
               <div v-if="!detailData.tontineHistory.length" class="text-sm text-muted-foreground">
                 Aucun historique tontine.
@@ -1027,6 +1209,88 @@ onUnmounted(() => {
           @click="closeDetailDialog"
         >
           Fermer
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog
+    :open="reverseContributionDialogOpen"
+    @update:open="setReverseContributionDialogOpen"
+  >
+    <DialogContent
+      class="sm:max-w-[560px]"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
+      <DialogHeader>
+        <div class="flex items-center justify-between gap-3">
+          <DialogTitle>Annuler la cotisation</DialogTitle>
+          <DialogClose class="rounded-lg p-1 opacity-70 transition hover:bg-muted hover:opacity-100">
+            <X class="h-4 w-4" />
+          </DialogClose>
+        </div>
+        <DialogDescription>
+          Cette contrepassation est reservee a l'administrateur. Une nouvelle operation sera creee et liee a la cotisation originale.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div
+        v-if="reverseContributionError"
+        class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+      >
+        {{ reverseContributionError }}
+      </div>
+
+      <div
+        v-if="reverseContributionTarget"
+        class="rounded-2xl border border-border/60 bg-muted/20 p-4"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="font-medium">{{ reverseContributionTarget.label }}</p>
+            <p class="text-sm text-muted-foreground">
+              {{ formatDateTime(reverseContributionTarget.occurredAt) }}
+            </p>
+          </div>
+          <span class="text-sm font-semibold">
+            {{ formatCurrency(reverseContributionTarget.amount) }} F
+          </span>
+        </div>
+      </div>
+
+      <div class="grid gap-2">
+        <label for="reverseContributionReason" class="text-sm font-medium">
+          Motif d'annulation
+        </label>
+        <textarea
+          id="reverseContributionReason"
+          v-model="reverseContributionForm.reason"
+          rows="4"
+          maxlength="255"
+          class="min-h-[110px] rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-sky-500"
+          placeholder="Ex: erreur de saisie, doublon, annulation manuelle autorisee"
+        />
+      </div>
+
+      <DialogFooter>
+        <button
+          type="button"
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+          :disabled="isReversingContribution"
+          @click="closeReverseContributionDialog"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+          :disabled="isReversingContribution"
+          @click="handleReverseContribution"
+        >
+          <Loader2 v-if="isReversingContribution" class="h-4 w-4 animate-spin" />
+          <RotateCcw v-else class="h-4 w-4" />
+          <span>{{ isReversingContribution ? "Annulation..." : "Confirmer l'annulation" }}</span>
         </button>
       </DialogFooter>
     </DialogContent>

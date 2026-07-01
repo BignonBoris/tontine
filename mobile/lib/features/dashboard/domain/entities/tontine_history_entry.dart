@@ -1,6 +1,7 @@
 enum TontineHistoryType {
   configuration,
   deposit,
+  depositReversal,
   cycleCompleted,
   payoutConfirmed,
   earlyStop,
