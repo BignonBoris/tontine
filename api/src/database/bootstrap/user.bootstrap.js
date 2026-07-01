@@ -51,6 +51,16 @@ async function ensureUserCompatibility(sequelize) {
     'birth_date',
     '`birth_date` DATE NULL',
   );
+
+  if (columns.phone_number && columns.phone_number.allowNull === false) {
+    await sequelize.query(
+      'ALTER TABLE `users` MODIFY `phone_number` VARCHAR(32) NULL;',
+    );
+  }
+
+  await sequelize.query(
+    "UPDATE `users` SET `phone_number` = NULL WHERE TRIM(COALESCE(`phone_number`, '')) = '';",
+  );
 }
 
 module.exports = { ensureUserCompatibility };

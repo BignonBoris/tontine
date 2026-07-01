@@ -11,7 +11,7 @@ export interface ClientListParams {
 
 export interface ClientUpdatePayload {
   displayName: string;
-  phoneNumber: string;
+  phoneNumber?: string | null;
   address: string;
   agentId?: string | null;
 }
@@ -25,7 +25,7 @@ export const clientService = {
 
   create(payload: {
     displayName: string;
-    phoneNumber: string;
+    phoneNumber?: string | null;
     address: string;
     stakeAmount: number;
     agentId?: string | null;

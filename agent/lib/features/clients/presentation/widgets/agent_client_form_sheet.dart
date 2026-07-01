@@ -132,7 +132,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                   showDropdownIcon: false,
                   disableLengthCheck: true,
                   decoration: const InputDecoration(
-                    labelText: 'Telephone',
+                    labelText: 'Telephone (facultatif)',
                     hintText: 'Ex. 01 23 45 67 89',
                   ),
                   onChanged: (_) {
@@ -141,8 +141,11 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                     }
                   },
                   validator: (value) {
-                    if (value == null ||
-                        !AgentInputRules.isValidPhone(value.number)) {
+                    final rawPhone = value?.number.trim() ?? '';
+                    if (rawPhone.isEmpty) {
+                      return null;
+                    }
+                    if (!AgentInputRules.isValidPhone(rawPhone)) {
                       return 'Entrez un numero valide';
                     }
                     return null;
@@ -265,6 +268,9 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     final double initialDeposit = initialDigits.isEmpty
         ? 0
         : double.parse(initialDigits);
+    final normalizedPhone = AgentInputRules.normalizePhone(_phoneController.text);
+    final String? phoneNumber =
+        normalizedPhone.isEmpty ? null : normalizedPhone;
     final firstName = AgentInputRules.normalizePersonName(
       _firstNameController.text,
     );
@@ -279,7 +285,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
     try {
       final client = await _service.createClient(
         displayName: '$lastName $firstName'.trim(),
-        phoneNumber: AgentInputRules.normalizePhone(_phoneController.text),
+        phoneNumber: phoneNumber,
         address: _addressController.text.trim(),
         stakeAmount: stakeAmount,
         initialDeposit: initialDeposit,

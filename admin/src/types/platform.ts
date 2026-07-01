@@ -115,7 +115,7 @@ export interface MarketplaceOrderLineItem {
   client: {
     id: string;
     displayName: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
   } | null;
 }
 
@@ -141,7 +141,7 @@ export interface MarketplaceGoalLineItem {
   client: {
     id: string;
     displayName: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
   } | null;
 }
 
@@ -175,7 +175,7 @@ export interface OperationalAnomalies {
     client: {
       id: string;
       displayName: string;
-      phoneNumber: string;
+      phoneNumber: string | null;
     };
   }>;
   expiredRequestedWithdrawals: Array<{
@@ -187,7 +187,7 @@ export interface OperationalAnomalies {
     client: {
       id: string;
       displayName: string;
-      phoneNumber: string;
+      phoneNumber: string | null;
     };
   }>;
   walletReservationMismatches: Array<{
@@ -195,7 +195,7 @@ export interface OperationalAnomalies {
     client: {
       id: string;
       displayName: string;
-      phoneNumber: string;
+      phoneNumber: string | null;
     } | null;
     reservedBalance: number;
     requestedAmount: number;
@@ -216,7 +216,7 @@ export interface OperationalAnomalies {
     client: {
       id: string;
       displayName: string;
-      phoneNumber: string;
+      phoneNumber: string | null;
     } | null;
   }>;
 }
@@ -224,7 +224,7 @@ export interface OperationalAnomalies {
 export interface ClientItem {
   id: string;
   displayName: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   accountType: string;
   address: string | null;
   isActive: boolean;
@@ -245,7 +245,7 @@ export interface ClientDetail {
   client: {
     id: string;
     displayName: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
     accountType: string;
     address: string | null;
     isActive: boolean;
@@ -404,7 +404,7 @@ export interface WithdrawalItem {
   client: {
     id: string;
     displayName: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
   } | null;
 }
 
@@ -454,7 +454,7 @@ export interface TontineCycleItem {
   client: {
     id: string;
     displayName: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
     tontineBalance: number;
   };
 }

@@ -92,7 +92,7 @@ const contributionForm = reactive<{ amount: number | null }>({
 type EditableClientSource = {
   id: string;
   displayName: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   address: string | null;
   createdByAgent: {
     id: string;
@@ -117,6 +117,11 @@ const createForm = reactive<{
   stakeAmount: null,
   agentId: "",
 });
+
+function normalizePhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
 
 const editDialogOpen = ref(false);
 const editingClientId = ref<string | null>(null);
@@ -190,7 +195,7 @@ function openEditClientDialog(client: EditableClientSource) {
   editError.value = "";
   editingClientId.value = client.id;
   editForm.displayName = client.displayName;
-  editForm.phoneNumber = client.phoneNumber;
+  editForm.phoneNumber = client.phoneNumber || "";
   editForm.address = client.address || "";
   editForm.agentId = client.createdByAgent?.id || "";
 
@@ -339,6 +344,8 @@ async function handleCreateClient() {
 
   createError.value = "";
   isCreating.value = true;
+  const rawPhoneNumber = createForm.phoneNumber.trim();
+  const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
   const stakeAmount = Number(createForm.stakeAmount);
 
   if (
@@ -350,15 +357,30 @@ async function handleCreateClient() {
     isCreating.value = false;
     return;
   }
+  if (rawPhoneNumber && phoneNumber.length !== 10) {
+    createError.value = "Le numero du client est invalide.";
+    isCreating.value = false;
+    return;
+  }
 
   try {
-    await clientStore.createClient({
+    const payload: {
+      displayName: string;
+      phoneNumber?: string;
+      address: string;
+      stakeAmount: number;
+      agentId?: string | null;
+    } = {
       displayName: createForm.displayName,
-      phoneNumber: createForm.phoneNumber,
       address: createForm.address,
       stakeAmount,
       agentId: createForm.agentId || null,
-    });
+    };
+    if (rawPhoneNumber) {
+      payload.phoneNumber = phoneNumber;
+    }
+
+    await clientStore.createClient(payload);
     createDialogOpen.value = false;
     await fetchClients(1);
   } catch (error) {
@@ -378,14 +400,15 @@ async function handleUpdateClient() {
   }
 
   const displayName = editForm.displayName.trim();
-  const phoneNumber = editForm.phoneNumber.trim();
+  const rawPhoneNumber = editForm.phoneNumber.trim();
+  const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
   const address = editForm.address.trim();
 
   if (displayName.length < 3) {
     editError.value = "Le nom du client est requis.";
     return;
   }
-  if (!phoneNumber) {
+  if (rawPhoneNumber && phoneNumber.length !== 10) {
     editError.value = "Le numero du client est invalide.";
     return;
   }
@@ -399,12 +422,21 @@ async function handleUpdateClient() {
   mutationClientId.value = clientId;
 
   try {
-    const updatedDetail = await clientStore.updateClient(clientId, {
+    const payload: {
+      displayName: string;
+      address: string;
+      agentId: string | null;
+      phoneNumber?: string;
+    } = {
       displayName,
-      phoneNumber,
       address,
       agentId: editForm.agentId || null,
-    });
+    };
+    if (rawPhoneNumber) {
+      payload.phoneNumber = phoneNumber;
+    }
+
+    const updatedDetail = await clientStore.updateClient(clientId, payload);
 
     if (detailDialogOpen.value && selectedClientId.value === clientId) {
       detailData.value = updatedDetail;
@@ -666,7 +698,7 @@ onUnmounted(() => {
             <tr v-for="client in clients" :key="client.id" class="border-b">
               <td class="px-3 py-3">
                 <div class="font-medium">{{ client.displayName }}</div>
-                <div class="text-muted-foreground">{{ client.phoneNumber }}</div>
+                <div class="text-muted-foreground">{{ client.phoneNumber || "Non renseigne" }}</div>
               </td>
               <td class="px-3 py-3">{{ formatCurrency(client.availableBalance) }} F</td>
               <td class="px-3 py-3">{{ formatCurrency(client.reservedWithdrawalBalance) }} F</td>
@@ -889,7 +921,7 @@ onUnmounted(() => {
           <div class="rounded-2xl border border-border/60 p-4">
             <h4 class="font-medium">Profil</h4>
             <p class="mt-3">{{ detailData.client.displayName }}</p>
-            <p class="text-sm text-muted-foreground">{{ detailData.client.phoneNumber }}</p>
+            <p class="text-sm text-muted-foreground">{{ detailData.client.phoneNumber || "Non renseigne" }}</p>
             <p class="mt-3 text-sm">Adresse: {{ detailData.client.address || "N/A" }}</p>
             <p class="text-sm">Origine: {{ detailData.client.createdByAgent?.fullName || "Canal direct" }}</p>
             <p class="text-sm">Membre depuis: {{ formatDateTime(detailData.client.memberSince) }}</p>
@@ -1034,7 +1066,7 @@ onUnmounted(() => {
           />
         </div>
         <div class="grid gap-2">
-          <label for="phoneNumber" class="text-sm font-medium">Numero de telephone</label>
+          <label for="phoneNumber" class="text-sm font-medium">Numero de telephone (facultatif)</label>
           <input
             id="phoneNumber"
             v-model="createForm.phoneNumber"
@@ -1042,6 +1074,7 @@ onUnmounted(() => {
             placeholder="Ex: 0102030405"
             class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
           />
+          <p class="text-[10px] text-muted-foreground">Laissez vide si le client n'a pas de numero.</p>
         </div>
         <div class="grid gap-2">
           <label for="address" class="text-sm font-medium">Adresse</label>
@@ -1135,7 +1168,7 @@ onUnmounted(() => {
           />
         </div>
         <div class="grid gap-2">
-          <label for="editPhoneNumber" class="text-sm font-medium">Numero de telephone</label>
+          <label for="editPhoneNumber" class="text-sm font-medium">Numero de telephone (facultatif)</label>
           <input
             id="editPhoneNumber"
             v-model="editForm.phoneNumber"
@@ -1143,6 +1176,7 @@ onUnmounted(() => {
             placeholder="Ex: 0102030405"
             class="h-10 rounded-xl border border-border bg-background px-3 text-sm"
           />
+          <p class="text-[10px] text-muted-foreground">Laissez vide pour conserver le numero actuel.</p>
         </div>
         <div class="grid gap-2">
           <label for="editAddress" class="text-sm font-medium">Adresse</label>

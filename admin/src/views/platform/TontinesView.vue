@@ -435,7 +435,7 @@ onMounted(fetchTontines);
             <tr v-for="tontine in tontines" :key="tontine.id" class="border-b transition-colors hover:bg-muted/30">
               <td class="px-3 py-3">
                 <div class="font-medium">{{ tontine.client.displayName }}</div>
-                <div class="text-xs text-muted-foreground">{{ tontine.client.phoneNumber }}</div>
+                <div class="text-xs text-muted-foreground">{{ tontine.client.phoneNumber || "Non renseigne" }}</div>
               </td>
               <td class="px-3 py-3 font-medium text-sky-700">{{ formatCurrency(tontine.stakeAmount) }} F</td>
               <td class="px-3 py-3">
@@ -665,7 +665,7 @@ onMounted(fetchTontines);
             <div>
               <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Client</p>
               <p class="mt-1 font-medium">{{ calendarCycle.client.displayName }}</p>
-              <p class="text-xs text-muted-foreground">{{ calendarCycle.client.phoneNumber }}</p>
+              <p class="text-xs text-muted-foreground">{{ calendarCycle.client.phoneNumber || "Non renseigne" }}</p>
             </div>
             <div>
               <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Mise par cellule</p>
