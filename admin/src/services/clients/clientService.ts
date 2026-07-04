@@ -5,6 +5,7 @@ import type { ClientDetail, ClientItem } from "@/types/platform";
 export interface ClientListParams {
   search?: string;
   status?: string;
+  tontineStatus?: "all" | "ongoing" | "none";
   page?: number;
   pageSize?: number;
 }

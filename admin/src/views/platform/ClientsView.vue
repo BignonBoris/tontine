@@ -22,6 +22,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import type { ClientDetail } from "@/types/platform";
+import { useDashboardStore } from "@/stores/dashboard";
 import { useClientStore } from "@/stores/clients";
 import { useAgentStore } from "@/stores/agents";
 import { clientService } from "@/services/clients/clientService";
@@ -29,13 +30,20 @@ import { getErrorMessage } from "@/services/http/errors";
 import { formatCurrency, formatDateTime } from "@/utils/formatters";
 
 const clientStore = useClientStore();
+const dashboardStore = useDashboardStore();
 const agentStore = useAgentStore();
 const clients = computed(() => clientStore.collection?.items || []);
+const dashboardOverview = computed(() => dashboardStore.overview);
 const agents = computed(() => agentStore.collection?.items || []);
 const pagination = computed(() => clientStore.collection?.pagination || { page: 1, pageSize: 20, total: 0 });
-const filters = reactive({
+const filters = reactive<{
+  search: string;
+  status: string;
+  tontineStatus: "all" | "ongoing" | "none";
+}>({
   search: "",
-  status: "",
+  status: "active",
+  tontineStatus: "ongoing",
 });
 const currentPage = ref(1);
 const mutationClientId = ref<string | null>(null);
@@ -171,6 +179,13 @@ const startTontineForm = reactive({
 });
 
 const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.total / pagination.value.pageSize)));
+const ongoingTontineClients = computed(() => {
+  if (dashboardOverview.value) {
+    return String(dashboardOverview.value.totals.totalOngoingTontineCycles || 0);
+  }
+
+  return dashboardStore.isLoading ? "..." : "-";
+});
 const summary = computed(() => {
   const activeCount = clients.value.filter((client) => client.isActive).length;
   return {
@@ -189,9 +204,18 @@ async function fetchClients(page = currentPage.value) {
       pageSize,
       search: filters.search || undefined,
       status: filters.status || undefined,
+      tontineStatus: filters.tontineStatus || undefined,
     });
   } catch (error) {
     errorMessage.value = getErrorMessage(error, "Chargement des clients impossible.");
+  }
+}
+
+async function refreshDashboardOverview() {
+  try {
+    await dashboardStore.fetchOverview();
+  } catch {
+    // Le KPI est secondaire; on laisse la page fonctionner si l'overview echoue.
   }
 }
 
@@ -449,6 +473,7 @@ async function handleCreateClient() {
     }
 
     await clientStore.createClient(payload);
+    void dashboardStore.fetchOverview().catch(() => undefined);
     createDialogOpen.value = false;
     await fetchClients(1);
   } catch (error) {
@@ -650,6 +675,7 @@ async function handleStartTontine() {
 
   try {
     await clientStore.startTontine(clientId, stakeAmount);
+    void dashboardStore.fetchOverview().catch(() => undefined);
     isStartingTontine.value = false;
 
     if (detailDialogOpen.value && selectedClientId.value === clientId) {
@@ -714,7 +740,10 @@ function closeDetailDialog() {
   closeReverseContributionDialog();
 }
 
-onMounted(fetchClients);
+onMounted(() => {
+  void fetchClients();
+  void refreshDashboardOverview();
+});
 
 onUnmounted(() => {
   clearStartTontineSuccessTimer();
@@ -731,7 +760,11 @@ onUnmounted(() => {
         description="Portefeuille client, soldes principaux, origine de creation, statut d'activite et detail individuel."
       />
 
-      <div class="mt-6 grid gap-4 md:grid-cols-3">
+      <div class="mt-6 grid gap-4 md:grid-cols-4">
+        <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
+          <p class="text-xs uppercase tracking-[0.2em] text-sky-700">Clients avec tontine en cours</p>
+          <p class="mt-2 text-2xl font-semibold text-sky-700">{{ ongoingTontineClients }}</p>
+        </div>
         <div class="rounded-2xl border border-border bg-muted/30 p-4">
           <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total filtre</p>
           <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
@@ -767,6 +800,20 @@ onUnmounted(() => {
             </option>
             <option value="inactive">
               Inactifs
+            </option>
+          </select>
+          <select
+            v-model="filters.tontineStatus"
+            class="h-10 min-w-[220px] rounded-xl border border-border bg-background px-3 text-sm"
+          >
+            <option value="all">
+              Tous les clients
+            </option>
+            <option value="ongoing">
+              Tontine en cours
+            </option>
+            <option value="none">
+              Sans tontine
             </option>
           </select>
           <button
