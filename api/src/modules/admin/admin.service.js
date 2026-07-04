@@ -37,6 +37,32 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 const ONGOING_TONTINE_STATUSES = ['active', 'enAttenteValidationFin'];
 const ACTIVE_GOAL_STATUS = 'active';
 
+function buildNonAgentClientCondition() {
+  return sequelize.literal(`NOT EXISTS (
+    SELECT 1
+    FROM \`agent_profiles\` AS ap
+    WHERE ap.\`user_id\` = \`User\`.\`id\`
+  )`);
+}
+
+function buildOngoingTontineExistsCondition() {
+  return sequelize.literal(`EXISTS (
+    SELECT 1
+    FROM \`tontine_cycles\` AS tc
+    WHERE tc.\`user_id\` = \`User\`.\`id\`
+      AND tc.\`status\` IN ('active', 'enAttenteValidationFin')
+  )`);
+}
+
+function buildOngoingTontineAbsenceCondition() {
+  return sequelize.literal(`NOT EXISTS (
+    SELECT 1
+    FROM \`tontine_cycles\` AS tc
+    WHERE tc.\`user_id\` = \`User\`.\`id\`
+      AND tc.\`status\` IN ('active', 'enAttenteValidationFin')
+  )`);
+}
+
 function parsePagination(query = {}) {
   const page = Math.max(Number(query.page || 1), 1);
   const pageSize = Math.min(Math.max(Number(query.pageSize || 10), 1), 100);
@@ -209,28 +235,14 @@ async function getOverview() {
     withdrawalStatusRows,
   ] = await Promise.all([
     models.User.count({
-      include: [
-        {
-          model: models.AgentProfile,
-          as: 'agentProfile',
-          required: false,
-        },
-      ],
       where: {
-        '$agentProfile.id$': null,
+        [Op.and]: [buildNonAgentClientCondition()],
       },
     }),
     models.User.count({
-      include: [
-        {
-          model: models.AgentProfile,
-          as: 'agentProfile',
-          required: false,
-        },
-      ],
       where: {
         isActive: true,
-        '$agentProfile.id$': null,
+        [Op.and]: [buildNonAgentClientCondition()],
       },
     }),
     models.AgentProfile.count(),
@@ -270,16 +282,8 @@ async function getOverview() {
         [fn('DATE', col('User.created_at')), 'day'],
         [fn('COUNT', col('User.id')), 'count'],
       ],
-      include: [
-        {
-          model: models.AgentProfile,
-          as: 'agentProfile',
-          required: false,
-          attributes: [],
-        },
-      ],
       where: {
-        '$agentProfile.id$': null,
+        [Op.and]: [buildNonAgentClientCondition()],
         createdAt: {
           [Op.gte]: firstDay,
         },
@@ -359,9 +363,10 @@ async function listClients(query = {}) {
   const { page, pageSize, offset, limit } = parsePagination(query);
   const search = String(query.search || '').trim();
   const status = String(query.status || '').trim().toLowerCase();
+  const tontineStatus = String(query.tontineStatus || '').trim().toLowerCase();
 
   const whereClause = {
-    '$agentProfile.id$': null,
+    [Op.and]: [buildNonAgentClientCondition()],
   };
   if (status === 'active') {
     whereClause.isActive = true;
@@ -380,8 +385,30 @@ async function listClients(query = {}) {
     ];
   }
 
+  const include = [
+    {
+      model: models.Wallet,
+      as: 'wallet',
+      required: false,
+    },
+    {
+      model: models.AgentProfile,
+      as: 'creatorAgent',
+      required: false,
+    },
+  ];
+
+  if (tontineStatus === 'ongoing' || tontineStatus === 'none') {
+    whereClause[Op.and].push(
+      tontineStatus === 'ongoing'
+        ? buildOngoingTontineExistsCondition()
+        : buildOngoingTontineAbsenceCondition(),
+    );
+  }
+
   const result = await models.User.findAndCountAll({
     where: whereClause,
+    distinct: true,
     attributes: {
       include: [
         [
@@ -395,23 +422,7 @@ async function listClients(query = {}) {
         ],
       ],
     },
-    include: [
-      {
-        model: models.AgentProfile,
-        as: 'agentProfile',
-        required: false,
-      },
-      {
-        model: models.Wallet,
-        as: 'wallet',
-        required: false,
-      },
-      {
-        model: models.AgentProfile,
-        as: 'creatorAgent',
-        required: false,
-      },
-    ],
+    include,
     order: [['createdAt', 'DESC']],
     offset,
     limit,
