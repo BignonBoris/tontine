@@ -17,6 +17,7 @@ router.get('/marketplace/orders', asyncHandler(controller.marketplaceOrders));
 router.get('/marketplace/goals', asyncHandler(controller.marketplaceGoals));
 router.get('/anomalies', asyncHandler(controller.anomalies));
 router.get('/operations', asyncHandler(controller.operations));
+router.get('/recouvrement', asyncHandler(controller.recovery));
 router.post('/operations/withdrawals', asyncHandler(controller.recordWithdrawal));
 router.get('/clients', asyncHandler(controller.clients));
 router.post('/clients', asyncHandler(controller.createClient));

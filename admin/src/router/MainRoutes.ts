@@ -24,6 +24,11 @@ const MainRoutes = [
         component: () => import("../views/platform/OperationsView.vue"),
       },
       {
+        name: "Recouvrement",
+        path: "/recouvrement",
+        component: () => import("../views/platform/RecoveryView.vue"),
+      },
+      {
         name: 'Clients',
         path: '/clients',
         component: () => import('../views/platform/ClientsView.vue')

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onScopeDispose, reactive, ref } from "vue";
-import { ArrowDownLeft, ArrowUpRight, Loader2, RefreshCcw, RotateCcw, Search, X } from "lucide-vue-next";
+import { RouterLink } from "vue-router";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Loader2, RefreshCcw, RotateCcw, Search, X } from "lucide-vue-next";
 import Card from "@/components/ui/card/Card.vue";
 import {
   Dialog,
@@ -648,6 +649,13 @@ onMounted(() => {
       />
 
       <div class="flex flex-wrap items-center justify-end gap-3">
+        <RouterLink
+          to="/recouvrement"
+          class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
+        >
+          <AlertTriangle class="h-4 w-4" />
+          Recouvrement
+        </RouterLink>
         <button
           class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
           @click="openDepositDialog"
