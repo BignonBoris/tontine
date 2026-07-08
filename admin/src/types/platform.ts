@@ -504,6 +504,51 @@ export interface TontineCycleItem {
   };
 }
 
+export interface RecoveryCycleItem {
+  id: string;
+  stakeAmount: number;
+  cumulativeAmount: number;
+  targetAmount: number;
+  progress: number;
+  status: string;
+  startedAt: string;
+  expectedEndAt: string;
+  endedAt: string | null;
+  createdAt: string;
+  daysElapsed: number;
+  coveredDays: number;
+  lateDays: number;
+  expectedAmount: number;
+  lateAmount: number;
+  client: {
+    id: string;
+    displayName: string;
+    phoneNumber: string | null;
+    tontineBalance: number;
+    createdByAgent: {
+      id: string;
+      agentCode: string;
+      fullName: string;
+    } | null;
+  };
+}
+
+export interface RecoveryListResponse {
+  items: RecoveryCycleItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  totals: {
+    overdueCycles: number;
+    overdueClients: number;
+    totalExpectedAmount: number;
+    totalLateAmount: number;
+    totalLateDays: number;
+  };
+}
+
 export interface TontineCycleDepositItem {
   id: string;
   amount: number;
