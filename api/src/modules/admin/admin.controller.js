@@ -140,6 +140,11 @@ async function operations(req, res) {
   return ok(res, data, 'Operations chargees.');
 }
 
+async function recovery(req, res) {
+  const data = await service.listRecoveryCycles(req.query);
+  return ok(res, data, 'Cycles en retard charges.');
+}
+
 async function recordWithdrawal(req, res) {
   const data = await service.recordClientWithdrawal(
     req.body.userId,
@@ -252,6 +257,7 @@ module.exports = {
   recordWithdrawal,
   reverseContribution,
   updateClientStatus,
+  recovery,
   agents,
   updateAgentStatus,
   topUpAgentCash,

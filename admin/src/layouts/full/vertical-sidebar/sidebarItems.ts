@@ -61,6 +61,12 @@ const sidebarItem: menu[] = [
     subCaption: "Depots et retraits",
   },
   {
+    title: "Recouvrement",
+    icon: "clock-circle-linear",
+    to: "/recouvrement",
+    subCaption: "Cycles en retard",
+  },
+  {
     title: "Clients",
     icon: "users-group-rounded-linear",
     to: "/clients",

@@ -36,6 +36,13 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 
 const ONGOING_TONTINE_STATUSES = ['active', 'enAttenteValidationFin'];
 const ACTIVE_GOAL_STATUS = 'active';
+const BUSINESS_TIME_ZONE = 'Africa/Lagos';
+const BUSINESS_DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 function buildNonAgentClientCondition() {
   return sequelize.literal(`NOT EXISTS (
@@ -60,6 +67,36 @@ function buildOngoingTontineAbsenceCondition() {
     FROM \`tontine_cycles\` AS tc
     WHERE tc.\`user_id\` = \`User\`.\`id\`
       AND tc.\`status\` IN ('active', 'enAttenteValidationFin')
+  )`);
+}
+
+function getBusinessDayNumber(date) {
+  const parts = BUSINESS_DAY_FORMATTER.formatToParts(new Date(date));
+  const mappedParts = parts.reduce((acc, part) => {
+    if (part.type !== 'literal') {
+      acc[part.type] = Number(part.value);
+    }
+    return acc;
+  }, {});
+
+  return Math.floor(
+    Date.UTC(mappedParts.year, mappedParts.month - 1, mappedParts.day) /
+      (24 * 60 * 60 * 1000),
+  );
+}
+
+function getBusinessCalendarDayCount(startDate, endDate = new Date()) {
+  const diff = getBusinessDayNumber(endDate) - getBusinessDayNumber(startDate);
+  return Math.max(diff + 1, 1);
+}
+
+function buildOverdueCycleCondition() {
+  return sequelize.literal(`TIMESTAMPDIFF(
+    DAY,
+    DATE(\`TontineCycle\`.\`started_at\`),
+    CURDATE()
+  ) + 1 > FLOOR(
+    \`TontineCycle\`.\`cumulative_amount\` / NULLIF(\`TontineCycle\`.\`stake_amount\`, 0)
   )`);
 }
 
@@ -132,6 +169,94 @@ function serializeTontineCycleListItem(entry) {
       tontineBalance: toNumber(entry.user.wallet?.tontineBalance),
     },
   };
+}
+
+function serializeOverdueCycleListItem(entry, referenceDate = new Date()) {
+  const baseItem = serializeTontineCycleListItem(entry);
+  const stakeAmount = toNumber(entry.stakeAmount);
+  const cumulativeAmount = toNumber(entry.cumulativeAmount);
+  const daysElapsed = getBusinessCalendarDayCount(entry.startedAt, referenceDate);
+  const coveredDays = stakeAmount > 0 ? Math.floor(cumulativeAmount / stakeAmount) : 0;
+  const expectedAmount = stakeAmount * daysElapsed;
+  const lateAmount = Math.max(expectedAmount - cumulativeAmount, 0);
+  const lateDays = Math.max(daysElapsed - coveredDays, 0);
+
+  return {
+    ...baseItem,
+    daysElapsed,
+    coveredDays,
+    lateDays,
+    expectedAmount,
+    lateAmount,
+    client: {
+      ...baseItem.client,
+      createdByAgent: entry.user?.creatorAgent
+        ? {
+            id: entry.user.creatorAgent.id,
+            agentCode: entry.user.creatorAgent.agentCode,
+            fullName: entry.user.creatorAgent.fullName,
+          }
+        : null,
+    },
+  };
+}
+
+function buildRecoverySearchCondition(search = '') {
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return null;
+  }
+
+  const likeValue = sequelize.escape(`%${normalizedSearch}%`);
+
+  return sequelize.literal(`EXISTS (
+    SELECT 1
+    FROM \`users\` AS u
+    WHERE u.\`id\` = \`TontineCycle\`.\`user_id\`
+      AND (
+        LOWER(u.\`display_name\`) LIKE ${likeValue}
+        OR LOWER(u.\`phone_number\`) LIKE ${likeValue}
+      )
+  )`);
+}
+
+function buildRecoveryCycleWhere(search = '') {
+  const whereParts = [buildOverdueCycleCondition()];
+  const searchCondition = buildRecoverySearchCondition(search);
+
+  if (searchCondition) {
+    whereParts.push(searchCondition);
+  }
+
+  return {
+    status: {
+      [Op.in]: ONGOING_TONTINE_STATUSES,
+    },
+    [Op.and]: whereParts,
+  };
+}
+
+function buildRecoveryCycleInclude() {
+  return [
+    {
+      model: models.User,
+      as: 'user',
+      required: true,
+      include: [
+        {
+          model: models.Wallet,
+          as: 'wallet',
+          required: false,
+        },
+        {
+          model: models.AgentProfile,
+          as: 'creatorAgent',
+          required: false,
+        },
+      ],
+    },
+  ];
 }
 
 function buildPastDays(days) {
@@ -713,6 +838,73 @@ async function listTontines(query = {}) {
       page,
       pageSize,
       total: result.count,
+    },
+  };
+}
+
+async function listRecoveryCycles(query = {}) {
+  const { page, pageSize, offset, limit } = parsePagination(query);
+  const search = String(query.search || '').trim();
+  const whereClause = buildRecoveryCycleWhere(search);
+  const include = buildRecoveryCycleInclude();
+
+  const [overdueCycleCount, rows, totalsRow] = await Promise.all([
+    models.TontineCycle.count({
+      where: whereClause,
+      distinct: true,
+    }),
+    models.TontineCycle.findAll({
+      where: whereClause,
+      include,
+      order: [['startedAt', 'ASC']],
+      offset,
+      limit,
+    }),
+    models.TontineCycle.findAll({
+      attributes: [
+        [
+          sequelize.literal('COUNT(DISTINCT `TontineCycle`.`user_id`)'),
+          'overdueClients',
+        ],
+        [
+          sequelize.literal(
+            'COALESCE(SUM(`TontineCycle`.`stake_amount` * (TIMESTAMPDIFF(DAY, DATE(`TontineCycle`.`started_at`), CURDATE()) + 1)), 0)',
+          ),
+          'totalExpectedAmount',
+        ],
+        [
+          sequelize.literal(
+            'COALESCE(SUM((`TontineCycle`.`stake_amount` * (TIMESTAMPDIFF(DAY, DATE(`TontineCycle`.`started_at`), CURDATE()) + 1)) - `TontineCycle`.`cumulative_amount`), 0)',
+          ),
+          'totalLateAmount',
+        ],
+        [
+          sequelize.literal(
+            'COALESCE(SUM((TIMESTAMPDIFF(DAY, DATE(`TontineCycle`.`started_at`), CURDATE()) + 1) - FLOOR(`TontineCycle`.`cumulative_amount` / NULLIF(`TontineCycle`.`stake_amount`, 0))), 0)',
+          ),
+          'totalLateDays',
+        ],
+      ],
+      where: whereClause,
+      raw: true,
+    }),
+  ]);
+
+  const totals = totalsRow[0] || {};
+
+  return {
+    items: rows.map((entry) => serializeOverdueCycleListItem(entry)),
+    pagination: {
+      page,
+      pageSize,
+      total: overdueCycleCount,
+    },
+    totals: {
+      overdueCycles: Number(overdueCycleCount || 0),
+      overdueClients: toNumber(totals.overdueClients),
+      totalExpectedAmount: toNumber(totals.totalExpectedAmount),
+      totalLateAmount: toNumber(totals.totalLateAmount),
+      totalLateDays: toNumber(totals.totalLateDays),
     },
   };
 }
@@ -2809,6 +3001,12 @@ async function getOperationalAnomalies() {
   const now = new Date();
   const staleDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const requestedAmountsByUser = await sumRequestedWithdrawalsByUser();
+  const overdueCycleWhere = {
+    status: {
+      [Op.in]: ONGOING_TONTINE_STATUSES,
+    },
+    [Op.and]: [buildOverdueCycleCondition()],
+  };
 
   const [
     staleWithdrawals,
@@ -2816,6 +3014,7 @@ async function getOperationalAnomalies() {
     walletsWithReservedBalance,
     inactiveAgentsWithCash,
     overdueActiveCycles,
+    overdueActiveCycleCount,
   ] = await Promise.all([
     models.Withdrawal.findAll({
       where: {
@@ -2852,13 +3051,14 @@ async function getOperationalAnomalies() {
       limit: 10,
     }),
     models.TontineCycle.findAll({
-      where: {
-        status: 'active',
-        expectedEndAt: { [Op.lt]: now },
-      },
-      include: [{ model: models.User, as: 'user', required: true }],
-      order: [['expectedEndAt', 'ASC']],
+      where: overdueCycleWhere,
+      include: buildRecoveryCycleInclude(),
+      order: [['startedAt', 'ASC']],
       limit: 10,
+    }),
+    models.TontineCycle.count({
+      where: overdueCycleWhere,
+      distinct: true,
     }),
   ]);
 
@@ -2895,7 +3095,7 @@ async function getOperationalAnomalies() {
       expiredRequestedWithdrawals: expiredRequestedWithdrawals.length,
       walletReservationMismatches: walletReservationMismatches.length,
       inactiveAgentsWithCash: inactiveAgentsWithCash.length,
-      overdueActiveCycles: overdueActiveCycles.length,
+      overdueActiveCycles: overdueActiveCycleCount,
     },
     staleWithdrawals: staleWithdrawals.map((entry) => ({
       id: entry.id,
@@ -3019,6 +3219,7 @@ module.exports = {
   createClient,
   updateClient,
   listTontines,
+  listRecoveryCycles,
   getTontineCalendar,
   updateTontineCycle,
   closeTontineCycle,
