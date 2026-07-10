@@ -1,6 +1,7 @@
 import 'package:mobile/features/groups/data/services/client_group_invitations_service.dart';
 import 'package:mobile/features/groups/data/services/client_groups_service.dart';
 import 'package:mobile/features/groups/domain/entities/client_group_membership.dart';
+import 'package:mobile/core/network/api_client.dart';
 
 class ReadModelBootstrapService {
   final ClientGroupsService _groupsService;
@@ -10,7 +11,19 @@ class ReadModelBootstrapService {
     ClientGroupsService? groupsService,
     ClientGroupInvitationsService? invitationsService,
   })  : _groupsService = groupsService ?? ClientGroupsService(),
-        _invitationsService = invitationsService ?? ClientGroupInvitationsService();
+      _invitationsService = invitationsService ?? ClientGroupInvitationsService();
+
+  factory ReadModelBootstrapService.nonInvalidating() {
+    final silentApiClient = ApiClient(
+      invalidateSessionOnUnauthorized: false,
+    );
+    return ReadModelBootstrapService(
+      groupsService: ClientGroupsService(apiClient: silentApiClient),
+      invitationsService: ClientGroupInvitationsService(
+        apiClient: silentApiClient,
+      ),
+    );
+  }
 
   Future<void> warmUpCurrentSession() async {
     await Future.wait([

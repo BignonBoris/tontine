@@ -11,7 +11,14 @@ const errorHandler = require('./common/middlewares/error-handler');
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, res, buffer) => {
+      req.rawBody = buffer;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
