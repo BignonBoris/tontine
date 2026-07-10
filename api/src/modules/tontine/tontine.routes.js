@@ -5,6 +5,19 @@ const controller = require('./tontine.controller');
 
 const router = express.Router();
 
+router.get('/fedapay/return', asyncHandler(controller.fedapayReturnPage));
+router.post('/fedapay/webhook', asyncHandler(controller.fedapayWebhook));
+router.post(
+  '/fedapay/deposits',
+  authenticate,
+  asyncHandler(controller.initializeFedapayDeposit),
+);
+router.get(
+  '/fedapay/deposits/:intentId',
+  authenticate,
+  asyncHandler(controller.getFedapayDepositIntent),
+);
+
 /**
  * @swagger
  * /tontine:

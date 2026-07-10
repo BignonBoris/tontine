@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +11,7 @@ import 'package:mobile/features/dashboard/domain/entities/tontine_archive_entry.
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_history_entry.dart';
+import 'package:mobile/features/dashboard/data/services/tontine_fedapay_service.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
@@ -19,6 +22,9 @@ import 'package:mobile/features/dashboard/presentation/widgets/tontine_history_l
 import 'package:mobile/features/groups/presentation/widgets/my_groups_section.dart';
 import 'package:mobile/features/groups/presentation/widgets/pending_group_requests_section.dart';
 import 'package:mobile/features/groups/presentation/widgets/pending_group_invitations_section.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+enum _TontineDepositMode { wallet, fedapay }
 
 class TontineDetailScreen extends StatefulWidget {
   final bool showBackButton;
@@ -30,10 +36,12 @@ class TontineDetailScreen extends StatefulWidget {
 }
 
 class _TontineDetailScreenState extends State<TontineDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _pendingInvitationCount = 0;
   int _pendingRequestCount = 0;
   late final TabController _tabController;
+  bool _refreshOnResumeAfterFedapay = false;
+  String? _pendingFedapayIntentId;
 
   void _handleInvitationCountChanged(int count) {
     if (_pendingInvitationCount == count) {
@@ -59,15 +67,98 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabChanged);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _refreshOnResumeAfterFedapay) {
+      _refreshOnResumeAfterFedapay = false;
+      unawaited(_refreshFedapayDepositAfterResume());
+    }
+  }
+
+  Future<void> _refreshFedapayDepositAfterResume() async {
+    final intentId = _pendingFedapayIntentId?.trim();
+    if (intentId == null || intentId.isEmpty) {
+      if (mounted) {
+        context.read<DashboardBloc>().add(LoadDashboardData());
+      }
+      return;
+    }
+
+    final fedapayService = TontineFedapayService();
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      if (!mounted) {
+        return;
+      }
+
+      try {
+        final intent = await fedapayService.fetchDepositIntent(intentId);
+        final status = intent.status.toLowerCase();
+        final providerStatus = intent.providerStatus?.toLowerCase() ?? '';
+
+        if (status == 'processed' || providerStatus == 'approved') {
+          _pendingFedapayIntentId = null;
+          if (!mounted) {
+            return;
+          }
+
+          context.read<DashboardBloc>().add(LoadDashboardData());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paiement FedaPay confirme. Mise a jour en cours.'),
+            ),
+          );
+          return;
+        }
+
+        if (status == 'cancelled' ||
+            status == 'failed' ||
+            status == 'expired') {
+          _pendingFedapayIntentId = null;
+          if (!mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Le paiement FedaPay a ete annule ou refuse.',
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        break;
+      }
+
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _refreshOnResumeAfterFedapay = true;
+    context.read<DashboardBloc>().add(LoadDashboardData());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Paiement FedaPay en attente de confirmation.'),
+      ),
+    );
   }
 
   void _handleTabChanged() {
@@ -324,7 +415,8 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
             label: "Verser",
             icon: Icons.add_circle_outline_rounded,
             color: AppTheme.secondaryColor,
-            onTap: () => _showDepositSheet(context, cycle, availableBalance),
+            onTap: () =>
+                _showDepositSheetWithFedapay(context, cycle, availableBalance),
           ),
           const SizedBox(width: 12),
           TontineActionButton(
@@ -466,6 +558,298 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
         );
       },
     );
+  }
+
+  Future<void> _showDepositSheetWithFedapay(
+    BuildContext context,
+    TontineCycle cycle,
+    double availableBalance,
+  ) async {
+    final controller = TextEditingController();
+    final fedapayService = TontineFedapayService();
+    String? errorMessage;
+    bool isSubmitting = false;
+    _TontineDepositMode selectedMode = _TontineDepositMode.wallet;
+    final remaining = (cycle.targetAmount - cycle.cumulativeAmount).clamp(
+      0.0,
+      double.infinity,
+    );
+
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (modalContext) {
+          return StatefulBuilder(
+            builder: (sheetContext, setSheetState) {
+              Future<void> submitDeposit() async {
+                final amount = double.tryParse(controller.text);
+                final remaining =
+                    (cycle.targetAmount - cycle.cumulativeAmount).clamp(
+                      0.0,
+                      double.infinity,
+                    );
+
+                if (amount == null || amount <= 0) {
+                  setSheetState(() => errorMessage = "Montant invalide");
+                  return;
+                }
+
+                if (amount % AppInputRules.financialAmountStep != 0) {
+                  setSheetState(
+                    () => errorMessage =
+                        "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
+                  );
+                  return;
+                }
+
+                if (amount > remaining) {
+                  setSheetState(
+                    () => errorMessage = "Le montant depasse l'objectif restant",
+                  );
+                  return;
+                }
+
+                if (selectedMode == _TontineDepositMode.wallet &&
+                    amount > availableBalance) {
+                  setSheetState(
+                    () => errorMessage = "Solde disponible insuffisant",
+                  );
+                  return;
+                }
+
+                final authorized =
+                    await LocalSecurityService.authorizeIfEnabled(
+                      context,
+                      title: selectedMode == _TontineDepositMode.wallet
+                          ? 'Transferer vers la tontine'
+                          : 'Payer avec FedaPay',
+                      message: selectedMode == _TontineDepositMode.wallet
+                          ? "Entrez votre PIN pour confirmer ce versement dans votre tontine."
+                          : "Entrez votre PIN pour lancer le paiement FedaPay.",
+                    );
+                if (!context.mounted || !authorized) {
+                  return;
+                }
+
+                if (selectedMode == _TontineDepositMode.wallet) {
+                  context.read<DashboardBloc>().add(
+                    MakeTontineDeposit(amount),
+                  );
+                  if (modalContext.mounted) {
+                    Navigator.pop(modalContext);
+                  }
+                  return;
+                }
+
+                setSheetState(() {
+                  isSubmitting = true;
+                  errorMessage = null;
+                });
+
+                try {
+                  final session = await fedapayService.createDeposit(amount);
+                  _pendingFedapayIntentId = session.id;
+                  final paymentUrl = session.paymentUrl?.trim() ?? '';
+                  final paymentUri = paymentUrl.isEmpty
+                      ? null
+                      : Uri.tryParse(paymentUrl);
+
+                  if (paymentUri == null ||
+                      !(paymentUri.scheme == 'https' ||
+                          paymentUri.scheme == 'http')) {
+                    _pendingFedapayIntentId = null;
+                    if (sheetContext.mounted) {
+                      setSheetState(() {
+                        isSubmitting = false;
+                        errorMessage =
+                            "Le lien de paiement FedaPay est indisponible.";
+                      });
+                    }
+                    return;
+                  }
+
+                  _refreshOnResumeAfterFedapay = true;
+                  final launched = await launchUrl(
+                    paymentUri,
+                    mode: LaunchMode.externalApplication,
+                  );
+
+                  if (!launched) {
+                    _refreshOnResumeAfterFedapay = false;
+                    _pendingFedapayIntentId = null;
+                    if (sheetContext.mounted) {
+                      setSheetState(() {
+                        isSubmitting = false;
+                        errorMessage = "Impossible d'ouvrir la page FedaPay.";
+                      });
+                    }
+                    return;
+                  }
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  if (modalContext.mounted) {
+                    Navigator.pop(modalContext);
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Paiement FedaPay ouvert. Revenez dans l'application apres validation.",
+                      ),
+                    ),
+                  );
+                } catch (error) {
+                  _pendingFedapayIntentId = null;
+                  _refreshOnResumeAfterFedapay = false;
+                  if (!sheetContext.mounted) {
+                    return;
+                  }
+                  setSheetState(() {
+                    isSubmitting = false;
+                    errorMessage = error
+                        .toString()
+                        .replaceFirst(RegExp(r'^(Exception|Error):\s*'), '');
+                  });
+                }
+              }
+
+              return SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 24,
+                    bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Verser dans la tontine",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Choisissez le mode de paiement. Le montant doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser le reste a verser du cycle.",
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textSecondaryColor,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Mode de paiement",
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          ChoiceChip(
+                            label: const Text("Solde disponible"),
+                            selected:
+                                selectedMode == _TontineDepositMode.wallet,
+                            onSelected: (selected) {
+                              if (!selected) {
+                                return;
+                              }
+                              setSheetState(() {
+                                selectedMode = _TontineDepositMode.wallet;
+                                errorMessage = null;
+                              });
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text("FedaPay"),
+                            selected:
+                                selectedMode == _TontineDepositMode.fedapay,
+                            onSelected: (selected) {
+                              if (!selected) {
+                                return;
+                              }
+                              setSheetState(() {
+                                selectedMode = _TontineDepositMode.fedapay;
+                                errorMessage = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: controller,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: AppInputRules.amountFormatters,
+                        autofocus: true,
+                        onChanged: (_) {
+                          if (errorMessage != null) {
+                            setSheetState(() => errorMessage = null);
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: selectedMode == _TontineDepositMode.wallet
+                              ? "Montant a transferer"
+                              : "Montant a payer",
+                          suffixText: "F CFA",
+                          helperText: selectedMode == _TontineDepositMode.wallet
+                              ? "Disponible : ${formatFCFA(availableBalance)} F - Reste : ${formatFCFA(remaining.toInt())} F"
+                              : "Paiement externe via FedaPay - Reste a verser : ${formatFCFA(remaining.toInt())} F",
+                        ),
+                      ),
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 14),
+                        _InlineSheetError(message: errorMessage!),
+                      ],
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: isSubmitting ? null : submitDeposit,
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  selectedMode == _TontineDepositMode.wallet
+                                      ? "Confirmer le transfert"
+                                      : "Ouvrir FedaPay",
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showEarlyStopDialog(BuildContext context, TontineCycle cycle) {

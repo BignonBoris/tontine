@@ -426,21 +426,15 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
-    final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
-    if (!mounted) {
-      return;
-    }
-
-    if (!_isRegistration &&
-        !appLockEnabled &&
-        _pinCode != null &&
-        _pinCode!.trim().length == 4) {
-      await LocalSecurityService.saveSettings(
-        pinEnabled: true,
-        biometricEnabled: false,
-        pinCode: _pinCode!.trim(),
-        phoneNumber: _normalizedPhoneNumber,
-      );
+    if (!_isRegistration) {
+      if (_pinCode != null && _pinCode!.trim().length == 4) {
+        await LocalSecurityService.saveSettings(
+          pinEnabled: true,
+          biometricEnabled: false,
+          pinCode: _pinCode!.trim(),
+          phoneNumber: _normalizedPhoneNumber,
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -448,9 +442,28 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
+    final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
+    if (!mounted) {
+      return;
+    }
+
+    if (appLockEnabled) {
+      Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
+      return;
+    }
+
+    if (_pinCode != null && _pinCode!.trim().length == 4) {
+      await LocalSecurityService.saveSettings(
+        pinEnabled: true,
+        biometricEnabled: false,
+        pinCode: _pinCode!.trim(),
+        phoneNumber: _normalizedPhoneNumber,
+      );
+    }
+
     Navigator.pushNamedAndRemoveUntil(
       context,
-      appLockEnabled ? '/unlock' : '/auth_pin_setup',
+      '/auth_pin_setup',
       (route) => false,
     );
   }

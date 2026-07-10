@@ -16,6 +16,15 @@ const TONTINE_HISTORY_TYPES = [
   'earlyStop',
   'restarted',
 ];
+const TONTINE_PAYMENT_INTENT_STATUSES = [
+  'pending',
+  'approved',
+  'processing',
+  'processed',
+  'failed',
+  'cancelled',
+  'expired',
+];
 const TONTINE_ARCHIVE_STATUSES = ['completed', 'stoppedEarly'];
 const AVAILABLE_BALANCE_HISTORY_TYPES = [
   'tontinePayout',
@@ -93,6 +102,7 @@ module.exports = {
   TONTINE_CYCLE_STATUSES,
   GOAL_STATUSES,
   TONTINE_HISTORY_TYPES,
+  TONTINE_PAYMENT_INTENT_STATUSES,
   TONTINE_ARCHIVE_STATUSES,
   AVAILABLE_BALANCE_HISTORY_TYPES,
   APP_NOTIFICATION_TYPES,

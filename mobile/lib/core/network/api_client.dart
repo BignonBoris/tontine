@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/core/network/api_config.dart';
 import 'package:mobile/core/storage/session_storage.dart';
@@ -31,16 +32,22 @@ class ApiException implements Exception {
 
 class ApiClient {
   final http.Client _client;
+  final bool invalidateSessionOnUnauthorized;
 
-  ApiClient({http.Client? client}) : _client = client ?? http.Client();
+  ApiClient({
+    http.Client? client,
+    this.invalidateSessionOnUnauthorized = true,
+  }) : _client = client ?? http.Client();
 
   Future<dynamic> get(String path, {bool authenticated = true}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     final response = await _sendRequest(
       () async => _client.get(
-        Uri.parse('${ApiConfig.baseUrl}$path'),
+        uri,
         headers: await _headers(authenticated: authenticated),
       ),
     );
+    _logHttpResponse('GET', uri, response);
     return _extractData(response);
   }
 
@@ -49,13 +56,15 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     final response = await _sendRequest(
       () async => _client.post(
-        Uri.parse('${ApiConfig.baseUrl}$path'),
+        uri,
         headers: await _headers(authenticated: authenticated),
         body: jsonEncode(body ?? <String, dynamic>{}),
       ),
     );
+    _logHttpResponse('POST', uri, response);
     return _extractData(response);
   }
 
@@ -64,14 +73,27 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     final response = await _sendRequest(
       () async => _client.patch(
-        Uri.parse('${ApiConfig.baseUrl}$path'),
+        uri,
         headers: await _headers(authenticated: authenticated),
         body: jsonEncode(body ?? <String, dynamic>{}),
       ),
     );
+    _logHttpResponse('PATCH', uri, response);
     return _extractData(response);
+  }
+
+  void _logHttpResponse(String method, Uri uri, http.Response response) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[API] $method $uri -> ${response.statusCode}');
+    if (response.body.isNotEmpty) {
+      debugPrint('[API] $method $uri response => ${response.body}');
+    }
   }
 
   Future<http.Response> _sendRequest(
@@ -133,13 +155,22 @@ class ApiClient {
         : 'Une erreur est survenue.';
 
     if (response.statusCode == 401) {
-      SessionStorage.clear();
+      if (invalidateSessionOnUnauthorized) {
+        SessionStorage.clear();
+        throw ApiException(
+          message.isEmpty
+              ? "Votre session a expire. Reconnectez-vous pour continuer."
+              : message,
+          response.statusCode,
+          ApiErrorType.sessionExpired,
+        );
+      }
       throw ApiException(
         message.isEmpty
-            ? "Votre session a expire. Reconnectez-vous pour continuer."
+            ? "Acces refuse. Reconnectez-vous pour continuer."
             : message,
         response.statusCode,
-        ApiErrorType.sessionExpired,
+        ApiErrorType.unauthorized,
       );
     }
 

@@ -16,6 +16,7 @@ const Withdrawal = require('./withdrawal.model');
 const TontineCycle = require('./tontine-cycle.model');
 const TontineHistory = require('./tontine-history.model');
 const TontineArchive = require('./tontine-archive.model');
+const TontinePaymentIntent = require('./tontine-payment-intent.model');
 const Goal = require('./goal.model');
 const GoalTransaction = require('./goal-transaction.model');
 const AvailableBalanceHistory = require('./available-balance-history.model');
@@ -65,6 +66,19 @@ Withdrawal.belongsTo(AgentProfile, {
 
 User.hasMany(TontineCycle, { foreignKey: 'userId', as: 'tontineCycles' });
 TontineCycle.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(TontinePaymentIntent, {
+  foreignKey: 'userId',
+  as: 'tontinePaymentIntents',
+});
+TontinePaymentIntent.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+TontineCycle.hasMany(TontinePaymentIntent, {
+  foreignKey: 'cycleId',
+  as: 'tontinePaymentIntents',
+});
+TontinePaymentIntent.belongsTo(TontineCycle, {
+  foreignKey: 'cycleId',
+  as: 'cycle',
+});
 
 User.hasMany(TontineHistory, { foreignKey: 'userId', as: 'tontineHistory' });
 TontineHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -372,6 +386,7 @@ const models = {
   TontineCycle,
   TontineHistory,
   TontineArchive,
+  TontinePaymentIntent,
   Goal,
   GoalTransaction,
   AvailableBalanceHistory,

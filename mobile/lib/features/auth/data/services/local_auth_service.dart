@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:mobile/core/network/api_client.dart';
+import 'package:mobile/core/network/api_config.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/core/utils/input_rules.dart';
@@ -27,6 +30,22 @@ class LocalAuthService {
 
   static final ApiClient _apiClient = ApiClient();
   static const _suggestedPhoneKey = 'auth.suggestedPhoneNumber';
+
+  static void _logAuthApiCall(String path) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[AUTH API] POST ${ApiConfig.baseUrl}$path');
+  }
+
+  static void _logAuthApiResponse(String path, dynamic data) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[AUTH API] $path response => ${jsonEncode(data)}');
+  }
 
   static String normalizePhone(String rawPhone) {
     return AppInputRules.normalizePhone(rawPhone);
@@ -74,6 +93,7 @@ class LocalAuthService {
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
+      _logAuthApiCall('/auth/request-otp');
       final data = await _apiClient.post(
         '/auth/request-otp',
         authenticated: false,
@@ -84,6 +104,7 @@ class LocalAuthService {
             'pinCode': pinCode.trim(),
         },
       ) as Map<String, dynamic>;
+      _logAuthApiResponse('/auth/request-otp', data);
 
       await _saveSuggestedPhoneNumber(normalizedPhone);
 
@@ -109,6 +130,7 @@ class LocalAuthService {
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
+      _logAuthApiCall('/auth/verify-otp');
       final data = await _apiClient.post(
         '/auth/verify-otp',
         authenticated: false,
@@ -125,6 +147,7 @@ class LocalAuthService {
             'birthDate': birthDate.trim(),
         },
       ) as Map<String, dynamic>;
+      _logAuthApiResponse('/auth/verify-otp', data);
 
       final token = data['token'] as String?;
       if (token == null || token.isEmpty) {
@@ -153,6 +176,7 @@ class LocalAuthService {
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
+      _logAuthApiCall('/auth/resend-otp');
       final data = await _apiClient.post(
         '/auth/resend-otp',
         authenticated: false,
@@ -161,6 +185,7 @@ class LocalAuthService {
           'purpose': isRegistration ? 'register' : 'login',
         },
       ) as Map<String, dynamic>;
+      _logAuthApiResponse('/auth/resend-otp', data);
 
       await _saveSuggestedPhoneNumber(normalizedPhone);
 

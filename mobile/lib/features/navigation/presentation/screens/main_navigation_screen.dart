@@ -36,7 +36,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(PushNotificationService.instance.start());
-    unawaited(ReadModelBootstrapService().warmUpCurrentSession());
+    unawaited(
+      ReadModelBootstrapService.nonInvalidating().warmUpCurrentSession(),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingInvitationIfNeeded();
     });

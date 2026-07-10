@@ -104,6 +104,15 @@ function signToken(user) {
   });
 }
 
+function assertUserIsActive(user) {
+  if (user && !user.isActive) {
+    throw new AppError(
+      'Votre compte est inactif. Contactez un administrateur.',
+      403,
+    );
+  }
+}
+
 function computeExpiryDate() {
   return new Date(Date.now() + env.otpExpiresInMinutes * 60 * 1000);
 }
@@ -247,6 +256,10 @@ async function requestOtp(payload, context) {
   }
 
   const user = await assertPhonePurposeConsistency(normalizedPhone, purpose);
+
+  if (purpose === 'login') {
+    assertUserIsActive(user);
+  }
 
   if (purpose === 'login' && user?.preferences?.pinCode) {
     if (!isValidPinCode(pinCode)) {
@@ -471,6 +484,8 @@ async function verifyOtp(
       where: { phoneNumber: normalizedPhone },
       transaction,
     });
+
+    assertUserIsActive(user);
 
     if (!user && otp.purpose === 'login') {
       throw new AppError('Aucun compte trouve pour ce numero.', 404);

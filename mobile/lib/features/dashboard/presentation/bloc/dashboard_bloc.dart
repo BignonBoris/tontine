@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/services/realtime_notification_service.dart';
@@ -87,6 +88,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
       _ensureRealtimeSubscription();
     } on ApiException catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[DASHBOARD] load failed => type=${error.type} status=${error.statusCode} message=${error.message}',
+        );
+      }
       if (error.type == ApiErrorType.sessionExpired ||
           error.type == ApiErrorType.unauthorized) {
         emit(_mapApiError(error));
@@ -114,6 +120,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         ),
       );
     } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[DASHBOARD] load unexpected error => ${error.toString()}');
+      }
       if (cachedSnapshot != null) {
         emit(
           _buildLoadedState(
@@ -400,6 +409,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       );
       _ensureRealtimeSubscription();
     } on ApiException catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[DASHBOARD] mutation failed => type=${error.type} status=${error.statusCode} message=${error.message}',
+        );
+      }
       if (error.type == ApiErrorType.sessionExpired ||
           error.type == ApiErrorType.unauthorized) {
         emit(_mapApiError(error));
@@ -419,6 +433,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
       emit(_mapApiError(error));
     } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[DASHBOARD] mutation unexpected error => ${error.toString()}',
+        );
+      }
       if (state is DashboardLoaded) {
         emit(
           (state as DashboardLoaded).copyWith(

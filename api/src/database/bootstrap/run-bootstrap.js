@@ -13,6 +13,9 @@ const {
 const {
   ensureTontineHistoryCompatibility,
 } = require('./tontine-history.bootstrap');
+const {
+  ensureTontinePaymentIntentCompatibility,
+} = require('./tontine-payment-intent.bootstrap');
 const { ensureCommissionCompatibility } = require('./commission.bootstrap');
 const { ensureMarketOfferCompatibility } = require('./market-offer.bootstrap');
 const { ensureAgentGroupCompatibility } = require('./agent-group.bootstrap');
@@ -34,6 +37,7 @@ async function runBootstrap(sequelize) {
   await ensureWalletCompatibility(sequelize);
   await ensureAvailableBalanceHistoryCompatibility(sequelize);
   await ensureTontineHistoryCompatibility(sequelize);
+  await ensureTontinePaymentIntentCompatibility(sequelize);
   await ensureGoalCompatibility(sequelize);
   await ensureCommissionCompatibility(sequelize, models);
   await ensureMarketOfferCompatibility(sequelize);
