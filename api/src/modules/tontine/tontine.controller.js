@@ -1,6 +1,7 @@
 const { ok } = require('../../common/utils/api-response');
 const { getRequestContext } = require('../../common/utils/request-context');
 const service = require('./tontine.service');
+const fedapayService = require('./tontine-fedapay.service');
 
 async function getOverview(req, res) {
   const data = await service.getCycleOverview(req.auth.userId);
@@ -20,10 +21,36 @@ async function deposit(req, res) {
   const data = await service.depositToCycle(
     req.auth.userId,
     Number(req.body.amount),
-    req.body.source || 'wallet',
+    'wallet',
     getRequestContext(req),
   );
   return ok(res, data, 'Versement enregistre.');
+}
+
+async function initializeFedapayDeposit(req, res) {
+  const data = await fedapayService.initializeFedapayTontineDeposit(
+    req.auth.userId,
+    Number(req.body.amount),
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Paiement FedaPay initialise.');
+}
+
+async function getFedapayDepositIntent(req, res) {
+  const data = await fedapayService.getFedapayTontineDepositIntent(
+    req.auth.userId,
+    req.params.intentId,
+  );
+  return ok(res, data, 'Suivi du paiement charge.');
+}
+
+async function fedapayWebhook(req, res) {
+  const data = await fedapayService.processFedapayWebhook(req);
+  return ok(res, data, 'Webhook FedaPay traite.');
+}
+
+async function fedapayReturnPage(req, res) {
+  return fedapayService.renderFedapayReturnPage(req, res);
 }
 
 async function confirmPayout(req, res) {
@@ -42,4 +69,14 @@ async function stopEarly(req, res) {
   return ok(res, data, 'Tontine arretee.');
 }
 
-module.exports = { getOverview, configure, deposit, confirmPayout, stopEarly };
+module.exports = {
+  getOverview,
+  configure,
+  deposit,
+  initializeFedapayDeposit,
+  getFedapayDepositIntent,
+  fedapayWebhook,
+  fedapayReturnPage,
+  confirmPayout,
+  stopEarly,
+};

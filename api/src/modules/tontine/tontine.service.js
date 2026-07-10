@@ -359,6 +359,11 @@ async function depositToCycle(
   source = 'external',
   requestContext = {},
 ) {
+  const allowedSources = new Set(['wallet', 'external', 'fedapay']);
+  if (!allowedSources.has(source)) {
+    throw new AppError('Source de versement invalide.', 422);
+  }
+
   if (
     !amount ||
     amount <= 0 ||
@@ -375,6 +380,12 @@ async function depositToCycle(
     if (source === 'external' && actor.initiatorType === 'client') {
       throw new AppError(
         "Les versements externes ne sont plus autorises depuis l'application client. Utilisez votre solde disponible.",
+        422,
+      );
+    }
+    if (source === 'fedapay' && actor.initiatorType === 'client') {
+      throw new AppError(
+        "Les versements FedaPay doivent passer par le webhook de confirmation.",
         422,
       );
     }
@@ -439,17 +450,25 @@ async function depositToCycle(
           )
         : null;
 
+    const cycleDepositLabel =
+      source === 'wallet'
+        ? 'Versement depuis disponible'
+        : source === 'fedapay'
+          ? 'Versement FedaPay'
+          : 'Versement tontine';
     const cycleHistory = await appendCycleHistory(
       transaction,
       userId,
       cycle.id,
       'deposit',
       amount,
-      source === 'wallet' ? 'Versement depuis disponible' : 'Versement tontine',
+      cycleDepositLabel,
       null,
       actor,
       {
         paymentSource: source,
+        paymentIntentId: requestContext.paymentIntentId || null,
+        paymentProvider: requestContext.paymentProvider || null,
         linkedProvisioningId: requestContext.provisioningId || null,
         availableBalanceHistoryId: availableHistory?.id || null,
       },
@@ -474,12 +493,22 @@ async function depositToCycle(
         "Votre tontine a atteint l'objectif. Confirmez le reversement.",
       );
     } else {
+      const depositNotificationTitle =
+        source === 'wallet'
+          ? 'Retour vers la tontine'
+          : source === 'fedapay'
+            ? 'Paiement FedaPay'
+            : 'Versement tontine';
+      const depositNotificationMessage =
+        source === 'fedapay'
+          ? `${amount} F valides ont ete ajoutes a votre tontine via FedaPay.`
+          : `${amount} F ajoutes a votre tontine.`;
       await appendNotification(
         transaction,
         userId,
         'deposit',
-        source === 'wallet' ? 'Retour vers la tontine' : 'Versement tontine',
-        `${amount} F ajoutes a votre tontine.`,
+        depositNotificationTitle,
+        depositNotificationMessage,
       );
     }
 
@@ -493,6 +522,8 @@ async function depositToCycle(
       metadata: {
         amount,
         source,
+        paymentIntentId: requestContext.paymentIntentId || null,
+        paymentProvider: requestContext.paymentProvider || null,
         nextAmount,
         nextStatus,
       },

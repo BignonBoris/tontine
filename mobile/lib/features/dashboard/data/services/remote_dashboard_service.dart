@@ -130,9 +130,13 @@ class RemoteDashboardSnapshot {
 
 class RemoteDashboardService {
   final ApiClient _apiClient;
+  final ApiClient _backgroundApiClient;
 
   RemoteDashboardService({ApiClient? apiClient})
-    : _apiClient = apiClient ?? ApiClient();
+    : _apiClient = apiClient ?? ApiClient(),
+      _backgroundApiClient = ApiClient(
+        invalidateSessionOnUnauthorized: false,
+      );
 
   Future<RemoteDashboardSnapshot> fetchDashboardSnapshot() async {
     final goalsPayload = _asList(await _apiClient.get('/goals'));
@@ -196,12 +200,14 @@ class RemoteDashboardService {
     required dynamic fallback,
   }) async {
     try {
-      return await _apiClient.get(path);
+      return await _backgroundApiClient.get(path);
     } on ApiException catch (error) {
-      if (error.type == ApiErrorType.sessionExpired ||
-          error.type == ApiErrorType.unauthorized ||
-          error.type == ApiErrorType.network) {
-        rethrow;
+      if (error.type == ApiErrorType.network ||
+          error.type == ApiErrorType.server ||
+          error.type == ApiErrorType.unknown ||
+          error.type == ApiErrorType.sessionExpired ||
+          error.type == ApiErrorType.unauthorized) {
+        return fallback;
       }
       return fallback;
     }

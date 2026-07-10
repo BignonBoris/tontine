@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
+import 'package:mobile/core/network/api_client.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
@@ -224,12 +227,20 @@ class _AuthPinSetupScreenState extends State<AuthPinSetupScreen> {
       pinCode: _pinController.text.trim(),
       phoneNumber: await LocalAuthService.loadSuggestedNormalizedPhoneNumber(),
     );
-    await RemoteDashboardService().savePreferences(
-      ProfilePreferences.defaults().copyWith(
-        pinEnabled: true,
-        biometricEnabled: false,
-        pinCode: _pinController.text.trim(),
-      ),
+    unawaited(
+      RemoteDashboardService(
+        apiClient: ApiClient(invalidateSessionOnUnauthorized: false),
+      )
+          .savePreferences(
+            ProfilePreferences.defaults().copyWith(
+              pinEnabled: true,
+              biometricEnabled: false,
+              pinCode: _pinController.text.trim(),
+            ),
+          )
+          .catchError((error) {
+            debugPrint('Synchronisation distante du PIN echouee: $error');
+          }),
     );
 
     if (!mounted) {

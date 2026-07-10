@@ -26,6 +26,13 @@ const env = {
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
   fcmServerKey: process.env.FCM_SERVER_KEY || '',
+  fedapaySecretKey: process.env.FEDAPAY_SECRET_KEY || '',
+  fedapayWebhookSecret: process.env.FEDAPAY_WEBHOOK_SECRET || '',
+  fedapayApiBaseUrl:
+    process.env.FEDAPAY_API_BASE_URL ||
+    (process.env.FEDAPAY_ENV === 'live' || process.env.NODE_ENV === 'production'
+      ? 'https://api.fedapay.com/v1'
+      : 'https://sandbox-api.fedapay.com/v1'),
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),
