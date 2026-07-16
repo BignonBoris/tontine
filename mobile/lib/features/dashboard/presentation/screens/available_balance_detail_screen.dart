@@ -478,6 +478,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
     final controller = TextEditingController();
     bool isSubmitting = false;
     String? errorMessage;
+    String selectedChannel = 'agent_cash';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -508,10 +509,50 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Le montant sera reserve, puis un agent vous paiera apres verification de la reference et du code de confirmation.",
+                    "Le montant sera reserve, puis la demande suivra la procedure associee a la methode choisie.",
                     style: GoogleFonts.inter(
                       color: AppTheme.textSecondaryColor,
                       fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedChannel,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'agent_cash',
+                        child: Text("Agent / caisse"),
+                      ),
+                      DropdownMenuItem(
+                        value: 'mobile_money',
+                        child: Text("Mobile money"),
+                      ),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text("Virement bancaire"),
+                      ),
+                    ],
+                    onChanged: isSubmitting
+                        ? null
+                        : (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setModalState(() {
+                              selectedChannel = value;
+                            });
+                          },
+                    decoration: const InputDecoration(
+                      labelText: "Methode de retrait",
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    _withdrawalChannelHint(selectedChannel),
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor,
+                      fontSize: 12,
                       height: 1.4,
                     ),
                   ),
@@ -584,6 +625,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                               try {
                                 final result = await service.requestWithdrawal(
                                   amount,
+                                  channel: selectedChannel,
                                 );
                                 if (!context.mounted) {
                                   return;
@@ -619,7 +661,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text("Generer ma reference"),
+                          : const Text("Confirmer"),
                     ),
                   ),
                 ],
@@ -639,7 +681,11 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Retrait initialise'),
+          title: Text(
+            result.requiresConfirmationCode
+                ? 'Retrait initialise'
+                : 'Demande de retrait enregistree',
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -649,25 +695,42 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                 value: '${formatFCFA(result.amount)} F',
                 isHighlighted: true,
               ),
+              _InfoLine(
+                label: 'Methode',
+                value: _withdrawalChannelLabel(result.channel),
+              ),
               _InfoLine(label: 'Reference', value: result.reference),
-              _InfoLine(
-                label: 'Code client',
-                value: result.confirmationCode,
-                isHighlighted: true,
-              ),
-              _InfoLine(
-                label: 'Valable jusqu au',
-                value: _formatDate(result.confirmationCodeExpiresAt),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Communiquez la reference a l'agent, puis gardez ce code pour confirmer le paiement.",
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: AppTheme.textSecondaryColor,
+              if (result.requiresConfirmationCode) ...[
+                _InfoLine(
+                  label: 'Code client',
+                  value: result.confirmationCode ?? '',
+                  isHighlighted: true,
                 ),
-              ),
+                if (result.confirmationCodeExpiresAt != null)
+                  _InfoLine(
+                    label: 'Valable jusqu au',
+                    value: _formatDate(result.confirmationCodeExpiresAt!),
+                  ),
+                const SizedBox(height: 12),
+                Text(
+                  "Communiquez la reference a l'agent, puis gardez ce code pour confirmer le paiement.",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: AppTheme.textSecondaryColor,
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 12),
+                Text(
+                  "Votre demande a ete transmise. L'administration la verifiera avant de proceder au paiement hors application.",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: AppTheme.textSecondaryColor,
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -675,16 +738,21 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
               onPressed: () async {
                 await Clipboard.setData(
                   ClipboardData(
-                    text:
-                        'Reference: ${result.reference} | Code: ${result.confirmationCode}',
+                    text: result.requiresConfirmationCode
+                        ? 'Reference: ${result.reference} | Code: ${result.confirmationCode ?? ""}'
+                        : 'Reference: ${result.reference} | Methode: ${_withdrawalChannelLabel(result.channel)}',
                   ),
                 );
                 if (dialogContext.mounted) {
                   ScaffoldMessenger.of(context)
                     ..hideCurrentSnackBar()
                     ..showSnackBar(
-                      const SnackBar(
-                        content: Text('Reference et code copies.'),
+                      SnackBar(
+                        content: Text(
+                          result.requiresConfirmationCode
+                              ? 'Reference et code copies.'
+                              : 'Reference copiee.',
+                        ),
                       ),
                     );
                 }
@@ -740,25 +808,35 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                       value: linkedWithdrawal.reference,
                     ),
                     _InfoLine(
+                      label: 'Methode',
+                      value: _withdrawalChannelLabel(linkedWithdrawal.channel),
+                    ),
+                    _InfoLine(
                       label: 'Statut retrait',
-                      value: _withdrawalStatusLabel(linkedWithdrawal.status),
+                      value: _withdrawalStatusLabel(
+                        linkedWithdrawal.status,
+                        linkedWithdrawal.channel,
+                      ),
                       isHighlighted: linkedWithdrawal.status == 'paid',
                     ),
-                    if (linkedWithdrawal.confirmationCodeExpiresAt != null)
+                    if (linkedWithdrawal.channel == 'agent_cash' &&
+                        linkedWithdrawal.confirmationCodeExpiresAt != null)
                       _InfoLine(
                         label: 'Code',
                         value: linkedWithdrawal.isConfirmationCodeExpired
                             ? 'Expire'
                             : 'Deja genere',
                       ),
-                    if (linkedWithdrawal.confirmationCodeExpiresAt != null)
+                    if (linkedWithdrawal.channel == 'agent_cash' &&
+                        linkedWithdrawal.confirmationCodeExpiresAt != null)
                       _InfoLine(
                         label: 'Valable jusqu au',
                         value: _formatDate(
                           linkedWithdrawal.confirmationCodeExpiresAt!,
                         ),
                       ),
-                    if (!linkedWithdrawal.isConfirmationCodeExpired &&
+                    if (linkedWithdrawal.channel == 'agent_cash' &&
+                        !linkedWithdrawal.isConfirmationCodeExpired &&
                         linkedWithdrawal.status == 'requested')
                       Text(
                         "Le code actif a deja ete genere. Si vous ne l'avez plus, attendez son expiration puis generez-en un nouveau.",
@@ -768,15 +846,52 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                           color: AppTheme.textSecondaryColor,
                         ),
                       ),
+                    if (linkedWithdrawal.status == 'requested' &&
+                        linkedWithdrawal.channel != 'agent_cash')
+                      Text(
+                        "La demande est en attente de validation par l'administration.",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: AppTheme.textSecondaryColor,
+                        ),
+                      ),
+                    if (linkedWithdrawal.approvedAt != null)
+                      _InfoLine(
+                        label: 'Approuve le',
+                        value: _formatDate(linkedWithdrawal.approvedAt!),
+                      ),
                     if (linkedWithdrawal.paidAt != null)
                       _InfoLine(
                         label: 'Paye le',
                         value: _formatDate(linkedWithdrawal.paidAt!),
                       ),
+                    if (linkedWithdrawal.paymentReference != null &&
+                        linkedWithdrawal.paymentReference!.isNotEmpty)
+                      _InfoLine(
+                        label: 'Reference paiement',
+                        value: linkedWithdrawal.paymentReference!,
+                      ),
+                    if (linkedWithdrawal.paymentProofImageUrl != null &&
+                        linkedWithdrawal.paymentProofImageUrl!.isNotEmpty)
+                      _InfoLine(
+                        label: 'Preuve',
+                        value: 'Ajoutee',
+                      ),
                     if (linkedWithdrawal.cancelledAt != null)
                       _InfoLine(
                         label: 'Annule le',
                         value: _formatDate(linkedWithdrawal.cancelledAt!),
+                      ),
+                    if (linkedWithdrawal.rejectedAt != null)
+                      _InfoLine(
+                        label: 'Refuse le',
+                        value: _formatDate(linkedWithdrawal.rejectedAt!),
+                      ),
+                    if ((linkedWithdrawal.rejectionReason ?? '').isNotEmpty)
+                      _InfoLine(
+                        label: 'Motif de refus',
+                        value: linkedWithdrawal.rejectionReason!,
                       ),
                     if ((linkedWithdrawal.cancellationReason ?? '').isNotEmpty)
                       _InfoLine(
@@ -789,6 +904,7 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
               actions: [
                 if (linkedWithdrawal != null &&
                     linkedWithdrawal.status == 'requested' &&
+                    linkedWithdrawal.channel == 'agent_cash' &&
                     linkedWithdrawal.isConfirmationCodeExpired)
                   TextButton(
                     onPressed: isSubmitting
@@ -915,16 +1031,48 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
     return null;
   }
 
-  String _withdrawalStatusLabel(String status) {
+  String _withdrawalStatusLabel(String status, String channel) {
     switch (status) {
       case 'requested':
-        return 'En attente de paiement';
+        return channel == 'agent_cash'
+            ? 'En attente de paiement'
+            : 'En attente de validation';
+      case 'approved':
+        return 'Approuve';
       case 'paid':
         return 'Paye';
+      case 'rejected':
+        return 'Refuse';
       case 'cancelled':
         return 'Annule';
       default:
         return status;
+    }
+  }
+
+  String _withdrawalChannelLabel(String channel) {
+    switch (channel) {
+      case 'agent_cash':
+        return 'Agent / caisse';
+      case 'mobile_money':
+        return 'Mobile money';
+      case 'bank_transfer':
+        return 'Virement bancaire';
+      default:
+        return channel;
+    }
+  }
+
+  String _withdrawalChannelHint(String channel) {
+    switch (channel) {
+      case 'agent_cash':
+        return "Retrait classique: validation par code puis paiement par un agent.";
+      case 'mobile_money':
+        return "Votre demande sera transmise a l'administration pour paiement mobile money hors application.";
+      case 'bank_transfer':
+        return "Votre demande sera transmise a l'administration pour paiement par virement bancaire.";
+      default:
+        return '';
     }
   }
 

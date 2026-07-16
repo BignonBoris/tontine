@@ -57,8 +57,20 @@ const Withdrawal = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    approvedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    approvedByAdminUsername: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
     paidAt: {
       type: DataTypes.DATE,
+      allowNull: true,
+    },
+    paidByAdminUsername: {
+      type: DataTypes.STRING(120),
       allowNull: true,
     },
     cancelledAt: {
@@ -66,6 +78,18 @@ const Withdrawal = sequelize.define(
       allowNull: true,
     },
     rejectedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    paymentReference: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    paymentProofImageUrl: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    paymentProofUploadedAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },
@@ -82,6 +106,10 @@ const Withdrawal = sequelize.define(
       allowNull: true,
     },
     cancellationReason: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    rejectionReason: {
       type: DataTypes.STRING(255),
       allowNull: true,
     },

@@ -272,10 +272,13 @@ class RemoteDashboardService {
     return _apiClient.post('/goals/$goalId/close');
   }
 
-  Future<WithdrawalRequestResult> requestWithdrawal(double amount) async {
+  Future<WithdrawalRequestResult> requestWithdrawal(
+    double amount, {
+    String channel = 'agent_cash',
+  }) async {
     final data = await _apiClient.post(
       '/withdrawals',
-      body: {'amount': amount},
+      body: {'amount': amount, 'channel': channel},
     ) as Map<dynamic, dynamic>;
 
     return WithdrawalRequestResult.fromMap(Map<dynamic, dynamic>.from(data));

@@ -69,6 +69,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       return;
     }
 
+    final bypassActive =
+        await LocalSecurityService.isTemporaryAppLockBypassActive();
+    if (!mounted) {
+      return;
+    }
+    if (bypassActive) {
+      _requiresUnlockOnResume = false;
+      return;
+    }
+
     final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
     if (!mounted) {
       return;
@@ -76,6 +86,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
     _requiresUnlockOnResume = false;
     if (!appLockEnabled) {
+      return;
+    }
+
+    final bypassStillActive =
+        await LocalSecurityService.isTemporaryAppLockBypassActive();
+    if (!mounted) {
+      return;
+    }
+    if (bypassStillActive) {
       return;
     }
 

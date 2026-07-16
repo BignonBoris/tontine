@@ -1,9 +1,12 @@
+const fs = require('fs/promises');
 const crypto = require('crypto');
+const path = require('path');
 const AppError = require('../../common/errors/app-error');
 const {
   FINANCIAL_AMOUNT_STEP,
 } = require('../../common/constants/finance');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
+const env = require('../../config/env');
 const { models, sequelize } = require('../../database/models');
 const { displayPhone } = require('../auth/auth.service');
 const { applyAgentBalanceChange } = require('../agent-cash/agent-cash.service');
@@ -18,6 +21,8 @@ const {
 
 const WITHDRAWAL_CONFIRMATION_TTL_MINUTES = 15;
 const WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS = 5;
+const AGENT_CASH_CHANNEL = 'agent_cash';
+const ADMIN_REVIEW_CHANNELS = new Set(['mobile_money', 'bank_transfer']);
 
 function generateWithdrawalReference() {
   return `WDR-${Date.now()}-${Math.floor(Math.random() * 9000)
@@ -51,6 +56,100 @@ function isConfirmationCodeExpired(withdrawal) {
   );
 }
 
+function normalizeWithdrawalChannel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) {
+    return AGENT_CASH_CHANNEL;
+  }
+
+  if (!['agent_cash', 'mobile_money', 'bank_transfer'].includes(normalized)) {
+    throw new AppError('La methode de retrait selectionnee est invalide.', 422);
+  }
+
+  return normalized;
+}
+
+function isAgentCashWithdrawal(withdrawal) {
+  return String(withdrawal?.channel || '').trim() === AGENT_CASH_CHANNEL;
+}
+
+function buildWithdrawalProofUploadUrl(fileName) {
+  return `${String(env.appBaseUrl || '').replace(/\/+$/, '')}/uploads/withdrawals/${fileName}`;
+}
+
+function normalizeWithdrawalProofUrl(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (!/^(https?:\/\/|\/uploads\/withdrawals\/)/i.test(normalized)) {
+    throw new AppError(
+      "L'URL de la preuve de paiement est invalide.",
+      422,
+    );
+  }
+
+  return normalized;
+}
+
+async function persistWithdrawalProofImage(payload = {}) {
+  const imageBase64 = String(
+    payload.paymentProofImageBase64 || payload.imageBase64 || '',
+  ).trim();
+  if (!imageBase64) {
+    return null;
+  }
+
+  const imageMimeType = String(
+    payload.paymentProofImageMimeType || payload.imageMimeType || '',
+  )
+    .trim()
+    .toLowerCase();
+  const allowedMimeTypes = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  };
+
+  const extension = allowedMimeTypes[imageMimeType];
+  if (!extension) {
+    throw new AppError(
+      "Le format d'image de la preuve doit etre JPG, PNG ou WEBP.",
+      422,
+    );
+  }
+
+  const normalizedBase64 = imageBase64.includes('base64,')
+    ? imageBase64.split('base64,').pop()
+    : imageBase64;
+  const buffer = Buffer.from(normalizedBase64, 'base64');
+  if (!buffer.length) {
+    throw new AppError("L'image de la preuve de paiement est vide.", 422);
+  }
+  if (buffer.length > 5 * 1024 * 1024) {
+    throw new AppError(
+      "L'image de la preuve de paiement ne doit pas depasser 5 Mo.",
+      422,
+    );
+  }
+
+  const uploadDirectory = path.join(
+    __dirname,
+    '..',
+    '..',
+    'public',
+    'uploads',
+    'withdrawals',
+  );
+  await fs.mkdir(uploadDirectory, { recursive: true });
+
+  const fileName = `withdrawal-proof-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${extension}`;
+  await fs.writeFile(path.join(uploadDirectory, fileName), buffer);
+
+  return buildWithdrawalProofUploadUrl(fileName);
+}
+
 function serializeWithdrawal(withdrawal, extras = {}) {
   if (!withdrawal) {
     return null;
@@ -63,13 +162,24 @@ function serializeWithdrawal(withdrawal, extras = {}) {
     status: withdrawal.status,
     channel: withdrawal.channel,
     requestedAt: withdrawal.requestedAt,
+    approvedAt: withdrawal.approvedAt,
+    approvedByAdminUsername: withdrawal.approvedByAdminUsername || null,
     paidAt: withdrawal.paidAt,
+    paidByAdminUsername: withdrawal.paidByAdminUsername || null,
     cancelledAt: withdrawal.cancelledAt,
     rejectedAt: withdrawal.rejectedAt,
+    paymentReference: withdrawal.paymentReference || null,
+    paymentProofImageUrl: withdrawal.paymentProofImageUrl || null,
+    paymentProofUploadedAt: withdrawal.paymentProofUploadedAt || null,
     notes: withdrawal.notes,
     cancellationReason: withdrawal.cancellationReason,
+    rejectionReason: withdrawal.rejectionReason,
     confirmationCodeExpiresAt: withdrawal.confirmationCodeExpiresAt,
     isConfirmationCodeExpired: isConfirmationCodeExpired(withdrawal),
+    requiresConfirmationCode:
+      isAgentCashWithdrawal(withdrawal) && withdrawal.status === 'requested',
+    requiresAdminReview:
+      !isAgentCashWithdrawal(withdrawal) && withdrawal.status === 'requested',
     payingAgent: withdrawal.payingAgent
       ? {
           id: withdrawal.payingAgent.id,
@@ -89,6 +199,8 @@ async function releaseRequestedWithdrawal(
     notificationMessage,
     auditAction,
     requestContext = {},
+    finalStatus = 'cancelled',
+    timestampField = 'cancelledAt',
   },
   transaction,
 ) {
@@ -112,9 +224,12 @@ async function releaseRequestedWithdrawal(
 
   await withdrawal.update(
     {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: reason,
+      status: finalStatus,
+      [timestampField]: new Date(),
+      cancellationReason:
+        finalStatus === 'cancelled' ? reason : withdrawal.cancellationReason,
+      rejectionReason:
+        finalStatus === 'rejected' ? reason : withdrawal.rejectionReason,
     },
     { transaction },
   );
@@ -124,7 +239,10 @@ async function releaseRequestedWithdrawal(
       userId: withdrawal.userId,
       type: 'withdrawalReleased',
       amount,
-      label: `Retrait annule ${withdrawal.reference}`,
+      label:
+        finalStatus === 'rejected'
+          ? `Retrait refuse ${withdrawal.reference}`
+          : `Retrait annule ${withdrawal.reference}`,
       isCredit: true,
     },
     { transaction },
@@ -151,6 +269,7 @@ async function releaseRequestedWithdrawal(
       reference: withdrawal.reference,
       amount,
       reason,
+      finalStatus,
     },
     transaction,
   });
@@ -179,6 +298,10 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
       422,
     );
   }
+  const channel = normalizeWithdrawalChannel(
+    payload?.channel || payload?.withdrawalMethod,
+  );
+  const requiresAdminReview = ADMIN_REVIEW_CHANNELS.has(channel);
 
   const result = await sequelize.transaction(async (transaction) => {
     const wallet = await models.Wallet.findOne({
@@ -218,7 +341,7 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
         userId,
         amount,
         status: 'requested',
-        channel: 'agent_cash',
+        channel,
         requestedAt: new Date(),
         confirmationCodeHash: hashConfirmationCode(confirmationCode),
         confirmationCodeExpiresAt,
@@ -253,8 +376,12 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
       {
         userId,
         type: 'system',
-        title: 'Retrait demande',
-        message: `${amount} F reserves. Reference ${withdrawal.reference}. Code de validation genere.`,
+        title: requiresAdminReview
+          ? 'Demande de retrait en attente'
+          : 'Retrait demande',
+        message: requiresAdminReview
+          ? `${amount} F reserves. Reference ${withdrawal.reference}. La demande sera verifiee par l'administration.`
+          : `${amount} F reserves. Reference ${withdrawal.reference}. Code de validation genere.`,
       },
       { transaction },
     );
@@ -270,20 +397,28 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
         amount,
         reference: withdrawal.reference,
         confirmationCodeExpiresAt,
+        channel,
+        requiresAdminReview,
       },
       transaction,
     });
 
     return {
       withdrawal,
-      confirmationCode,
+      confirmationCode: requiresAdminReview ? null : confirmationCode,
       confirmationCodeExpiresAt,
+      requiresConfirmationCode: !requiresAdminReview,
+      requiresAdminReview,
     };
   });
 
   return serializeWithdrawal(result.withdrawal, {
     confirmationCode: result.confirmationCode,
-    confirmationCodeExpiresAt: result.confirmationCodeExpiresAt,
+    confirmationCodeExpiresAt: result.requiresConfirmationCode
+      ? result.confirmationCodeExpiresAt
+      : null,
+    requiresConfirmationCode: result.requiresConfirmationCode,
+    requiresAdminReview: result.requiresAdminReview,
   });
 }
 
@@ -343,6 +478,12 @@ async function regenerateWithdrawalCode(userId, withdrawalId, requestContext = {
     if (withdrawal.status !== 'requested') {
       throw new AppError(
         "Seul un retrait en attente peut recevoir un nouveau code.",
+        409,
+      );
+    }
+    if (!isAgentCashWithdrawal(withdrawal)) {
+      throw new AppError(
+        'Cette demande de retrait ne requiert pas de code de confirmation.',
         409,
       );
     }
@@ -409,7 +550,11 @@ async function findPendingWithdrawalByReference(reference) {
   }
 
   const withdrawal = await models.Withdrawal.findOne({
-    where: { reference: normalizedReference, status: 'requested' },
+    where: {
+      reference: normalizedReference,
+      status: 'requested',
+      channel: AGENT_CASH_CHANNEL,
+    },
     include: [{ model: models.User, as: 'user' }],
   });
 
@@ -454,6 +599,12 @@ async function payWithdrawal(
     }
     if (withdrawal.status !== 'requested') {
       throw new AppError("Ce retrait n'est plus en attente.", 409);
+    }
+    if (!isAgentCashWithdrawal(withdrawal)) {
+      throw new AppError(
+        "Ce retrait doit etre traite par l'administration.",
+        409,
+      );
     }
 
     if (isConfirmationCodeExpired(withdrawal)) {
@@ -598,6 +749,7 @@ async function payWithdrawal(
         status: 'paid',
         paidAt: new Date(),
         paidByAgentProfileId: agentProfile.id,
+        paidByAdminUsername: null,
         confirmationCodeAttempts: Number(
           withdrawal.confirmationCodeAttempts || 0,
         ),
@@ -682,6 +834,258 @@ async function payWithdrawal(
   });
 }
 
+async function approveWithdrawalByAdmin(
+  withdrawalId,
+  payload = {},
+  requestContext = {},
+) {
+  const result = await sequelize.transaction(async (transaction) => {
+    const withdrawal = await models.Withdrawal.findByPk(withdrawalId, {
+      include: [{ model: models.User, as: 'user', required: true }],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!withdrawal) {
+      throw new AppError('Retrait introuvable.', 404);
+    }
+    if (withdrawal.status !== 'requested') {
+      throw new AppError('Seul un retrait en attente peut etre approuve.', 409);
+    }
+    if (isAgentCashWithdrawal(withdrawal)) {
+      throw new AppError(
+        'Ce retrait suit le workflow agent et ne peut pas etre approuve par l\'administration.',
+        409,
+      );
+    }
+
+    await withdrawal.update(
+      {
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedByAdminUsername: requestContext.adminUsername || null,
+        notes: payload?.note ? String(payload.note).trim() : withdrawal.notes,
+      },
+      { transaction },
+    );
+
+    await models.Notification.create(
+      {
+        userId: withdrawal.userId,
+        type: 'system',
+        title: 'Retrait approuve',
+        message: `Votre demande de retrait ${withdrawal.reference} a ete approuvee. Le transfert sera effectue sous peu.`,
+      },
+      { transaction },
+    );
+
+    await writeAuditLog({
+      userId: null,
+      action: 'withdrawal.approved',
+      entityType: 'withdrawal',
+      entityId: withdrawal.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        reference: withdrawal.reference,
+        amount: Number(withdrawal.amount),
+        channel: withdrawal.channel,
+        note: payload?.note ? String(payload.note).trim() : null,
+      },
+      transaction,
+    });
+
+    return withdrawal;
+  });
+
+  return serializeWithdrawal(result);
+}
+
+async function rejectWithdrawalByAdmin(
+  withdrawalId,
+  payload = {},
+  requestContext = {},
+) {
+  const reason = String(payload?.reason || payload?.note || '').trim();
+  if (!reason) {
+    throw new AppError('Le motif de refus est requis.', 422);
+  }
+
+  const result = await sequelize.transaction(async (transaction) => {
+    const withdrawal = await models.Withdrawal.findByPk(withdrawalId, {
+      include: [{ model: models.User, as: 'user', required: true }],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!withdrawal) {
+      throw new AppError('Retrait introuvable.', 404);
+    }
+    if (withdrawal.status !== 'requested') {
+      throw new AppError('Seul un retrait en attente peut etre refuse.', 409);
+    }
+    if (isAgentCashWithdrawal(withdrawal)) {
+      throw new AppError(
+        'Ce retrait suit le workflow agent et ne peut pas etre refuse par l\'administration.',
+        409,
+      );
+    }
+
+    await releaseRequestedWithdrawal(
+      withdrawal,
+      {
+        reason,
+        notificationTitle: 'Retrait refuse',
+        notificationMessage: `Votre demande de retrait ${withdrawal.reference} a ete refusee. Motif: ${reason}.`,
+        auditAction: 'withdrawal.rejected',
+        requestContext,
+        finalStatus: 'rejected',
+        timestampField: 'rejectedAt',
+      },
+      transaction,
+    );
+
+    return withdrawal;
+  });
+
+  return serializeWithdrawal(result);
+}
+
+async function persistWithdrawalPayment(
+  withdrawal,
+  payload = {},
+  requestContext = {},
+  transaction,
+) {
+  const paymentReference = String(payload?.paymentReference || '').trim();
+  if (!paymentReference) {
+    throw new AppError('La reference de paiement est requise.', 422);
+  }
+
+  const wallet = await models.Wallet.findOne({
+    where: { userId: withdrawal.userId },
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
+
+  const amount = Number(withdrawal.amount);
+  const reservedBalance = Number(wallet?.reservedWithdrawalBalance || 0);
+  if (!wallet || reservedBalance < amount) {
+    throw new AppError(
+      'Le solde reserve du client est incoherent pour ce retrait.',
+      409,
+    );
+  }
+
+  const paymentProofImageUrl =
+    (await persistWithdrawalProofImage(payload)) ||
+    normalizeWithdrawalProofUrl(payload.paymentProofImageUrl);
+
+  if (!paymentProofImageUrl) {
+    throw new AppError('La preuve image de paiement est requise.', 422);
+  }
+
+  await wallet.update(
+    {
+      reservedWithdrawalBalance: reservedBalance - amount,
+    },
+    { transaction },
+  );
+
+  await withdrawal.update(
+    {
+      status: 'paid',
+      paidAt: new Date(),
+      paidByAdminUsername: requestContext.adminUsername || null,
+      paymentReference,
+      paymentProofImageUrl,
+      paymentProofUploadedAt: new Date(),
+      notes: payload?.note ? String(payload.note).trim() : withdrawal.notes,
+    },
+    { transaction },
+  );
+
+  await models.AvailableBalanceHistory.create(
+    {
+      userId: withdrawal.userId,
+      type: 'withdrawalPaid',
+      amount,
+      label: `Retrait paye ${withdrawal.reference}`,
+      isCredit: false,
+    },
+    { transaction },
+  );
+
+  await models.Notification.create(
+    {
+      userId: withdrawal.userId,
+      type: 'system',
+      title: 'Retrait paye',
+      message: `Votre retrait ${withdrawal.reference} a ete paye. Reference: ${paymentReference}.`,
+    },
+    { transaction },
+  );
+
+  await writeAuditLog({
+    userId: null,
+    action: 'withdrawal.admin_paid',
+    entityType: 'withdrawal',
+    entityId: withdrawal.id,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      adminUsername: requestContext.adminUsername || null,
+      amount,
+      reference: withdrawal.reference,
+      paymentReference,
+      paymentProofImageUrl,
+      channel: withdrawal.channel,
+    },
+    transaction,
+  });
+
+  return withdrawal;
+}
+
+async function markWithdrawalPaidByAdmin(
+  withdrawalId,
+  payload = {},
+  requestContext = {},
+) {
+  const result = await sequelize.transaction(async (transaction) => {
+    const withdrawal = await models.Withdrawal.findByPk(withdrawalId, {
+      include: [{ model: models.User, as: 'user', required: true }],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!withdrawal) {
+      throw new AppError('Retrait introuvable.', 404);
+    }
+    if (withdrawal.status !== 'approved') {
+      throw new AppError('Seul un retrait approuve peut etre marque paye.', 409);
+    }
+    if (isAgentCashWithdrawal(withdrawal)) {
+      throw new AppError(
+        'Ce retrait suit le workflow agent et ne peut pas etre marque paye par l\'administration.',
+        409,
+      );
+    }
+
+    await persistWithdrawalPayment(
+      withdrawal,
+      payload,
+      requestContext,
+      transaction,
+    );
+
+    return withdrawal;
+  });
+
+  return serializeWithdrawal(result);
+}
+
 module.exports = {
   listClientWithdrawals,
   createWithdrawal,
@@ -689,4 +1093,7 @@ module.exports = {
   regenerateWithdrawalCode,
   findPendingWithdrawalByReference,
   payWithdrawal,
+  approveWithdrawalByAdmin,
+  rejectWithdrawalByAdmin,
+  markWithdrawalPaidByAdmin,
 };

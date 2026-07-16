@@ -111,6 +111,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
         if (status == 'processed' || providerStatus == 'approved') {
           _pendingFedapayIntentId = null;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
           if (!mounted) {
             return;
           }
@@ -128,6 +129,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
             status == 'failed' ||
             status == 'expired') {
           _pendingFedapayIntentId = null;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
           if (!mounted) {
             return;
           }
@@ -159,6 +161,14 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
         content: Text('Paiement FedaPay en attente de confirmation.'),
       ),
     );
+  }
+
+  Future<void> _suspendAppLockForFedapay() {
+    return LocalSecurityService.startTemporaryAppLockBypass();
+  }
+
+  Future<void> _clearFedapayAppLockBypass() {
+    return LocalSecurityService.clearTemporaryAppLockBypass();
   }
 
   void _handleTabChanged() {
@@ -672,6 +682,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                     return;
                   }
 
+                  await _suspendAppLockForFedapay();
                   _refreshOnResumeAfterFedapay = true;
                   final launched = await launchUrl(
                     paymentUri,
@@ -681,6 +692,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   if (!launched) {
                     _refreshOnResumeAfterFedapay = false;
                     _pendingFedapayIntentId = null;
+                    await _clearFedapayAppLockBypass();
                     if (sheetContext.mounted) {
                       setSheetState(() {
                         isSubmitting = false;
@@ -708,6 +720,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 } catch (error) {
                   _pendingFedapayIntentId = null;
                   _refreshOnResumeAfterFedapay = false;
+                  await _clearFedapayAppLockBypass();
                   if (!sheetContext.mounted) {
                     return;
                   }

@@ -21,6 +21,8 @@ class LocalSecurityService {
   static const _biometricEnabledKey = 'localSecurity.biometricEnabled';
   static const _pinHashKey = 'localSecurity.pinHash';
   static const _pinOwnerPhoneKey = 'localSecurity.pinOwnerPhone';
+  static const _paymentLockBypassUntilKey =
+      'localSecurity.paymentLockBypassUntil';
 
   static Future<LocalSecuritySettings> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -35,6 +37,43 @@ class LocalSecurityService {
     final pinEnabled = prefs.getBool(_pinEnabledKey) ?? false;
     final pinHash = prefs.getString(_pinHashKey);
     return pinEnabled && pinHash != null && pinHash.isNotEmpty;
+  }
+
+  static Future<void> startTemporaryAppLockBypass({
+    Duration duration = const Duration(minutes: 15),
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (duration.inMicroseconds <= 0) {
+      await prefs.remove(_paymentLockBypassUntilKey);
+      return;
+    }
+
+    final expiresAt = DateTime.now()
+        .toUtc()
+        .add(duration)
+        .millisecondsSinceEpoch;
+    await prefs.setInt(_paymentLockBypassUntilKey, expiresAt);
+  }
+
+  static Future<void> clearTemporaryAppLockBypass() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_paymentLockBypassUntilKey);
+  }
+
+  static Future<bool> isTemporaryAppLockBypassActive() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expiresAt = prefs.getInt(_paymentLockBypassUntilKey);
+    if (expiresAt == null) {
+      return false;
+    }
+
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    if (now >= expiresAt) {
+      await prefs.remove(_paymentLockBypassUntilKey);
+      return false;
+    }
+
+    return true;
   }
 
   static Future<void> saveSettings({

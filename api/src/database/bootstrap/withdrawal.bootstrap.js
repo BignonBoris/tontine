@@ -27,6 +27,13 @@ async function ensureWithdrawalCompatibility(sequelize) {
 
   const columns = await queryInterface.describeTable('withdrawals');
 
+  await sequelize.query(
+    "ALTER TABLE withdrawals MODIFY COLUMN status VARCHAR(32) NOT NULL DEFAULT 'requested'",
+  );
+  await sequelize.query(
+    "ALTER TABLE withdrawals MODIFY COLUMN channel VARCHAR(32) NOT NULL DEFAULT 'agent_cash'",
+  );
+
   await ensureColumn(
     sequelize,
     columns,
@@ -50,6 +57,48 @@ async function ensureWithdrawalCompatibility(sequelize) {
     columns,
     'confirmation_code_attempts',
     '`confirmation_code_attempts` INT NOT NULL DEFAULT 0',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'approved_at',
+    '`approved_at` DATETIME NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'approved_by_admin_username',
+    '`approved_by_admin_username` VARCHAR(120) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'paid_by_admin_username',
+    '`paid_by_admin_username` VARCHAR(120) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'payment_reference',
+    '`payment_reference` VARCHAR(120) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'payment_proof_image_url',
+    '`payment_proof_image_url` VARCHAR(255) NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'payment_proof_uploaded_at',
+    '`payment_proof_uploaded_at` DATETIME NULL',
+  );
+  await ensureColumn(
+    sequelize,
+    columns,
+    'rejection_reason',
+    '`rejection_reason` VARCHAR(255) NULL',
   );
   await ensureColumn(
     sequelize,
