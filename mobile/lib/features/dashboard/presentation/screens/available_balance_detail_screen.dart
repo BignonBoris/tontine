@@ -9,6 +9,7 @@ import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
+import 'package:mobile/features/dashboard/domain/entities/payment_method_option.dart';
 import 'package:mobile/features/dashboard/domain/entities/available_balance_history_entry.dart';
 import 'package:mobile/features/dashboard/domain/entities/withdrawal_summary.dart';
 import 'package:mobile/features/dashboard/domain/entities/withdrawal_request_result.dart';
@@ -475,202 +476,228 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
   ) async {
     final dashboardBloc = context.read<DashboardBloc>();
     final service = RemoteDashboardService();
+    final fetchedMethods = await service.fetchPaymentMethods('withdrawal');
+    final paymentMethods = fetchedMethods
+        .where(
+          (method) =>
+              method.code == 'agent_cash' ||
+              method.code == 'mobile_money' ||
+              method.code == 'bank_transfer',
+        )
+        .toList();
+
+    if (!context.mounted) {
+      return;
+    }
+    if (paymentMethods.isEmpty) {
+      _showSnackBar(
+        context,
+        'Aucune methode de retrait disponible pour le moment.',
+      );
+      return;
+    }
+
     final controller = TextEditingController();
     bool isSubmitting = false;
     String? errorMessage;
-    String selectedChannel = 'agent_cash';
+    String selectedChannel = paymentMethods.first.code;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Demander un retrait",
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Le montant sera reserve, puis la demande suivra la procedure associee a la methode choisie.",
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSecondaryColor,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: selectedChannel,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'agent_cash',
-                        child: Text("Agent / caisse"),
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (modalContext) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              final selectedMethod = paymentMethods.firstWhere(
+                (method) => method.code == selectedChannel,
+                orElse: () => paymentMethods.first,
+              );
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 24,
+                  bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Demander un retrait',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
-                      DropdownMenuItem(
-                        value: 'mobile_money',
-                        child: Text("Mobile money"),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Le montant sera reserve, puis la demande suivra la procedure associee a la methode choisie.',
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondaryColor,
+                        fontSize: 13,
+                        height: 1.4,
                       ),
-                      DropdownMenuItem(
-                        value: 'bank_transfer',
-                        child: Text("Virement bancaire"),
-                      ),
-                    ],
-                    onChanged: isSubmitting
-                        ? null
-                        : (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setModalState(() {
-                              selectedChannel = value;
-                            });
-                          },
-                    decoration: const InputDecoration(
-                      labelText: "Methode de retrait",
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    _withdrawalChannelHint(selectedChannel),
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSecondaryColor,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: AppInputRules.amountFormatters,
-                    onChanged: (_) {
-                      if (errorMessage != null) {
-                        setModalState(() => errorMessage = null);
-                      }
-                    },
-                    decoration: InputDecoration(
-                      labelText: "Montant",
-                      suffixText: "F CFA",
-                      helperText:
-                          "Disponible : ${formatFCFA(state.availableBalance)} F",
-                    ),
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 14),
-                    _InlineSheetError(message: errorMessage!),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: isSubmitting
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedChannel,
+                      items: paymentMethods
+                          .map(
+                            (method) => DropdownMenuItem(
+                              value: method.code,
+                              child: Text(method.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: isSubmitting
                           ? null
-                          : () async {
-                              final amount = double.tryParse(controller.text);
-                              if (amount == null || amount <= 0) {
-                                setModalState(
-                                  () => errorMessage = "Montant invalide",
-                                );
+                          : (value) {
+                              if (value == null) {
                                 return;
                               }
-                              if (amount % AppInputRules.financialAmountStep != 0) {
-                                setModalState(
-                                  () => errorMessage =
-                                      "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
-                                );
-                                return;
-                              }
-                              if (amount > state.availableBalance) {
-                                setModalState(
-                                  () => errorMessage =
-                                      "Solde disponible insuffisant",
-                                );
-                                return;
-                              }
-
-                            final authorized =
-                                await LocalSecurityService.authorizeIfEnabled(
-                                  context,
-                                  title: 'Demander un retrait',
-                                  message:
-                                      "Entrez votre PIN pour confirmer cette demande de retrait.",
-                                );
-                            if (!context.mounted || !authorized) {
-                              return;
-                            }
-
-                            setModalState(() {
-                              isSubmitting = true;
-                              errorMessage = null;
-                            });
-                              try {
-                                final result = await service.requestWithdrawal(
-                                  amount,
-                                  channel: selectedChannel,
-                                );
-                                if (!context.mounted) {
-                                  return;
-                                }
-                                Navigator.pop(modalContext);
-                                dashboardBloc.add(LoadDashboardData());
-                                await _showWithdrawalSummaryDialog(
-                                  context,
-                                  result,
-                                );
-                              } catch (error) {
-                                if (!context.mounted) {
-                                  return;
-                                }
-                                final message = error is Exception
-                                    ? error.toString().replaceFirst(
-                                          'Exception: ',
-                                          '',
-                                        )
-                                    : "Le retrait n'a pas pu etre initie.";
-                                setModalState(() {
-                                  errorMessage = message;
-                                  isSubmitting = false;
-                                });
-                              }
+                              setModalState(() {
+                                selectedChannel = value;
+                                errorMessage = null;
+                              });
                             },
-                      child: isSubmitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text("Confirmer"),
+                      decoration: const InputDecoration(
+                        labelText: 'Methode de retrait',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+                    const SizedBox(height: 14),
+                    Text(
+                      selectedMethod.description ??
+                          _withdrawalChannelHint(selectedMethod.code),
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondaryColor,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: AppInputRules.amountFormatters,
+                      onChanged: (_) {
+                        if (errorMessage != null) {
+                          setModalState(() => errorMessage = null);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Montant',
+                        suffixText: 'F CFA',
+                        helperText:
+                            'Disponible : ${formatFCFA(state.availableBalance)} F',
+                      ),
+                    ),
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 14),
+                      _InlineSheetError(message: errorMessage!),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final amount = double.tryParse(controller.text);
+                                if (amount == null || amount <= 0) {
+                                  setModalState(
+                                    () => errorMessage = 'Montant invalide',
+                                  );
+                                  return;
+                                }
+                                if (amount % AppInputRules.financialAmountStep != 0) {
+                                  setModalState(
+                                    () => errorMessage =
+                                        'Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}',
+                                  );
+                                  return;
+                                }
+                                if (amount > state.availableBalance) {
+                                  setModalState(
+                                    () => errorMessage =
+                                        'Solde disponible insuffisant',
+                                  );
+                                  return;
+                                }
+
+                                final authorized =
+                                    await LocalSecurityService.authorizeIfEnabled(
+                                      context,
+                                      title: 'Demander un retrait',
+                                      message:
+                                          'Entrez votre PIN pour confirmer cette demande de retrait.',
+                                    );
+                                if (!context.mounted || !authorized) {
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  isSubmitting = true;
+                                  errorMessage = null;
+                                });
+                                try {
+                                  final result = await service.requestWithdrawal(
+                                    amount,
+                                    channel: selectedChannel,
+                                  );
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  Navigator.pop(modalContext);
+                                  dashboardBloc.add(LoadDashboardData());
+                                  await _showWithdrawalSummaryDialog(
+                                    context,
+                                    result,
+                                  );
+                                } catch (error) {
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  final message = error is Exception
+                                      ? error.toString().replaceFirst(
+                                            'Exception: ',
+                                            '',
+                                          )
+                                      : "Le retrait n'a pas pu etre initie.";
+                                  setModalState(() {
+                                    errorMessage = message;
+                                    isSubmitting = false;
+                                  });
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Confirmer'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _showWithdrawalSummaryDialog(

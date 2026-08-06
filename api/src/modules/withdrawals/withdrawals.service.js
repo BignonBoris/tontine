@@ -18,6 +18,9 @@ const {
   getActiveGroupDebtForUser,
   getClientFinancialSnapshot,
 } = require('../agent-groups/agent-group-capacity.service');
+const {
+  assertPaymentMethodEnabled,
+} = require('../payment-methods/payment-methods.service');
 
 const WITHDRAWAL_CONFIRMATION_TTL_MINUTES = 15;
 const WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS = 5;
@@ -302,6 +305,11 @@ async function createWithdrawal(userId, payload, requestContext = {}) {
     payload?.channel || payload?.withdrawalMethod,
   );
   const requiresAdminReview = ADMIN_REVIEW_CHANNELS.has(channel);
+  await assertPaymentMethodEnabled(
+    channel,
+    'withdrawal',
+    'Cette methode de retrait est temporairement indisponible.',
+  );
 
   const result = await sequelize.transaction(async (transaction) => {
     const wallet = await models.Wallet.findOne({

@@ -463,6 +463,21 @@ export interface WithdrawalDetail {
   }>;
 }
 
+export interface PaymentMethodItem {
+  id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  provider: string;
+  operation: string;
+  flowType: string;
+  enabled: boolean;
+  sortOrder: number;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OperationItem {
   id: string;
   type: "deposit" | "depositReversal" | "withdrawal";

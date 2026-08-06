@@ -152,6 +152,62 @@ function resolveActorForUser(userId, requestContext = {}) {
   };
 }
 
+function getExternalDepositSourceLabel(source) {
+  switch (source) {
+    case 'fedapay':
+      return 'FedaPay';
+    case 'mtn_momo':
+      return 'MTN MoMo';
+    case 'afrikmoney':
+      return 'Afrikmoney';
+    default:
+      return 'les versements externes';
+  }
+}
+
+function getDepositHistoryLabel(source) {
+  switch (source) {
+    case 'wallet':
+      return 'Versement depuis disponible';
+    case 'fedapay':
+      return 'Versement FedaPay';
+    case 'mtn_momo':
+      return 'Versement MTN MoMo';
+    case 'afrikmoney':
+      return 'Versement Afrikmoney';
+    default:
+      return 'Versement tontine';
+  }
+}
+
+function getDepositNotificationTitle(source) {
+  switch (source) {
+    case 'wallet':
+      return 'Retour vers la tontine';
+    case 'fedapay':
+      return 'Paiement FedaPay';
+    case 'mtn_momo':
+      return 'Paiement MTN MoMo';
+    case 'afrikmoney':
+      return 'Paiement Afrikmoney';
+    default:
+      return 'Versement tontine';
+  }
+}
+
+function getDepositNotificationMessage(source, amount) {
+  switch (source) {
+    case 'fedapay':
+      return `${amount} F valides ont ete ajoutes a votre tontine via FedaPay.`;
+    case 'mtn_momo':
+      return `${amount} F valides ont ete ajoutes a votre tontine via MTN MoMo.`;
+    case 'afrikmoney':
+      return `${amount} F valides ont ete ajoutes a votre tontine via Afrikmoney.`;
+    default:
+      return `${amount} F ajoutes a votre tontine.`;
+  }
+}
+
 async function findWalletFundingHistoryForDeposit(originalHistory, transaction) {
   if (originalHistory.availableBalanceHistoryId) {
     const linkedFundingHistory = await models.AvailableBalanceHistory.findOne({
@@ -359,7 +415,13 @@ async function depositToCycle(
   source = 'external',
   requestContext = {},
 ) {
-  const allowedSources = new Set(['wallet', 'external', 'fedapay']);
+  const allowedSources = new Set([
+    'wallet',
+    'external',
+    'fedapay',
+    'mtn_momo',
+    'afrikmoney',
+  ]);
   if (!allowedSources.has(source)) {
     throw new AppError('Source de versement invalide.', 422);
   }
@@ -377,15 +439,17 @@ async function depositToCycle(
 
   const executeDeposit = async (transaction) => {
     const actor = resolveActorForUser(userId, requestContext);
-    if (source === 'external' && actor.initiatorType === 'client') {
+    if (
+      (source === 'external' ||
+        source === 'fedapay' ||
+        source === 'mtn_momo' ||
+        source === 'afrikmoney') &&
+      actor.initiatorType === 'client'
+    ) {
       throw new AppError(
-        "Les versements externes ne sont plus autorises depuis l'application client. Utilisez votre solde disponible.",
-        422,
-      );
-    }
-    if (source === 'fedapay' && actor.initiatorType === 'client') {
-      throw new AppError(
-        "Les versements FedaPay doivent passer par le webhook de confirmation.",
+        source === 'external'
+          ? "Les versements externes ne sont plus autorises depuis l'application client. Utilisez votre solde disponible."
+          : `Les versements ${getExternalDepositSourceLabel(source)} doivent passer par la confirmation du serveur.`,
         422,
       );
     }
@@ -450,12 +514,7 @@ async function depositToCycle(
           )
         : null;
 
-    const cycleDepositLabel =
-      source === 'wallet'
-        ? 'Versement depuis disponible'
-        : source === 'fedapay'
-          ? 'Versement FedaPay'
-          : 'Versement tontine';
+    const cycleDepositLabel = getDepositHistoryLabel(source);
     const cycleHistory = await appendCycleHistory(
       transaction,
       userId,
@@ -493,16 +552,11 @@ async function depositToCycle(
         "Votre tontine a atteint l'objectif. Confirmez le reversement.",
       );
     } else {
-      const depositNotificationTitle =
-        source === 'wallet'
-          ? 'Retour vers la tontine'
-          : source === 'fedapay'
-            ? 'Paiement FedaPay'
-            : 'Versement tontine';
-      const depositNotificationMessage =
-        source === 'fedapay'
-          ? `${amount} F valides ont ete ajoutes a votre tontine via FedaPay.`
-          : `${amount} F ajoutes a votre tontine.`;
+      const depositNotificationTitle = getDepositNotificationTitle(source);
+      const depositNotificationMessage = getDepositNotificationMessage(
+        source,
+        amount,
+      );
       await appendNotification(
         transaction,
         userId,

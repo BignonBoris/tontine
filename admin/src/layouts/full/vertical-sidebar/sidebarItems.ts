@@ -91,6 +91,12 @@ const sidebarItem: menu[] = [
     subCaption: "Suivi decaissements",
   },
   {
+    title: "Paiements",
+    icon: "wallet-money-linear",
+    to: "/payment-methods",
+    subCaption: "Activation des moyens",
+  },
+  {
     title: "Marketplace",
     icon: "bag-smile-linear",
     to: "/marketplace",
