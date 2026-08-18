@@ -25,7 +25,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1200),
     );
 
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
@@ -39,23 +39,25 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
+    final minDisplayTimer = Future.delayed(const Duration(milliseconds: 1500));
+
+    final sessionCheckTask = () async {
+      final isLoggedIn = await SessionStorage.hasActiveSession();
+      final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
+      return (isLoggedIn: isLoggedIn, appLockEnabled: appLockEnabled);
+    }();
+
+    final results = await Future.wait([minDisplayTimer, sessionCheckTask]);
+    final sessionData = results[1] as ({bool isLoggedIn, bool appLockEnabled});
 
     if (!mounted) {
       return;
     }
 
-    final isLoggedIn = await SessionStorage.hasActiveSession();
-    final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (isLoggedIn) {
+    if (sessionData.isLoggedIn) {
       Navigator.pushReplacementNamed(
         context,
-        appLockEnabled ? '/unlock' : '/dashboard',
+        sessionData.appLockEnabled ? '/unlock' : '/dashboard',
       );
     } else {
       Navigator.pushReplacementNamed(context, '/onboarding');
@@ -75,65 +77,100 @@ class _SplashScreenState extends State<SplashScreen>
         decoration: const BoxDecoration(
           gradient: AppTheme.heroGradient,
         ),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 132,
-                    height: 132,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.96),
-                      borderRadius: BorderRadius.circular(34),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.16),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 128,
+                          height: 128,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.96),
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.16),
+                                blurRadius: 24,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            AppTheme.brandIconAsset,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Text(
+                          'VizioBox',
+                          style: GoogleFonts.poppins(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "L'épargne qui construit vos projets",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+                            strokeWidth: 2.8,
+                          ),
                         ),
                       ],
                     ),
-                    child: Image.asset(
-                      AppTheme.brandIconAsset,
-                      fit: BoxFit.contain,
-                    ),
                   ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'VizioBox',
-                    style: GoogleFonts.poppins(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "L'epargne qui construit vos projets",
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.78),
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 44),
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
-                      strokeWidth: 2.8,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                bottom: 24,
+                left: 0,
+                right: 0,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.lock_outline_rounded,
+                        size: 15,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Web Up Technology • Tontine Digitale Sécurisée',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

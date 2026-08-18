@@ -784,10 +784,10 @@ class ProfileScreen extends StatelessWidget {
                 child: Icon(Icons.email_outlined, color: AppTheme.accentDarkColor),
               ),
               title: const Text("Email support"),
-              subtitle: const Text("support@viziobox.app"),
+              subtitle: const Text("managerwebspace@gmail.com"),
               onTap: () {
                 Clipboard.setData(
-                  const ClipboardData(text: 'support@viziobox.app'),
+                  const ClipboardData(text: 'managerwebspace@gmail.com'),
                 );
                 Navigator.pop(sheetContext);
                 _showSnackBar(context, "Adresse email copiee");
