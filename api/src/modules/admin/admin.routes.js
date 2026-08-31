@@ -29,6 +29,8 @@ router.patch('/clients/:userId', asyncHandler(controller.updateClient));
 router.post('/clients/:userId/start-tontine', asyncHandler(controller.startTontine));
 router.post('/clients/:userId/contributions', asyncHandler(controller.recordContribution));
 router.post('/clients/:userId/contributions/:historyId/reverse', asyncHandler(controller.reverseContribution));
+router.get('/tontines/kyc-limits', asyncHandler(controller.getTontineKycLimits));
+router.put('/tontines/kyc-limits', asyncHandler(controller.updateTontineKycLimits));
 router.get('/tontines', asyncHandler(controller.tontines));
 router.get('/tontines/:cycleId/calendar', asyncHandler(controller.tontineCalendar));
 router.patch('/tontines/:cycleId', asyncHandler(controller.updateTontineCycle));
@@ -45,5 +47,7 @@ router.post(
 router.get('/withdrawals', asyncHandler(controller.withdrawals));
 router.get('/withdrawals/:withdrawalId', asyncHandler(controller.withdrawalDetail));
 router.get('/audit-logs', asyncHandler(controller.auditLogs));
+router.get('/whatsapp/status', asyncHandler(controller.getWhatsAppStatus));
+router.post('/whatsapp/refresh', asyncHandler(controller.refreshWhatsApp));
 
 module.exports = router;

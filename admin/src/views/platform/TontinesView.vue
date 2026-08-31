@@ -7,8 +7,11 @@ import {
   Lock,
   Loader2,
   PencilLine,
+  ShieldCheck,
   X,
 } from "lucide-vue-next";
+import { toast } from "vue-sonner";
+import type { TontineKycLimitItem } from "@/services/tontines/tontineService";
 import { FINANCIAL_AMOUNT_STEP } from "@/constants/finance";
 import Card from "@/components/ui/card/Card.vue";
 import {
@@ -356,6 +359,42 @@ function getStatusLabel(status: string) {
   }
 }
 
+
+const kycLimitsDialogOpen = ref(false);
+const isKycLimitsLoading = ref(false);
+const isSavingLimits = ref(false);
+const kycLimitsError = ref("");
+const kycLimits = ref<TontineKycLimitItem[]>([]);
+
+async function openKycLimitsModal() {
+  kycLimitsDialogOpen.value = true;
+  kycLimitsError.value = "";
+  isKycLimitsLoading.value = true;
+  try {
+    const res = await tontineService.getKycLimits();
+    kycLimits.value = (res.items || []).map((item) => ({ ...item }));
+  } catch (err) {
+    kycLimitsError.value = getErrorMessage(err, "Chargement des plafonds KYC impossible.");
+  } finally {
+    isKycLimitsLoading.value = false;
+  }
+}
+
+async function handleSaveKycLimits() {
+  kycLimitsError.value = "";
+  isSavingLimits.value = true;
+  try {
+    const res = await tontineService.updateKycLimits(kycLimits.value);
+    kycLimits.value = (res.items || []).map((item) => ({ ...item }));
+    toast.success("Plafonds KYC mis à jour avec succès.");
+    kycLimitsDialogOpen.value = false;
+  } catch (err) {
+    kycLimitsError.value = getErrorMessage(err, "Enregistrement des plafonds impossible.");
+  } finally {
+    isSavingLimits.value = false;
+  }
+}
+
 onMounted(fetchTontines);
 </script>
 
@@ -367,12 +406,22 @@ onMounted(fetchTontines);
           <h2 class="text-xl font-semibold">Gestion des Tontines</h2>
           <p class="text-sm text-muted-foreground">Liste globale des cycles de tontine, suivi des cumuls et progression.</p>
         </div>
-        <RouterLink
-          to="/clients"
-          class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
-        >
-          Ouvrir depuis Clients
-        </RouterLink>
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100"
+            @click="openKycLimitsModal"
+          >
+            <ShieldCheck class="h-4 w-4 text-emerald-700" />
+            <span>Plafonds & Limites KYC</span>
+          </button>
+          <RouterLink
+            to="/clients"
+            class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
+          >
+            Ouvrir depuis Clients
+          </RouterLink>
+        </div>
       </div>
 
       <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
@@ -713,6 +762,137 @@ onMounted(fetchTontines);
           @click="closeTontineCalendar"
         >
           Fermer
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <!-- Modale de Configuration des Plafonds Tontine par Palier KYC -->
+  <Dialog :open="kycLimitsDialogOpen" @update:open="kycLimitsDialogOpen = $event">
+    <DialogContent class="max-h-[92vh] overflow-y-auto sm:max-w-[760px]">
+      <DialogHeader>
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <ShieldCheck class="h-5 w-5" />
+          </div>
+          <div>
+            <DialogTitle class="text-xl font-bold text-slate-900">
+              Plafonds Réglementaires KYC de la Tontine
+            </DialogTitle>
+            <DialogDescription class="text-sm text-slate-500">
+              Contrôlez les limites maximales de mise journalière et de cumul par palier de vérification d'identité.
+            </DialogDescription>
+          </div>
+        </div>
+      </DialogHeader>
+
+      <div v-if="kycLimitsError" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {{ kycLimitsError }}
+      </div>
+
+      <div v-if="isKycLimitsLoading" class="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+        <Loader2 class="h-5 w-5 animate-spin text-emerald-600" />
+        <span>Chargement des plafonds...</span>
+      </div>
+
+      <div v-else class="space-y-4 py-2">
+        <div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 text-xs text-emerald-800">
+          <span class="font-semibold">Règle de conformité SFD / GAFI :</span> Les clients non certifiés ne peuvent pas souscrire au-delà du plafond Tier 0 sans vérification CNI/CIP.
+        </div>
+
+        <div
+          v-for="tier in kycLimits"
+          :key="tier.id"
+          class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2.5">
+              <span
+                class="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider"
+                :class="{
+                  'bg-slate-100 text-slate-700': tier.kycStatus === 'unverified',
+                  'bg-amber-100 text-amber-800': tier.kycStatus === 'pending_review',
+                  'bg-emerald-100 text-emerald-800': tier.kycStatus === 'verified',
+                }"
+              >
+                {{ tier.tierLevel }}
+              </span>
+              <h4 class="font-bold text-slate-900">{{ tier.label }}</h4>
+            </div>
+            <label class="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <input
+                v-model="tier.enabled"
+                type="checkbox"
+                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>Palier actif</span>
+            </label>
+          </div>
+
+          <p class="mt-2 text-xs text-slate-500">{{ tier.description }}</p>
+
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700">Mise Journalière Maximale (F CFA)</label>
+              <div class="relative mt-1">
+                <input
+                  v-model.number="tier.maxDailyStake"
+                  type="number"
+                  step="500"
+                  min="500"
+                  class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 pr-12 text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white"
+                />
+                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">FCFA</span>
+              </div>
+              <span class="mt-1 block text-[11px] text-slate-400">Montant max par jour</span>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700">Cumul Maximal par Cycle 31j (F CFA)</label>
+              <div class="relative mt-1">
+                <input
+                  v-model.number="tier.maxCycleCumulative"
+                  type="number"
+                  step="1000"
+                  min="1000"
+                  class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 pr-12 text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white"
+                />
+                <span class="absolute right-3 top-2.5 text-xs font-medium text-slate-400">FCFA</span>
+              </div>
+              <span class="mt-1 block text-[11px] text-slate-400">Plafond total sur 31 jours</span>
+            </div>
+          </div>
+
+          <div v-if="tier.kycStatus === 'verified'" class="mt-3.5 flex items-center gap-2 border-t border-slate-100 pt-3">
+            <input
+              v-model="tier.allowMultipleCycles"
+              type="checkbox"
+              id="multiple-cycles-cb"
+              class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <label for="multiple-cycles-cb" class="text-xs text-slate-700 font-medium">
+              Autoriser plusieurs cycles de tontine simultanés pour les comptes certifiés
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter class="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          @click="kycLimitsDialogOpen = false"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          :disabled="isSavingLimits || isKycLimitsLoading"
+          class="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+          @click="handleSaveKycLimits"
+        >
+          <Loader2 v-if="isSavingLimits" class="h-4 w-4 animate-spin" />
+          <span>{{ isSavingLimits ? "Enregistrement..." : "Enregistrer les plafonds" }}</span>
         </button>
       </DialogFooter>
     </DialogContent>

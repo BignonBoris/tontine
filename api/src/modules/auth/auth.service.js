@@ -299,7 +299,7 @@ async function createFreshOtp({
     phoneNumber: displayPhone(normalizedPhone),
     normalizedPhoneNumber: normalizedPhone,
     expiresAt: otp.expiresAt,
-    debugOtpCode: code,
+    ...(process.env.NODE_ENV === 'test' ? { debugOtpCode: code } : {}),
   };
 }
 
@@ -494,12 +494,17 @@ async function resendOtp(payload, context) {
       transaction,
     });
 
+    // Envoi asynchrone par WhatsApp du nouveau code généré
+    whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
+      console.warn('[WhatsApp OTP Resend Error]', err.message);
+    });
+
     return {
       otpId: otp.id,
       phoneNumber: displayPhone(normalizedPhone),
       normalizedPhoneNumber: normalizedPhone,
       expiresAt: otp.expiresAt,
-      debugOtpCode: code,
+      ...(process.env.NODE_ENV === 'test' ? { debugOtpCode: code } : {}),
     };
   });
 }
@@ -529,12 +534,18 @@ async function verifyOtp(
         reason: 'otp_not_found',
       },
     });
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    throw new AppError('Code OTP invalide ou expiré. Veuillez demander un nouveau code.', 422);
   }
 
   if (otp.blockedUntil && new Date(otp.blockedUntil).getTime() > Date.now()) {
+    const minutesRemaining = Math.max(
+      1,
+      Math.ceil(
+        (new Date(otp.blockedUntil).getTime() - Date.now()) / (60 * 1000),
+      ),
+    );
     throw new AppError(
-      "Trop de tentatives. Reessayez plus tard avant de verifier un nouveau code.",
+      `Trop de tentatives infructueuses. Veuillez réessayer dans ${minutesRemaining} minute(s).`,
       429,
     );
   }
@@ -552,7 +563,7 @@ async function verifyOtp(
         reason: 'otp_expired',
       },
     });
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    throw new AppError('Ce code de sécurité a expiré. Veuillez en demander un nouveau.', 422);
   }
 
   if (otp.code !== normalizedCode) {
@@ -582,12 +593,16 @@ async function verifyOtp(
 
     if (nextAttemptCount >= env.otpMaxAttempts) {
       throw new AppError(
-        "Nombre maximal d'essais atteint. Reessayez plus tard avec un nouveau code.",
+        "Nombre maximal d'essais atteint (3/3). Votre compte est temporairement bloqué pendant 15 minutes.",
         429,
       );
     }
 
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    const remaining = env.otpMaxAttempts - nextAttemptCount;
+    throw new AppError(
+      `Code de sécurité incorrect. Il vous reste ${remaining} essai(s) avant blocage temporaire.`,
+      422,
+    );
   }
 
   return sequelize.transaction(async (transaction) => {

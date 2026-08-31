@@ -85,6 +85,23 @@ class ApiClient {
     return _extractData(response);
   }
 
+  Future<dynamic> postBytes(
+    String path, {
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final request = http.Request('POST', uri)
+      ..headers.addAll(await _headers(authenticated: true))
+      ..headers['Content-Type'] = contentType
+      ..bodyBytes = bytes;
+    final response = await _sendRequest(
+      () => _client.send(request).then(http.Response.fromStream),
+    );
+    _logHttpResponse('POST', uri, response);
+    return _extractData(response);
+  }
+
   void _logHttpResponse(String method, Uri uri, http.Response response) {
     if (!kDebugMode) {
       return;
@@ -107,7 +124,10 @@ class ApiClient {
         null,
         ApiErrorType.network,
       );
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[API CLIENT] ClientException: $e');
+      }
       throw const ApiException(
         "Impossible de joindre le serveur. Verifiez votre connexion internet.",
         null,
@@ -118,6 +138,15 @@ class ApiClient {
         "La reponse du serveur est invalide. Reessayez plus tard.",
         null,
         ApiErrorType.server,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[API CLIENT] Unexpected network error: $e');
+      }
+      throw ApiException(
+        "Impossible de joindre le serveur ($e).",
+        null,
+        ApiErrorType.network,
       );
     }
   }

@@ -138,7 +138,14 @@ async function stopEarly(req, res) {
   return ok(res, data, 'Tontine arretee.');
 }
 
+async function getKycLimits(req, res) {
+  const limits = await service.listTontineKycLimits();
+  const userLimit = await service.getUserEffectiveKycLimit(req.auth.userId);
+  return ok(res, { limits, userLimit }, 'Plafonds KYC tontine charges.');
+}
+
 module.exports = {
+  getKycLimits,
   getOverview,
   configure,
   deposit,

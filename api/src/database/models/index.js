@@ -33,9 +33,21 @@ const CommissionLedgerEntry = require('./commission-ledger-entry.model');
 const WithdrawalCommissionReserve = require('./withdrawal-commission-reserve.model');
 const WithdrawalCommissionConsumption = require('./withdrawal-commission-consumption.model');
 const PaymentMethod = require('./payment-method.model');
+const GoalTemplate = require('./goal-template.model');
+const KycCase = require('./kyc-case.model');
+const KycDocument = require('./kyc-document.model');
+const KycDecision = require('./kyc-decision.model');
+const TontineKycLimit = require('./tontine-kyc-limit.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+User.hasOne(KycCase, { foreignKey: 'userId', as: 'kycCase' });
+KycCase.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+KycCase.hasMany(KycDocument, { foreignKey: 'kycCaseId', as: 'documents' });
+KycDocument.belongsTo(KycCase, { foreignKey: 'kycCaseId', as: 'kycCase' });
+KycCase.hasMany(KycDecision, { foreignKey: 'kycCaseId', as: 'decisions' });
+KycDecision.belongsTo(KycCase, { foreignKey: 'kycCaseId', as: 'kycCase' });
 
 User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
 AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -405,6 +417,11 @@ const models = {
   WithdrawalCommissionReserve,
   WithdrawalCommissionConsumption,
   PaymentMethod,
+  GoalTemplate,
+  KycCase,
+  KycDocument,
+  KycDecision,
+  TontineKycLimit,
 };
 
 module.exports = { sequelize, models };

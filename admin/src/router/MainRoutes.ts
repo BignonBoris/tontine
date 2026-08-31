@@ -68,6 +68,21 @@ const MainRoutes = [
         name: 'Commissions',
         component: () => import('../views/modules/commissions.vue'),
       },
+      {
+        path: '/goal-templates',
+        name: 'GoalTemplates',
+        component: () => import('../views/modules/goal-templates.vue'),
+      },
+      {
+        path: '/kyc',
+        name: 'Kyc',
+        component: () => import('../views/platform/KycView.vue'),
+      },
+      {
+        path: '/whatsapp',
+        name: 'WhatsApp',
+        component: () => import('../views/platform/WhatsAppView.vue'),
+      },
 
       {
         name: 'Notes',

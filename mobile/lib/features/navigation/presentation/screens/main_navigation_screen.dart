@@ -19,7 +19,12 @@ import 'package:mobile/features/dashboard/presentation/screens/tontine_detail_sc
 import 'package:mobile/features/security/presentation/screens/app_unlock_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final bool skipOnboarding;
+
+  const MainNavigationScreen({
+    super.key,
+    this.skipOnboarding = false,
+  });
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -130,6 +135,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   Widget build(BuildContext context) {
     final screens = <Widget>[
       DashboardScreen(
+        skipOnboarding: widget.skipOnboarding,
         onOpenMarketplaceTab: () {
           setState(() {
             _currentIndex = 3;
@@ -138,6 +144,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         onOpenTontineTab: () {
           setState(() {
             _currentIndex = 1;
+          });
+        },
+        onOpenProfileTab: () {
+          setState(() {
+            _currentIndex = 4;
           });
         },
       ),

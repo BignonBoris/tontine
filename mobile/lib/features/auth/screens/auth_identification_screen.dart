@@ -260,11 +260,41 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                       ),
                                       invalidNumberMessage: 'Numéro invalide',
                                       onChanged: (phone) {
+                                        var cleanNumber = phone.number.trim();
+                                        final cleanDial = phone.countryCode
+                                            .replaceAll('+', '')
+                                            .trim();
+                                        if (cleanNumber.startsWith('+$cleanDial')) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length + 1,
+                                          );
+                                        } else if (cleanNumber.startsWith(cleanDial) &&
+                                            cleanNumber.length > 8) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length,
+                                          );
+                                        } else if (cleanNumber.startsWith('+')) {
+                                          cleanNumber = cleanNumber.substring(1);
+                                        }
+
+                                        if (cleanNumber != phone.number) {
+                                          _phoneController.value =
+                                              TextEditingValue(
+                                            text: cleanNumber,
+                                            selection: TextSelection.collapsed(
+                                              offset: cleanNumber.length,
+                                            ),
+                                          );
+                                        }
+
                                         final dialCode =
                                             phone.countryCode.startsWith('+')
                                                 ? phone.countryCode
                                                 : '+${phone.countryCode}';
-                                        final rawDigits = phone.number.trim();
+                                        final rawDigits = cleanNumber.replaceAll(
+                                          RegExp(r'\D'),
+                                          '',
+                                        );
                                         final fullPhone = '$dialCode$rawDigits';
                                         final normalizedPhone =
                                             LocalAuthService.normalizePhone(
@@ -536,7 +566,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
-                            "Des frais de SMS peuvent s'appliquer",
+                            "Code de sécurité transmis par WhatsApp",
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.72),
@@ -583,17 +613,37 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                           onPressed: () => AuthHelpBottomSheet.show(context),
                           icon: Icon(
                             Icons.help_outline_rounded,
-                            size: 16,
-                            color: Colors.white.withValues(alpha: 0.80),
+                            size: 15,
+                            color: Colors.white.withValues(alpha: 0.75),
                           ),
                           label: Text(
                             "Besoin d'aide ?",
                             style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.80),
+                              fontSize: 12.5,
+                              color: Colors.white.withValues(alpha: 0.75),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 13,
+                              color: Colors.white.withValues(alpha: 0.60),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Conforme aux normes de sécurité financière BCEAO',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -661,7 +711,6 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
         'phoneNumber': result.phoneNumber,
         'normalizedPhoneNumber': _normalizedPhone,
         'isRegistration': _isRegistrationMode,
-        'demoOtpCode': result.otpCode,
         'pinCode': _isRegistrationMode || _pinController.text.trim().isEmpty
             ? null
             : _pinController.text.trim(),

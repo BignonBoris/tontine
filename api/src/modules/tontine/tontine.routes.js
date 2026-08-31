@@ -53,6 +53,7 @@ router.put('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
  *       200:
  *         description: Vue tontine
  */
+router.get('/kyc-limits', authenticate, asyncHandler(controller.getKycLimits));
 router.get('/', authenticate, asyncHandler(controller.getOverview));
 router.post('/configure', authenticate, asyncHandler(controller.configure));
 router.post('/deposit', authenticate, asyncHandler(controller.deposit));

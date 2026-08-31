@@ -1,4 +1,5 @@
 const marketOffersSeed = require('./market-offers.seed');
+const goalTemplatesSeed = require('./goal-templates.seed');
 const { hashPin } = require('../../modules/agent-auth/agent-auth.service');
 const { normalizePhone } = require('../../modules/auth/auth.service');
 
@@ -8,6 +9,15 @@ async function runSeeds(models) {
     marketOffersSeed.map((offer) =>
       MarketOffer.upsert({
         ...offer,
+        isActive: true,
+      }),
+    ),
+  );
+
+  await Promise.all(
+    goalTemplatesSeed.map((template) =>
+      models.GoalTemplate.upsert({
+        ...template,
         isActive: true,
       }),
     ),

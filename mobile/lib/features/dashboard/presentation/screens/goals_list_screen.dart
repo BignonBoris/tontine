@@ -9,6 +9,9 @@ import '../widgets/add_goal_dialog.dart';
 import '../widgets/dashboard_state_views.dart';
 import 'goal_detail_screen.dart';
 
+import 'package:mobile/core/theme/app_theme.dart';
+import '../widgets/finance_hero_header.dart';
+
 class GoalsListScreen extends StatelessWidget {
   const GoalsListScreen({super.key});
 
@@ -19,48 +22,44 @@ class GoalsListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF1A237E);
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final closedCount = state is DashboardLoaded
+            ? state.goals.where((g) => g.status == GoalStatus.closed).length
+            : 0;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(
-          "Mes Coffres",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: primaryBlue,
-          ),
-        ),
-        actions: [
-          BlocBuilder<DashboardBloc, DashboardState>(
-            builder: (context, state) {
-              if (state is DashboardLoaded) {
-                final closedCount = state.goals
-                    .where((g) => g.status == GoalStatus.closed)
-                    .length;
-                return IconButton(
-                  icon: Badge(
-                    label: Text(closedCount.toString()),
-                    isLabelVisible: closedCount > 0,
-                    child: const Icon(
-                      Icons.archive_outlined,
-                      color: primaryBlue,
-                    ),
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8F9FE),
+          body: Column(
+            children: [
+              FinanceHeroHeader(
+                title: "Mes Coffres",
+                subtitle: "Épargne projet & objectifs bloqués",
+                showBackButton: false,
+                actions: [
+                  FinanceHeaderActionButton(
+                    icon: Icons.archive_outlined,
+                    badgeCount: closedCount,
+                    onTap: () {
+                      if (state is DashboardLoaded) {
+                        _showClosedGoals(context, state.goals);
+                      }
+                    },
                   ),
-                  onPressed: () => _showClosedGoals(context, state.goals),
-                );
-              }
-              return const SizedBox.shrink();
-            },
+                ],
+              ),
+              Expanded(
+                child: _buildGoalsContent(context, state),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-        ],
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: BlocBuilder<DashboardBloc, DashboardState>(
-        builder: (context, state) {
+          floatingActionButton: _buildFloatingActionButton(context, state),
+        );
+      },
+    );
+  }
+
+  Widget _buildGoalsContent(BuildContext context, DashboardState state) {
           if (state is DashboardLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -100,29 +99,25 @@ class GoalsListScreen extends StatelessWidget {
               },
             );
           }
-          return const DashboardLoadingView(
-            label: "Chargement de vos coffres...",
-            inline: true,
-          );
-        },
-      ),
-      floatingActionButton: BlocBuilder<DashboardBloc, DashboardState>(
-        builder: (context, state) {
-          if (state is! DashboardLoaded) {
-            return const SizedBox.shrink();
-          }
+    return const DashboardLoadingView(
+      label: "Chargement de vos coffres...",
+      inline: true,
+    );
+  }
 
-          return FloatingActionButton.extended(
-            onPressed: () =>
-                showAddGoalDialog(context, context.read<DashboardBloc>()),
-            backgroundColor: primaryBlue,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text(
-              "Nouveau Coffre",
-              style: TextStyle(color: Colors.white),
-            ),
-          );
-        },
+  Widget? _buildFloatingActionButton(BuildContext context, DashboardState state) {
+    if (state is! DashboardLoaded) {
+      return null;
+    }
+
+    return FloatingActionButton.extended(
+      onPressed: () =>
+          showAddGoalDialog(context, context.read<DashboardBloc>()),
+      backgroundColor: AppTheme.primaryColor,
+      icon: const Icon(Icons.add, color: Colors.white),
+      label: const Text(
+        "Nouveau Coffre",
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -93,3 +93,61 @@ export async function fetchAgentCommissionDetail(agentId: string) {
   const response = await adminApi.get(`/admin/commissions/agents/${agentId}`)
   return response.data?.data || {}
 }
+
+// --- Coffres par defaut (onboarding clients) ---
+
+export type GoalTemplatePayload = {
+  label: string
+  description?: string | null
+  iconCodePoint: number
+  colorValue: number
+  defaultTargetAmount?: number | null
+  sortOrder?: number
+  isActive?: boolean
+}
+
+export type GoalTemplate = { id: string } & GoalTemplatePayload
+
+export async function fetchGoalTemplates(): Promise<GoalTemplate[]> {
+  const response = await adminApi.get('/admin/goal-templates')
+  return (response.data?.data || []) as GoalTemplate[]
+}
+
+export async function createGoalTemplate(
+  payload: GoalTemplatePayload,
+): Promise<GoalTemplate> {
+  const response = await adminApi.post('/admin/goal-templates', payload)
+  return (response.data?.data || {}) as GoalTemplate
+}
+
+export async function updateGoalTemplate(
+  id: string,
+  payload: GoalTemplatePayload,
+): Promise<GoalTemplate> {
+  const response = await adminApi.put(`/admin/goal-templates/${id}`, payload)
+  return (response.data?.data || {}) as GoalTemplate
+}
+
+export async function deleteGoalTemplate(id: string): Promise<void> {
+  await adminApi.delete(`/admin/goal-templates/${id}`)
+}
+
+
+// --- WhatsApp Configuration ---
+
+export type WhatsAppStatus = {
+  status: 'disconnected' | 'initializing' | 'qr_ready' | 'ready' | 'auth_failure'
+  isReady: boolean
+  qrCode?: string | null
+  lastError?: string | null
+}
+
+export async function fetchWhatsAppStatus(): Promise<WhatsAppStatus> {
+  const response = await adminApi.get('/admin/whatsapp/status')
+  return (response.data?.data || {}) as WhatsAppStatus
+}
+
+export async function refreshWhatsAppStatus(forceNewSession = false): Promise<any> {
+  const response = await adminApi.post('/admin/whatsapp/refresh', { forceNewSession })
+  return response.data?.data || {}
+}

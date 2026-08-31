@@ -51,12 +51,23 @@ class LocalAuthService {
     return AppInputRules.normalizePhone(rawPhone);
   }
 
-  static String formatPhoneForInput(String rawPhone) {
-    final digits = normalizePhone(rawPhone);
-    if (digits.length != 10) {
-      return digits;
+  static String extractNationalPhoneNumber(String rawPhone) {
+    var digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('229') && digits.length > 8) {
+      digits = digits.substring(3);
     }
-    return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)} ${digits.substring(8, 10)}';
+    return digits;
+  }
+
+  static String formatPhoneForInput(String rawPhone) {
+    final digits = extractNationalPhoneNumber(rawPhone);
+    if (digits.length == 10) {
+      return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)} ${digits.substring(8, 10)}';
+    }
+    if (digits.length == 8) {
+      return '${digits.substring(0, 2)} ${digits.substring(2, 4)} ${digits.substring(4, 6)} ${digits.substring(6, 8)}';
+    }
+    return digits;
   }
 
   static Future<String?> loadSuggestedPhoneNumber() async {
@@ -65,7 +76,7 @@ class LocalAuthService {
     if (storedPhone == null || storedPhone.isEmpty) {
       return null;
     }
-    return formatPhoneForInput(storedPhone);
+    return extractNationalPhoneNumber(storedPhone);
   }
 
   static Future<String?> loadSuggestedNormalizedPhoneNumber() async {

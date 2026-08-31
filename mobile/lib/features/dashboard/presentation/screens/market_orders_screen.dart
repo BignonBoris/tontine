@@ -7,6 +7,7 @@ import 'package:mobile/features/dashboard/domain/entities/market_order.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/market_order_detail_sheet.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/market_order_list_tile.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
@@ -18,13 +19,15 @@ class MarketOrdersScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: Text(
-          "Mes commandes",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: BlocBuilder<DashboardBloc, DashboardState>(
+      body: Column(
+        children: [
+          const FinanceHeroHeader(
+            title: "Mes Commandes",
+            subtitle: "Historique de vos commandes Marketplace",
+            showBackButton: true,
+          ),
+          Expanded(
+            child: BlocBuilder<DashboardBloc, DashboardState>(
         builder: (context, state) {
           if (state is DashboardOffline) {
             return DashboardOfflineView(
@@ -97,7 +100,7 @@ class MarketOrdersScreen extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
             itemCount: state.marketOrders.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final order = state.marketOrders[index];
               return MarketOrderListTile(
@@ -108,8 +111,11 @@ class MarketOrdersScreen extends StatelessWidget {
           );
         },
       ),
-    );
-  }
+    ),
+  ],
+),
+);
+}
 
   void _showOrderDetails(BuildContext context, MarketOrder order) {
     final bloc = context.read<DashboardBloc>();

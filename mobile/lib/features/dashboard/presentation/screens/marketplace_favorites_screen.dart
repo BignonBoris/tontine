@@ -7,6 +7,7 @@ import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart'
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/marketplace_offer_compact_card.dart';
 
 class MarketplaceFavoritesScreen extends StatelessWidget {
@@ -27,13 +28,15 @@ class MarketplaceFavoritesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: Text(
-          "Mes favoris",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: BlocBuilder<DashboardBloc, DashboardState>(
+      body: Column(
+        children: [
+          const FinanceHeroHeader(
+            title: "Mes Favoris",
+            subtitle: "Offres et articles sauvegardés",
+            showBackButton: true,
+          ),
+          Expanded(
+            child: BlocBuilder<DashboardBloc, DashboardState>(
         builder: (context, state) {
           if (state is DashboardOffline) {
             return DashboardOfflineView(
@@ -134,6 +137,9 @@ class MarketplaceFavoritesScreen extends StatelessWidget {
           );
         },
       ),
-    );
-  }
+    ),
+  ],
+),
+);
+}
 }

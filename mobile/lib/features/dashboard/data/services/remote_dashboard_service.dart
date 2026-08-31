@@ -547,6 +547,7 @@ class RemoteDashboardService {
       lastLoginAt: map['lastLoginAt'] == null
           ? null
           : _toDateTime(map['lastLoginAt']),
+      kyc: KycSummary.fromMap(map['kyc'] is Map ? map['kyc'] as Map : null),
     );
   }
 

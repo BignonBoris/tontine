@@ -13,6 +13,7 @@ import 'package:mobile/features/dashboard/presentation/screens/goal_detail_scree
 import 'package:mobile/features/dashboard/presentation/screens/market_orders_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/marketplace_favorites_screen.dart';
 import 'package:mobile/features/dashboard/presentation/utils/marketplace_offer_filter.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/market_offer_detail_sheet.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/marketplace_category_chips.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/marketplace_hero_section.dart';
@@ -70,43 +71,39 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
-          appBar: AppBar(
-            automaticallyImplyLeading: widget.showBackButton,
-            title: Text(
-              "Marketplace",
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              IconButton(
-                onPressed: () => _openSearch(context),
-                icon: const Icon(
-                  Icons.search_rounded,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-              IconButton(
-                onPressed: () => _openFavorites(context),
-                icon: Icon(
-                  state.favoriteOfferIds.isEmpty
-                      ? Icons.favorite_border_rounded
-                      : Icons.favorite_rounded,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-              IconButton(
-                onPressed: () => _openOrders(context),
-                icon: const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-            ],
-          ),
           body: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
+                child: FinanceHeroHeader(
+                  title: "Marketplace",
+                  subtitle: "Boutique & offres partenaires",
+                  showBackButton: widget.showBackButton,
+                  actions: [
+                    FinanceHeaderActionButton(
+                      icon: Icons.search_rounded,
+                      onTap: () => _openSearch(context),
+                    ),
+                    FinanceHeaderActionButton(
+                      icon: state.favoriteOfferIds.isEmpty
+                          ? Icons.favorite_border_rounded
+                          : Icons.favorite_rounded,
+                      iconColor: state.favoriteOfferIds.isEmpty
+                          ? Colors.white
+                          : AppTheme.accentColor,
+                      badgeCount: state.favoriteOfferIds.length,
+                      onTap: () => _openFavorites(context),
+                    ),
+                    FinanceHeaderActionButton(
+                      icon: Icons.shopping_bag_outlined,
+                      badgeCount: state.marketOrders.length,
+                      onTap: () => _openOrders(context),
+                    ),
+                  ],
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

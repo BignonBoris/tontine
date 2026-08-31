@@ -6,6 +6,10 @@ const {
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
 const {
+  getUserEffectiveKycLimit,
+  listTontineKycLimits,
+} = require('./tontine-kyc-limit.service');
+const {
   createCycleCommissionSnapshot,
   createWithdrawalReserve,
   postDepositCommissions,
@@ -341,6 +345,14 @@ async function reverseDepositCommissions({
 
 async function configureStake(userId, stakeAmount, requestContext = {}) {
   ensureStakeMultiple(stakeAmount);
+
+  const kycLimit = await getUserEffectiveKycLimit(userId);
+  if (stakeAmount > kycLimit.maxDailyStake) {
+    throw new AppError(
+      `Votre niveau de vérification (${kycLimit.label}) plafonne votre mise à ${Number(kycLimit.maxDailyStake).toLocaleString('fr-FR')} F CFA par jour. Soumettez votre document d'identité (KYC) pour débloquer des plafonds supérieurs.`,
+      422,
+    );
+  }
   return sequelize.transaction(async (transaction) => {
     const actor = resolveActorForUser(userId, requestContext);
     const wallet = await models.Wallet.findOne({ where: { userId }, transaction });
@@ -391,6 +403,7 @@ async function configureStake(userId, stakeAmount, requestContext = {}) {
 
 async function getCycleOverview(userId) {
   const cycle = await getLatestCycle(userId);
+  const kycLimit = await getUserEffectiveKycLimit(userId);
   const histories = await models.TontineHistory.findAll({
     where: {
       userId,
@@ -406,6 +419,7 @@ async function getCycleOverview(userId) {
     cycle: serializeCycle(cycle),
     history: histories,
     archives,
+    kycLimit,
   };
 }
 
@@ -479,8 +493,14 @@ async function depositToCycle(
     if (source === 'wallet' && Number(wallet.availableBalance) < amount) {
       throw new AppError('Solde disponible insuffisant.', 422);
     }
-
+    const kycLimit = await getUserEffectiveKycLimit(userId, transaction);
     const nextAmount = cumulativeAmount + amount;
+    if (nextAmount > kycLimit.maxCycleCumulative) {
+      throw new AppError(
+        `Ce versement dépasserait le cumul maximal autorisé pour votre palier (${kycLimit.label} : ${Number(kycLimit.maxCycleCumulative).toLocaleString('fr-FR')} F CFA). Validez votre KYC pour étendre vos limites.`,
+        422,
+      );
+    }
     const nextStatus =
       nextAmount >= targetAmount ? 'enAttenteValidationFin' : 'active';
 
@@ -1193,6 +1213,8 @@ async function stopCycleEarly(userId, requestContext = {}) {
 module.exports = {
   serializeCycle,
   getCycleOverview,
+  getUserEffectiveKycLimit,
+  listTontineKycLimits,
   configureStake,
   depositToCycle,
   hasActiveOrAwaitingCycle,

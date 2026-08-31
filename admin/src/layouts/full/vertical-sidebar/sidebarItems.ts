@@ -31,6 +31,13 @@ const sidebarItem: menu[] = [
     to: "/supervision/commissions",
     isPro: false,
   },
+  {
+    title: "Coffres par défaut",
+    icon: "box-linear",
+    to: "/goal-templates",
+    subCaption: "Onboarding clients",
+    isPro: false,
+  },
 
 
   { header: "PAGES" },
@@ -91,6 +98,12 @@ const sidebarItem: menu[] = [
     subCaption: "Suivi decaissements",
   },
   {
+    title: "Verification KYC",
+    icon: "shield-check-linear",
+    to: "/kyc",
+    subCaption: "Revue des identites",
+  },
+  {
     title: "Paiements",
     icon: "wallet-money-linear",
     to: "/payment-methods",
@@ -107,6 +120,12 @@ const sidebarItem: menu[] = [
     icon: "document-text-linear",
     to: "/audit",
     subCaption: "Trace des actions",
+  },
+  {
+    title: "Configuration WhatsApp",
+    icon: "settings-linear",
+    to: "/whatsapp",
+    subCaption: "OTP et alertes",
   },
 ];
 
