@@ -7,7 +7,7 @@ import 'package:mobile/features/dashboard/domain/entities/user_profile.dart';
 import 'package:mobile/features/dashboard/presentation/screens/kyc_submission_screen.dart';
 
 class ConfigureTontineStakeModal extends StatefulWidget {
-  final Future<void> Function(double amount) onSubmit;
+  final Future<void> Function(double amount, bool termsAccepted) onSubmit;
   final double? maxDailyStakeLimit;
   final String? kycStatus;
   final String? kycLabel;
@@ -30,6 +30,7 @@ class _ConfigureTontineStakeModalState
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   bool _isSubmitting = false;
+  bool _termsAccepted = false;
 
   double get _effectiveLimit {
     if (widget.maxDailyStakeLimit != null && widget.maxDailyStakeLimit! > 0) {
@@ -278,12 +279,53 @@ class _ConfigureTontineStakeModalState
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _termsAccepted,
+                          onChanged: (val) {
+                            setState(() {
+                              _termsAccepted = val ?? false;
+                            });
+                          },
+                          activeColor: AppTheme.primaryColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _termsAccepted = !_termsAccepted;
+                            });
+                          },
+                          child: Text(
+                            "J'ai lu et j'accepte les conditions générales d'épargne (frais de gestion et pénalités d'arrêt anticipé).",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textDarkColor,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 22),
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _handleSubmit,
+                      onPressed: (_isSubmitting || !_termsAccepted) ? null : _handleSubmit,
                       child: Text(
                         _isSubmitting
                             ? "Configuration..."
@@ -310,7 +352,7 @@ class _ConfigureTontineStakeModalState
     });
 
     try {
-      await widget.onSubmit(double.parse(_amountController.text));
+      await widget.onSubmit(double.parse(_amountController.text), _termsAccepted);
       if (mounted) {
         Navigator.of(context).pop();
       }

@@ -55,8 +55,9 @@ class TransferToTontine extends DashboardEvent {
 
 class ConfigureTontineStake extends DashboardEvent {
   final double stakeAmount;
+  final bool termsAccepted;
 
-  ConfigureTontineStake(this.stakeAmount);
+  ConfigureTontineStake(this.stakeAmount, {required this.termsAccepted});
 }
 
 class MakeTontineDeposit extends DashboardEvent {

@@ -1,4 +1,5 @@
 import 'package:mobile/core/network/api_client.dart';
+import 'package:uuid/uuid.dart';
 import 'package:mobile/features/dashboard/domain/entities/app_notification_item.dart';
 import 'package:mobile/features/dashboard/domain/entities/available_balance_history_entry.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
@@ -214,24 +215,29 @@ class RemoteDashboardService {
     }
   }
 
-  Future<void> configureStake(double stakeAmount) {
+  Future<void> configureStake(double stakeAmount, {required bool termsAccepted}) {
     return _apiClient.post(
       '/tontine/configure',
-      body: {'stakeAmount': stakeAmount},
+      body: {
+        'stakeAmount': stakeAmount,
+        'termsAccepted': termsAccepted,
+      },
     );
   }
 
   Future<void> makeTontineDeposit(double amount) {
+    final syncId = const Uuid().v4();
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 
   Future<void> transferAvailableToTontine(double amount) {
+    final syncId = const Uuid().v4();
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 

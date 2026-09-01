@@ -191,7 +191,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     await _runMutation(
       emit,
-      () => _remoteDashboardService.configureStake(event.stakeAmount),
+      () => _remoteDashboardService.configureStake(event.stakeAmount, termsAccepted: event.termsAccepted),
     );
   }
 

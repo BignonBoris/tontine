@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -55,12 +56,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
+    String? idempotencyKey,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final iKey = idempotencyKey ?? const Uuid().v4();
     final response = await _sendRequest(
       () async => _client.post(
         uri,
-        headers: await _headers(authenticated: authenticated),
+        headers: await _headers(authenticated: authenticated, idempotencyKey: iKey),
         body: jsonEncode(body ?? <String, dynamic>{}),
       ),
     );
@@ -72,12 +75,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
+    String? idempotencyKey,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final iKey = idempotencyKey ?? const Uuid().v4();
     final response = await _sendRequest(
       () async => _client.patch(
         uri,
-        headers: await _headers(authenticated: authenticated),
+        headers: await _headers(authenticated: authenticated, idempotencyKey: iKey),
         body: jsonEncode(body ?? <String, dynamic>{}),
       ),
     );
@@ -89,10 +94,13 @@ class ApiClient {
     String path, {
     required List<int> bytes,
     required String contentType,
+    String? idempotencyKey,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final iKey = idempotencyKey ?? const Uuid().v4();
+    final reqHeaders = await _headers(authenticated: true, idempotencyKey: iKey);
     final request = http.Request('POST', uri)
-      ..headers.addAll(await _headers(authenticated: true))
+      ..headers.addAll(reqHeaders)
       ..headers['Content-Type'] = contentType
       ..bodyBytes = bytes;
     final response = await _sendRequest(
@@ -151,8 +159,13 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, String>> _headers({required bool authenticated}) async {
+  Future<Map<String, String>> _headers({required bool authenticated, String? idempotencyKey}) async {
     final headers = <String, String>{'Content-Type': 'application/json'};
+    
+    if (idempotencyKey != null) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
+    
     if (authenticated) {
       final token = await SessionStorage.getToken();
       if (token == null || token.isEmpty) {
