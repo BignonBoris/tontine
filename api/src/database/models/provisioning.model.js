@@ -13,6 +13,11 @@ const Provisioning = sequelize.define(
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
     },
+    syncId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      unique: true,
+    },
     reference: {
       type: DataTypes.STRING(64),
       allowNull: false,

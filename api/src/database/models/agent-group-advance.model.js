@@ -40,6 +40,19 @@ const AgentGroupAdvance = sequelize.define(
         min: 0.01,
       },
     },
+    penaltyAmount: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+      },
+    },
+    penaltyPaid: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     recoveredAmount: {
       type: DataTypes.DECIMAL(18, 2),
       allowNull: false,

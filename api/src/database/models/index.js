@@ -38,6 +38,7 @@ const KycCase = require('./kyc-case.model');
 const KycDocument = require('./kyc-document.model');
 const KycDecision = require('./kyc-decision.model');
 const TontineKycLimit = require('./tontine-kyc-limit.model');
+const IdempotencyKey = require('./idempotency-key.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -422,6 +423,7 @@ const models = {
   KycDocument,
   KycDecision,
   TontineKycLimit,
+  IdempotencyKey,
 };
 
 module.exports = { sequelize, models };

@@ -1,4 +1,5 @@
 const { ok } = require('../../common/utils/api-response');
+const AppError = require('../../common/errors/app-error');
 const { getRequestContext } = require('../../common/utils/request-context');
 const {
   assertPaymentMethodEnabled,
@@ -14,10 +15,17 @@ async function getOverview(req, res) {
 }
 
 async function configure(req, res) {
+  if (req.body.termsAccepted !== true) {
+    throw new AppError(
+      "Vous devez lire et accepter les conditions générales d'épargne pour démarrer une tontine.",
+      422,
+    );
+  }
+  
   const data = await service.configureStake(
     req.auth.userId,
     req.body.stakeAmount,
-    getRequestContext(req),
+    { ...getRequestContext(req), termsAccepted: true },
   );
   return ok(res, data, 'Mise configuree.');
 }
@@ -32,7 +40,10 @@ async function deposit(req, res) {
     req.auth.userId,
     Number(req.body.amount),
     'wallet',
-    getRequestContext(req),
+    {
+      ...getRequestContext(req),
+      syncId: req.body.syncId,
+    },
   );
   return ok(res, data, 'Versement enregistre.');
 }

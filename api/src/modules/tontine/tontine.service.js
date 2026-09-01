@@ -394,6 +394,7 @@ async function configureStake(userId, stakeAmount, requestContext = {}) {
       userAgent: requestContext.userAgent,
       metadata: {
         stakeAmount: Number(stakeAmount),
+        termsAccepted: requestContext.termsAccepted === true,
       },
       transaction,
     });
@@ -550,6 +551,7 @@ async function depositToCycle(
         paymentProvider: requestContext.paymentProvider || null,
         linkedProvisioningId: requestContext.provisioningId || null,
         availableBalanceHistoryId: availableHistory?.id || null,
+        syncId: requestContext.syncId || null,
       },
     );
 
@@ -1105,6 +1107,10 @@ async function confirmCyclePayout(userId, requestContext = {}) {
       },
       transaction,
     });
+    
+    // Evaluate punctuality score
+    await scoringService.evaluateCompletedCycle(userId, cycle.id, transaction);
+
     return serializeCycle(cycle);
   });
 }
@@ -1206,6 +1212,10 @@ async function stopCycleEarly(userId, requestContext = {}) {
       },
       transaction,
     });
+    
+    // Penalize early stop
+    await scoringService.penalizeEarlyStop(userId, transaction);
+
     return serializeCycle(cycle);
   });
 }
