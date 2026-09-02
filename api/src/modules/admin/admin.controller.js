@@ -275,18 +275,14 @@ async function auditLogs(req, res) {
 
 async function getWhatsAppStatus(req, res) {
   const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
-  return ok(res, {
-    status: whatsAppOtpService.status,
-    isReady: whatsAppOtpService.isReady,
-    qrCode: whatsAppOtpService.qrCode,
-    lastError: whatsAppOtpService.lastError,
-  }, 'Statut WhatsApp recupere.');
+  return ok(res, whatsAppOtpService.getStatus(), 'Statut WhatsApp recupere.');
 }
 
 async function refreshWhatsApp(req, res) {
   const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
   const forceNewSession = req.body.forceNewSession === true;
-  whatsAppOtpService.reinitialize(forceNewSession).catch((err) => {
+  const enable = req.body.enable !== false;
+  whatsAppOtpService.reinitialize({ forceNewSession, enable }).catch((err) => {
     console.error('❌ Erreur de reinitialisation WhatsApp :', err.message);
   });
   return ok(res, { success: true }, 'Reinitialisation WhatsApp lancee.');
