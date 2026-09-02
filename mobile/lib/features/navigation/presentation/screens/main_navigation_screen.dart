@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/services/read_model_bootstrap_service.dart';
+import 'package:mobile/core/services/realtime_notification_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -19,7 +20,12 @@ import 'package:mobile/features/dashboard/presentation/screens/tontine_detail_sc
 import 'package:mobile/features/security/presentation/screens/app_unlock_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final bool skipOnboarding;
+
+  const MainNavigationScreen({
+    super.key,
+    this.skipOnboarding = false,
+  });
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -30,6 +36,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   int _currentIndex = 0;
   bool _requiresUnlockOnResume = false;
   bool _unlockRouteOpen = false;
+
+  StreamSubscription? _realtimeSubscription;
 
   @override
   void initState() {
@@ -42,11 +50,38 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingInvitationIfNeeded();
     });
+
+    _realtimeSubscription = RealtimeNotificationService.instance.stream.listen((event) {
+      if (event.eventName == 'notification.created') {
+        final payload = event.notification;
+        final title = payload['title']?.toString() ?? 'Nouvelle alerte';
+        final message = payload['message']?.toString() ?? '';
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  if (message.isNotEmpty) Text(message),
+                ],
+              ),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppTheme.primaryColor,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _realtimeSubscription?.cancel();
     super.dispose();
   }
 
@@ -69,6 +104,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       return;
     }
 
+    final bypassActive =
+        await LocalSecurityService.isTemporaryAppLockBypassActive();
+    if (!mounted) {
+      return;
+    }
+    if (bypassActive) {
+      _requiresUnlockOnResume = false;
+      return;
+    }
+
     final appLockEnabled = await LocalSecurityService.hasAppLockEnabled();
     if (!mounted) {
       return;
@@ -76,6 +121,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
     _requiresUnlockOnResume = false;
     if (!appLockEnabled) {
+      return;
+    }
+
+    final bypassStillActive =
+        await LocalSecurityService.isTemporaryAppLockBypassActive();
+    if (!mounted) {
+      return;
+    }
+    if (bypassStillActive) {
       return;
     }
 
@@ -111,6 +165,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   Widget build(BuildContext context) {
     final screens = <Widget>[
       DashboardScreen(
+        skipOnboarding: widget.skipOnboarding,
         onOpenMarketplaceTab: () {
           setState(() {
             _currentIndex = 3;
@@ -119,6 +174,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         onOpenTontineTab: () {
           setState(() {
             _currentIndex = 1;
+          });
+        },
+        onOpenProfileTab: () {
+          setState(() {
+            _currentIndex = 4;
           });
         },
       ),

@@ -13,6 +13,7 @@ import 'package:mobile/features/dashboard/presentation/screens/goal_detail_scree
 import 'package:mobile/features/dashboard/presentation/screens/market_orders_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/marketplace_favorites_screen.dart';
 import 'package:mobile/features/dashboard/presentation/utils/marketplace_offer_filter.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/market_offer_detail_sheet.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/marketplace_category_chips.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/marketplace_hero_section.dart';
@@ -31,6 +32,7 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String? _selectedCategory;
+  bool _isGridView = true;
 
   @override
   Widget build(BuildContext context) {
@@ -70,43 +72,39 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundColor,
-          appBar: AppBar(
-            automaticallyImplyLeading: widget.showBackButton,
-            title: Text(
-              "Marketplace",
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              IconButton(
-                onPressed: () => _openSearch(context),
-                icon: const Icon(
-                  Icons.search_rounded,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-              IconButton(
-                onPressed: () => _openFavorites(context),
-                icon: Icon(
-                  state.favoriteOfferIds.isEmpty
-                      ? Icons.favorite_border_rounded
-                      : Icons.favorite_rounded,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-              IconButton(
-                onPressed: () => _openOrders(context),
-                icon: const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: AppTheme.accentColor,
-                ),
-              ),
-            ],
-          ),
           body: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
+                child: FinanceHeroHeader(
+                  title: "Marketplace",
+                  subtitle: "Boutique & offres partenaires",
+                  showBackButton: widget.showBackButton,
+                  actions: [
+                    FinanceHeaderActionButton(
+                      icon: Icons.search_rounded,
+                      onTap: () => _openSearch(context),
+                    ),
+                    FinanceHeaderActionButton(
+                      icon: state.favoriteOfferIds.isEmpty
+                          ? Icons.favorite_border_rounded
+                          : Icons.favorite_rounded,
+                      iconColor: state.favoriteOfferIds.isEmpty
+                          ? Colors.white
+                          : AppTheme.accentColor,
+                      badgeCount: state.favoriteOfferIds.length,
+                      onTap: () => _openFavorites(context),
+                    ),
+                    FinanceHeaderActionButton(
+                      icon: Icons.shopping_bag_outlined,
+                      badgeCount: state.marketOrders.length,
+                      onTap: () => _openOrders(context),
+                    ),
+                  ],
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -124,11 +122,54 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      _SectionHeading(
-                        title: "Tous les articles",
-                        subtitle: visibleOffers.isEmpty
-                            ? "Aucun article ne correspond a ce filtre."
-                            : "Choisissez un article et passez a l'action.",
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: _SectionHeading(
+                              title: "Tous les articles",
+                              subtitle: visibleOffers.isEmpty
+                                  ? "Aucun article ne correspond a ce filtre."
+                                  : "Choisissez un article et passez a l'action.",
+                            ),
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                InkWell(
+                                  onTap: () => setState(() => _isGridView = true),
+                                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Icon(
+                                      Icons.grid_view_rounded,
+                                      size: 20,
+                                      color: _isGridView ? AppTheme.primaryColor : Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                Container(width: 1, height: 24, color: Colors.grey.shade200),
+                                InkWell(
+                                  onTap: () => setState(() => _isGridView = false),
+                                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Icon(
+                                      Icons.view_list_rounded,
+                                      size: 20,
+                                      color: !_isGridView ? AppTheme.primaryColor : Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                     ],
@@ -149,7 +190,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     ),
                   ),
                 )
-              else
+              else if (_isGridView)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   sliver: SliverGrid(
@@ -180,8 +221,40 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         onCreateGoal: () => _handleCreateGoal(context, offer),
                       );
                     }, childCount: visibleOffers.length),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final offer = visibleOffers[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: SizedBox(
+                          height: 262,
+                          child: MarketplaceOfferCompactCard(
+                            offer: offer,
+                            isFavorite: state.favoriteOfferIds.contains(offer.id),
+                            onTap: () => _showOfferDetailSheet(
+                              context,
+                              offers.indexWhere((item) => item.id == offer.id),
+                            ),
+                            onBuyNow: () => _handleBuyNow(context, offer),
+                            onToggleFavorite: () {
+                              _toggleFavorite(
+                                context,
+                                offer,
+                                state.favoriteOfferIds,
+                              );
+                            },
+                            onCreateGoal: () => _handleCreateGoal(context, offer),
+                          ),
+                        ),
+                      );
+                    }, childCount: visibleOffers.length),
+                  ),
                 ),
-              ),
             ],
           ),
         );

@@ -1,9 +1,14 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/features/auth/data/services/biometric_service.dart';
+import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
+import 'package:mobile/features/auth/widgets/legal_terms_bottom_sheet.dart';
 
 class AuthIdentificationScreen extends StatefulWidget {
   final bool isRegistration;
@@ -20,15 +25,50 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _pinController = TextEditingController();
+  late bool _isRegistrationMode;
   bool _isValid = false;
   bool _isSubmitting = false;
   String? _errorMessage;
   String _normalizedPhone = '';
+  
+  bool _canUseBiometrics = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
+    _isRegistrationMode = widget.isRegistration;
+    _checkBiometrics();
     _loadSuggestedPhoneNumber();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final canUse = await BiometricService.isBiometricAvailable();
+    final isEnabled = await BiometricService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _canUseBiometrics = canUse;
+        _isBiometricEnabled = isEnabled;
+      });
+    }
+  }
+
+  Future<void> _triggerBiometricAuth() async {
+    if (!_canUseBiometrics || !_isBiometricEnabled) return;
+    final savedPin = await BiometricService.getSavedPin();
+    if (savedPin == null || savedPin.isEmpty) return;
+
+    final authenticated = await BiometricService.authenticate();
+    if (authenticated && mounted) {
+      setState(() {
+        _pinController.text = savedPin;
+        _refreshValidation();
+      });
+      // Automatically submit if everything is valid
+      if (_isValid) {
+        _handleContinue(context);
+      }
+    }
   }
 
   @override
@@ -51,17 +91,21 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       _normalizedPhone = LocalAuthService.normalizePhone(suggestedPhone);
       _refreshValidation();
     });
+    
+    if (!_isRegistrationMode) {
+      _triggerBiometricAuth();
+    }
   }
 
   void _refreshValidation() {
     final registrationIdentityOk =
-        !widget.isRegistration ||
-        (_lastNameController.text.trim().length >= 2 &&
-            _firstNameController.text.trim().length >= 2);
-    final phoneOk = _normalizedPhone.length == 10;
+        !_isRegistrationMode ||
+        (AppInputRules.isValidPersonName(_lastNameController.text) &&
+            AppInputRules.isValidPersonName(_firstNameController.text));
+    final phoneOk = AppInputRules.isValidPhone(_normalizedPhone);
     final pinValue = _pinController.text.trim();
     final pinOk =
-        widget.isRegistration || pinValue.isEmpty || pinValue.length == 4;
+        _isRegistrationMode || AppInputRules.isValidPin(pinValue);
     _isValid = registrationIdentityOk && phoneOk && pinOk;
   }
 
@@ -122,9 +166,9 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                       ),
                       const SizedBox(height: 22),
                       Text(
-                        widget.isRegistration
+                        _isRegistrationMode
                             ? 'Ouverture de compte'
-                            : 'Acceder a mon compte',
+                            : 'Accéder à mon compte',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 26,
@@ -133,168 +177,240 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                           height: 1.12,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
                       Text(
-                        'Entrez vos informations pour continuer.',
+                        _isRegistrationMode
+                            ? 'Renseignez vos informations personnelles pour démarrer votre épargne.'
+                            : 'Entrez votre numéro de téléphone et votre code PIN pour accéder à votre espace.',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          fontSize: 15,
-                          color: Colors.white.withValues(alpha: 0.78),
+                          fontSize: 14.5,
+                          color: Colors.white.withValues(alpha: 0.82),
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 34),
-                      if (widget.isRegistration) ...[
-                        _buildTextInputCard(
-                          controller: _lastNameController,
-                          hintText: 'Nom',
-                          onChanged: (_) {
-                            setState(() {
-                              _errorMessage = null;
-                              _refreshValidation();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 18),
-                        _buildTextInputCard(
-                          controller: _firstNameController,
-                          hintText: 'Prenom',
-                          onChanged: (_) {
-                            setState(() {
-                              _errorMessage = null;
-                              _refreshValidation();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 18),
-                      ],
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: AppTheme.accentColor.withValues(alpha: 0.26),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.accentDarkColor.withValues(
-                                alpha: 0.08,
+                      const SizedBox(height: 30),
+                      AutofillGroup(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_isRegistrationMode) ...[
+                              _buildTextInputCard(
+                                controller: _lastNameController,
+                                hintText: 'Nom',
+                                icon: Icons.person_outline_rounded,
+                                isValid: AppInputRules.isValidPersonName(_lastNameController.text),
+                                textCapitalization: TextCapitalization.words,
+                                autofillHints: const [AutofillHints.familyName],
+                                inputFormatters: AppInputRules.personNameFormatters,
+                                onChanged: (_) {
+                                  setState(() {
+                                    _errorMessage = null;
+                                    _refreshValidation();
+                                  });
+                                },
                               ),
-                              blurRadius: 20,
-                              offset: const Offset(0, 12),
+                              const SizedBox(height: 16),
+                              _buildTextInputCard(
+                                controller: _firstNameController,
+                                hintText: 'Prénom',
+                                icon: Icons.badge_outlined,
+                                isValid: AppInputRules.isValidPersonName(_firstNameController.text),
+                                textCapitalization: TextCapitalization.words,
+                                autofillHints: const [AutofillHints.givenName],
+                                inputFormatters: AppInputRules.personNameFormatters,
+                                onChanged: (_) {
+                                  setState(() {
+                                    _errorMessage = null;
+                                    _refreshValidation();
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            Container(
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppInputRules.isValidPhone(_normalizedPhone)
+                                      ? AppTheme.secondaryColor.withValues(alpha: 0.60)
+                                      : AppTheme.accentColor.withValues(alpha: 0.30),
+                                  width: 1.2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.accentDarkColor.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              padding: EdgeInsets.zero,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: IntlPhoneField(
+                                      controller: _phoneController,
+                                      initialCountryCode: 'BJ',
+                                      disableLengthCheck: true,
+                                      keyboardType: TextInputType.phone,
+                                      textInputAction: _isRegistrationMode
+                                          ? TextInputAction.done
+                                          : TextInputAction.next,
+                                      autovalidateMode: AutovalidateMode.disabled,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 15.5,
+                                        letterSpacing: 1.1,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.textPrimaryColor,
+                                      ),
+                                      dropdownTextStyle: GoogleFonts.poppins(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                      flagsButtonPadding: const EdgeInsets.only(
+                                        left: 12,
+                                        right: 4,
+                                      ),
+                                      showCountryFlag: true,
+                                      showDropdownIcon: false,
+                                      decoration: InputDecoration(
+                                        hintText: 'Numéro de téléphone',
+                                        hintStyle: GoogleFonts.poppins(
+                                          color: AppTheme.textSecondaryColor,
+                                          fontSize: 14,
+                                          letterSpacing: 0,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        counterText: '',
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 0,
+                                          vertical: 14,
+                                        ),
+                                      ),
+                                      invalidNumberMessage: 'Numéro invalide',
+                                      onChanged: (phone) {
+                                        var cleanNumber = phone.number.trim();
+                                        final cleanDial = phone.countryCode
+                                            .replaceAll('+', '')
+                                            .trim();
+                                        if (cleanNumber.startsWith('+$cleanDial')) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length + 1,
+                                          );
+                                        } else if (cleanNumber.startsWith(cleanDial) &&
+                                            cleanNumber.length > 8) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length,
+                                          );
+                                        } else if (cleanNumber.startsWith('+')) {
+                                          cleanNumber = cleanNumber.substring(1);
+                                        }
+
+                                        if (cleanNumber != phone.number) {
+                                          _phoneController.value =
+                                              TextEditingValue(
+                                            text: cleanNumber,
+                                            selection: TextSelection.collapsed(
+                                              offset: cleanNumber.length,
+                                            ),
+                                          );
+                                        }
+
+                                        final dialCode =
+                                            phone.countryCode.startsWith('+')
+                                                ? phone.countryCode
+                                                : '+${phone.countryCode}';
+                                        final rawDigits = cleanNumber.replaceAll(
+                                          RegExp(r'\D'),
+                                          '',
+                                        );
+                                        final fullPhone = '$dialCode$rawDigits';
+                                        final normalizedPhone =
+                                            LocalAuthService.normalizePhone(
+                                              fullPhone,
+                                            );
+                                        setState(() {
+                                          _errorMessage = null;
+                                          _normalizedPhone = normalizedPhone;
+                                          _refreshValidation();
+                                        });
+                                      },
+                                      onCountryChanged: (_) {
+                                        setState(() {
+                                          _errorMessage = null;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  if (AppInputRules.isValidPhone(_normalizedPhone))
+                                    const Padding(
+                                      padding: EdgeInsets.only(right: 12),
+                                      child: Icon(
+                                        Icons.check_circle_rounded,
+                                        color: AppTheme.secondaryColor,
+                                        size: 20,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        child: IntlPhoneField(
-                          controller: _phoneController,
-                          initialCountryCode: 'BJ',
-                          disableLengthCheck: true,
-                          keyboardType: TextInputType.phone,
-                          textInputAction: TextInputAction.next,
-                          autovalidateMode: AutovalidateMode.disabled,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textPrimaryColor,
-                          ),
-                          dropdownTextStyle: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accentDarkColor,
-                          ),
-                          flagsButtonPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                          ),
-                          showCountryFlag: true,
-                          showDropdownIcon: false,
-                          decoration: InputDecoration(
-                            hintText: 'Numero de telephone',
-                            hintStyle: GoogleFonts.poppins(
-                              color: AppTheme.textSecondaryColor,
-                              letterSpacing: 0,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            border: InputBorder.none,
-                            counterText: '',
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 0,
-                              vertical: 14,
-                            ),
-                          ),
-                          invalidNumberMessage: 'Numero invalide',
-                          onChanged: (phone) {
-                            final normalizedPhone =
-                                LocalAuthService.normalizePhone(phone.number);
+                      ),
+                      if (!_isRegistrationMode) ...[
+                        const SizedBox(height: 16),
+                        _buildTextInputCard(
+                          controller: _pinController,
+                          hintText: 'Code PIN (4 chiffres)',
+                          icon: Icons.lock_outline_rounded,
+                          isValid: AppInputRules.isValidPin(_pinController.text),
+                          keyboardType: TextInputType.number,
+                          obscureText: true,
+                          maxLength: 4,
+                          enableInteractiveSelection: false,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          inputFormatters: AppInputRules.pinFormatters,
+                          onChanged: (_) {
                             setState(() {
                               _errorMessage = null;
-                              _normalizedPhone = normalizedPhone;
                               _refreshValidation();
                             });
                           },
-                          onCountryChanged: (_) {
-                            setState(() {
-                              _errorMessage = null;
-                            });
-                          },
+                          customSuffixIcon: (_canUseBiometrics && _isBiometricEnabled) ? IconButton(
+                            icon: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryColor),
+                            onPressed: _triggerBiometricAuth,
+                          ) : null,
                         ),
-                      ),
-                      if (!widget.isRegistration) ...[
-                        const SizedBox(height: 18),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: AppTheme.accentColor.withValues(
-                                alpha: 0.26,
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _handleForgotPassword,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
                               ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.accentDarkColor.withValues(
-                                  alpha: 0.08,
-                                ),
-                                blurRadius: 20,
-                                offset: const Offset(0, 12),
+                            child: Text(
+                              'Code PIN oublié ?',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.90),
                               ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 6,
-                          ),
-                          child: TextField(
-                            controller: _pinController,
-                            keyboardType: TextInputType.number,
-                            obscureText: true,
-                            maxLength: 4,
-                            inputFormatters: AppInputRules.pinFormatters,
-                            onChanged: (_) {
-                              setState(() {
-                                _errorMessage = null;
-                                _refreshValidation();
-                              });
-                            },
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              letterSpacing: 4,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimaryColor,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Code PIN (si disponible)',
-                              hintStyle: GoogleFonts.poppins(
-                                color: AppTheme.textSecondaryColor,
-                                letterSpacing: 0,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              border: InputBorder.none,
-                              counterText: '',
                             ),
                           ),
                         ),
@@ -362,51 +478,214 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                     padding: const EdgeInsets.only(top: 28, bottom: 12),
                     child: Column(
                       children: [
-                        SizedBox(
+                        Container(
                           width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isValid && !_isSubmitting
-                                ? () => _handleContinue(context)
+                          height: 50,
+                          decoration: BoxDecoration(
+                            gradient: _isValid && !_isSubmitting
+                                ? AppTheme.accentGradient
                                 : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.accentColor,
-                              disabledBackgroundColor: Colors.grey.shade300,
-                              minimumSize: const Size.fromHeight(52),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                            color: _isValid && !_isSubmitting
+                                ? null
+                                : Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: _isValid && !_isSubmitting
+                                ? [
+                                    BoxShadow(
+                                      color: AppTheme.accentColor.withValues(
+                                        alpha: 0.35,
                                       ),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
-                                  )
-                                : Text(
-                                    'Recevoir le code',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+                                  ]
+                                : null,
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: _isValid && !_isSubmitting
+                                  ? () => _handleContinue(context)
+                                  : null,
+                              child: Center(
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Continuer',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white.withValues(
+                                                alpha: _isValid ? 1.0 : 0.50,
+                                              ),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            Icons.arrow_forward_rounded,
+                                            size: 18,
+                                            color: Colors.white.withValues(
+                                              alpha: _isValid ? 1.0 : 0.50,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
                           ),
                         ),
+                        if (_isRegistrationMode) ...[
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: GoogleFonts.inter(
+                                  fontSize: 11.5,
+                                  color: Colors.white.withValues(alpha: 0.70),
+                                  height: 1.35,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                    text: "En continuant, vous acceptez nos ",
+                                  ),
+                                  TextSpan(
+                                    text: "CGU",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    recognizer:
+                                        TapGestureRecognizer()
+                                          ..onTap = () {
+                                            LegalTermsBottomSheet.show(
+                                              context,
+                                              initialTab: 0,
+                                            );
+                                          },
+                                  ),
+                                  const TextSpan(text: " et notre "),
+                                  TextSpan(
+                                    text: "Politique de Confidentialité",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    recognizer:
+                                        TapGestureRecognizer()
+                                          ..onTap = () {
+                                            LegalTermsBottomSheet.show(
+                                              context,
+                                              initialTab: 1,
+                                            );
+                                          },
+                                  ),
+                                  const TextSpan(text: "."),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
-                            "Des frais de SMS peuvent s'appliquer",
+                            "Code de sécurité transmis par WhatsApp",
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.72),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _isRegistrationMode = !_isRegistrationMode;
+                              _errorMessage = null;
+                              _refreshValidation();
+                            });
+                          },
+                          child: RichText(
+                            text: TextSpan(
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.90),
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: _isRegistrationMode
+                                      ? "Vous avez déjà un compte ? "
+                                      : "Pas encore de compte ? ",
+                                ),
+                                TextSpan(
+                                  text: _isRegistrationMode
+                                      ? "Se connecter"
+                                      : "Ouvrir un compte",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.accentColor,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextButton.icon(
+                          onPressed: () => AuthHelpBottomSheet.show(context),
+                          icon: Icon(
+                            Icons.help_outline_rounded,
+                            size: 15,
+                            color: Colors.white.withValues(alpha: 0.75),
+                          ),
+                          label: Text(
+                            "Besoin d'aide ?",
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              color: Colors.white.withValues(alpha: 0.75),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 13,
+                              color: Colors.white.withValues(alpha: 0.60),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Conforme aux normes de sécurité financière BCEAO',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -420,8 +699,14 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     );
   }
 
+  void _handleForgotPassword() {
+    FocusScope.of(context).unfocus();
+    AuthHelpBottomSheet.show(context);
+  }
+
   Future<void> _handleContinue(BuildContext context) async {
     FocusScope.of(context).unfocus();
+    TextInput.finishAutofillContext();
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
@@ -429,8 +714,8 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
 
     final result = await LocalAuthService.requestOtp(
       rawPhoneNumber: _normalizedPhone,
-      isRegistration: widget.isRegistration,
-      pinCode: widget.isRegistration || _pinController.text.trim().isEmpty
+      isRegistration: _isRegistrationMode,
+      pinCode: _isRegistrationMode || _pinController.text.trim().isEmpty
           ? null
           : _pinController.text.trim(),
     );
@@ -450,23 +735,29 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       return;
     }
 
+    if (!context.mounted) {
+      return;
+    }
+
+    final formattedFirstName = _isRegistrationMode
+        ? AppInputRules.capitalizePersonName(_firstNameController.text)
+        : null;
+    final formattedLastName = _isRegistrationMode
+        ? AppInputRules.capitalizePersonName(_lastNameController.text)
+        : null;
+
     Navigator.pushNamed(
       context,
       '/auth_otp',
       arguments: {
         'phoneNumber': result.phoneNumber,
         'normalizedPhoneNumber': _normalizedPhone,
-        'isRegistration': widget.isRegistration,
-        'demoOtpCode': result.otpCode,
-        'pinCode': widget.isRegistration || _pinController.text.trim().isEmpty
+        'isRegistration': _isRegistrationMode,
+        'pinCode': _isRegistrationMode || _pinController.text.trim().isEmpty
             ? null
             : _pinController.text.trim(),
-        'firstName': widget.isRegistration
-            ? _firstNameController.text.trim()
-            : null,
-        'lastName': widget.isRegistration
-            ? _lastNameController.text.trim()
-            : null,
+        'firstName': formattedFirstName,
+        'lastName': formattedLastName,
       },
     );
   }
@@ -474,40 +765,77 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   Widget _buildTextInputCard({
     required TextEditingController controller,
     required String hintText,
+    required IconData icon,
     required ValueChanged<String> onChanged,
+    bool isValid = false,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    Iterable<String>? autofillHints,
+    bool enableInteractiveSelection = true,
+    bool enableSuggestions = true,
+    bool autocorrect = true,
+    Widget? customSuffixIcon,
   }) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppTheme.accentColor.withValues(alpha: 0.26),
+          color: isValid
+              ? AppTheme.secondaryColor.withValues(alpha: 0.60)
+              : AppTheme.accentColor.withValues(alpha: 0.30),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
             color: AppTheme.accentDarkColor.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 12),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: EdgeInsets.zero,
       child: TextField(
         controller: controller,
         textInputAction: TextInputAction.next,
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        autofillHints: autofillHints,
+        obscureText: obscureText,
+        maxLength: maxLength,
+        inputFormatters: inputFormatters,
+        enableInteractiveSelection: enableInteractiveSelection,
+        enableSuggestions: enableSuggestions,
+        autocorrect: autocorrect,
         onChanged: onChanged,
         style: GoogleFonts.poppins(
-          fontSize: 16,
+          fontSize: 15.5,
           fontWeight: FontWeight.w500,
           color: AppTheme.textPrimaryColor,
         ),
         decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: AppTheme.primaryColor, size: 20),
+          prefixIconConstraints: const BoxConstraints(minWidth: 36),
+          suffixIcon: customSuffixIcon ?? (isValid
+              ? const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppTheme.secondaryColor,
+                  size: 20,
+                )
+              : null),
           hintText: hintText,
           hintStyle: GoogleFonts.poppins(
             color: AppTheme.textSecondaryColor,
+            fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
           border: InputBorder.none,
+          counterText: '',
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 const express = require('express');
 const authenticate = require('../../common/middlewares/authenticate');
+const idempotency = require('../../common/middlewares/idempotency');
 const asyncHandler = require('../../common/utils/async-handler');
 const controller = require('./tontine.controller');
 
@@ -17,6 +18,29 @@ router.get(
   authenticate,
   asyncHandler(controller.getFedapayDepositIntent),
 );
+router.post(
+  '/afrikmoney/deposits',
+  authenticate,
+  asyncHandler(controller.initializeAfrikmoneyDeposit),
+);
+router.get(
+  '/afrikmoney/deposits/:intentId',
+  authenticate,
+  asyncHandler(controller.getAfrikmoneyDepositIntent),
+);
+router.post('/afrikmoney/webhook', asyncHandler(controller.afrikmoneyWebhook));
+router.post(
+  '/mtn-momo/deposits',
+  authenticate,
+  asyncHandler(controller.initializeMtnMomoDeposit),
+);
+router.get(
+  '/mtn-momo/deposits/:intentId',
+  authenticate,
+  asyncHandler(controller.getMtnMomoDepositIntent),
+);
+router.post('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
+router.put('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
 
 /**
  * @swagger
@@ -30,14 +54,16 @@ router.get(
  *       200:
  *         description: Vue tontine
  */
+router.get('/kyc-limits', authenticate, asyncHandler(controller.getKycLimits));
 router.get('/', authenticate, asyncHandler(controller.getOverview));
-router.post('/configure', authenticate, asyncHandler(controller.configure));
-router.post('/deposit', authenticate, asyncHandler(controller.deposit));
+router.post('/configure', authenticate, idempotency(), asyncHandler(controller.configure));
+router.post('/deposit', authenticate, idempotency(), asyncHandler(controller.deposit));
 router.post(
   '/confirm-payout',
   authenticate,
+  idempotency(),
   asyncHandler(controller.confirmPayout),
 );
-router.post('/stop-early', authenticate, asyncHandler(controller.stopEarly));
+router.post('/stop-early', authenticate, idempotency(), asyncHandler(controller.stopEarly));
 
 module.exports = router;

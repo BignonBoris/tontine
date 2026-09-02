@@ -16,6 +16,7 @@ const {
 const {
   ensureTontinePaymentIntentCompatibility,
 } = require('./tontine-payment-intent.bootstrap');
+const { ensurePaymentMethodCompatibility } = require('./payment-method.bootstrap');
 const { ensureCommissionCompatibility } = require('./commission.bootstrap');
 const { ensureMarketOfferCompatibility } = require('./market-offer.bootstrap');
 const { ensureAgentGroupCompatibility } = require('./agent-group.bootstrap');
@@ -27,6 +28,10 @@ const { ensureAgentGroupAdvanceRecoveryCompatibility } = require('./agent-group-
 const {
   ensurePushDeviceTokenCompatibility,
 } = require('./push-device-token.bootstrap');
+const {
+  ensureGoalTemplateCompatibility,
+} = require('./goal-template.bootstrap');
+const { ensureKycCompatibility } = require('./kyc.bootstrap');
 const { models } = require('../models');
 
 async function runBootstrap(sequelize) {
@@ -38,6 +43,7 @@ async function runBootstrap(sequelize) {
   await ensureAvailableBalanceHistoryCompatibility(sequelize);
   await ensureTontineHistoryCompatibility(sequelize);
   await ensureTontinePaymentIntentCompatibility(sequelize);
+  await ensurePaymentMethodCompatibility(sequelize, models);
   await ensureGoalCompatibility(sequelize);
   await ensureCommissionCompatibility(sequelize, models);
   await ensureMarketOfferCompatibility(sequelize);
@@ -49,6 +55,8 @@ async function runBootstrap(sequelize) {
   await ensureAgentGroupAdvanceCompatibility(sequelize);
   await ensureAgentGroupAdvanceRecoveryCompatibility(sequelize);
   await ensurePushDeviceTokenCompatibility(sequelize);
+  await ensureGoalTemplateCompatibility(sequelize);
+  await ensureKycCompatibility(sequelize);
 }
 
 module.exports = runBootstrap;

@@ -1,4 +1,5 @@
 import 'package:mobile/core/network/api_client.dart';
+import 'package:uuid/uuid.dart';
 import 'package:mobile/features/dashboard/domain/entities/app_notification_item.dart';
 import 'package:mobile/features/dashboard/domain/entities/available_balance_history_entry.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
@@ -8,6 +9,7 @@ import 'package:mobile/features/dashboard/domain/entities/tontine_archive_entry.
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_history_entry.dart';
+import 'package:mobile/features/dashboard/domain/entities/payment_method_option.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_transaction.dart';
 import 'package:mobile/features/dashboard/domain/entities/user_profile.dart';
 import 'package:mobile/features/dashboard/domain/entities/withdrawal_request_result.dart';
@@ -213,24 +215,28 @@ class RemoteDashboardService {
     }
   }
 
-  Future<void> configureStake(double stakeAmount) {
+  Future<void> configureStake(double stakeAmount, {required bool termsAccepted}) {
     return _apiClient.post(
       '/tontine/configure',
-      body: {'stakeAmount': stakeAmount},
+      body: {
+        'stakeAmount': stakeAmount,
+        'termsAccepted': termsAccepted,
+      },
     );
   }
 
-  Future<void> makeTontineDeposit(double amount) {
+  Future<void> makeTontineDeposit(double amount, String syncId) {
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 
   Future<void> transferAvailableToTontine(double amount) {
+    final syncId = const Uuid().v4();
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 
@@ -264,21 +270,56 @@ class RemoteDashboardService {
     );
   }
 
-  Future<void> fundGoal(String goalId, double amount) {
-    return _apiClient.post('/goals/$goalId/fund', body: {'amount': amount});
+  Future<void> fundGoal(String goalId, num amount, [String? syncId]) async {
+    await _apiClient.post(
+      '/goals/$goalId/fund',
+      body: {'amount': amount},
+      idempotencyKey: syncId,
+    );
   }
 
-  Future<void> closeGoal(String goalId) {
+  Future<Map<String, dynamic>> getGoalConfig() async {
+    final response = await _apiClient.get('/goals/config');
+    return response['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> closeGoal(String goalId) async {
     return _apiClient.post('/goals/$goalId/close');
   }
 
-  Future<WithdrawalRequestResult> requestWithdrawal(double amount) async {
+  Future<WithdrawalRequestResult> requestWithdrawal(
+    double amount, {
+    String channel = 'agent_cash',
+  }) async {
     final data = await _apiClient.post(
       '/withdrawals',
-      body: {'amount': amount},
+      body: {'amount': amount, 'channel': channel},
     ) as Map<dynamic, dynamic>;
 
     return WithdrawalRequestResult.fromMap(Map<dynamic, dynamic>.from(data));
+  }
+
+  Future<List<PaymentMethodOption>> fetchPaymentMethods(
+    String operation,
+  ) async {
+    try {
+      final payload = _asMap(
+        await _apiClient.get(
+          '/payment-methods?operation=${Uri.encodeComponent(operation)}',
+        ),
+      );
+      final methods = _asList(payload['items']);
+      return methods
+          .whereType<Map>()
+          .map(
+            (entry) => PaymentMethodOption.fromMap(
+              Map<dynamic, dynamic>.from(entry),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return _fallbackPaymentMethods(operation);
+    }
   }
 
   Future<WithdrawalRequestResult> regenerateWithdrawalCode(
@@ -520,6 +561,7 @@ class RemoteDashboardService {
       lastLoginAt: map['lastLoginAt'] == null
           ? null
           : _toDateTime(map['lastLoginAt']),
+      kyc: KycSummary.fromMap(map['kyc'] is Map ? map['kyc'] as Map : null),
     );
   }
 
@@ -535,6 +577,96 @@ class RemoteDashboardService {
       biometricEnabled: map['biometricEnabled'] as bool? ?? false,
       pinCode: map['pinCode'] as String?,
     );
+  }
+
+  List<PaymentMethodOption> _fallbackPaymentMethods(String operation) {
+    switch (operation) {
+      case 'tontine_deposit':
+        return const [
+          PaymentMethodOption(
+            id: 'fallback-wallet',
+            code: 'wallet',
+            label: 'Solde disponible',
+            description: 'Transfert depuis le solde disponible du client.',
+            provider: 'internal',
+            operation: 'tontine_deposit',
+            flowType: 'internal_transfer',
+            enabled: true,
+            sortOrder: 10,
+          ),
+          PaymentMethodOption(
+            id: 'fallback-fedapay',
+            code: 'fedapay',
+            label: 'FedaPay',
+            description: 'Paiement externe via FedaPay.',
+            provider: 'fedapay',
+            operation: 'tontine_deposit',
+            flowType: 'external_checkout',
+            enabled: true,
+            sortOrder: 20,
+          ),
+          PaymentMethodOption(
+            id: 'fallback-afrikmoney',
+            code: 'afrikmoney',
+            label: 'Afrikmoney',
+            description: 'Paiement externe via Afrikmoney.',
+            provider: 'afrikmoney',
+            operation: 'tontine_deposit',
+            flowType: 'external_checkout',
+            enabled: true,
+            sortOrder: 40,
+          ),
+          PaymentMethodOption(
+            id: 'fallback-mtn-momo',
+            code: 'mtn_momo',
+            label: 'MTN MoMo',
+            description: 'Paiement externe via MTN MoMo.',
+            provider: 'mtn_momo',
+            operation: 'tontine_deposit',
+            flowType: 'external_checkout',
+            enabled: true,
+            sortOrder: 30,
+          ),
+        ];
+      case 'withdrawal':
+        return const [
+          PaymentMethodOption(
+            id: 'fallback-agent-cash',
+            code: 'agent_cash',
+            label: 'Agent / caisse',
+            description: 'Retrait validé puis payé par un agent.',
+            provider: 'internal',
+            operation: 'withdrawal',
+            flowType: 'manual_review',
+            enabled: true,
+            sortOrder: 10,
+          ),
+          PaymentMethodOption(
+            id: 'fallback-mobile-money',
+            code: 'mobile_money',
+            label: 'Mobile money',
+            description: 'Retrait payé hors application via mobile money.',
+            provider: 'mobile_money',
+            operation: 'withdrawal',
+            flowType: 'manual_review',
+            enabled: true,
+            sortOrder: 20,
+          ),
+          PaymentMethodOption(
+            id: 'fallback-bank-transfer',
+            code: 'bank_transfer',
+            label: 'Virement bancaire',
+            description: 'Retrait payé hors application via virement bancaire.',
+            provider: 'bank_transfer',
+            operation: 'withdrawal',
+            flowType: 'manual_review',
+            enabled: true,
+            sortOrder: 30,
+          ),
+        ];
+      default:
+        return const <PaymentMethodOption>[];
+    }
   }
 
   Map<dynamic, dynamic> _asMap(dynamic raw) {

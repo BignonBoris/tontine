@@ -61,8 +61,14 @@ const PROVISIONING_STATUSES = [
 ];
 const PROVISIONING_SOURCES = ['agent', 'mobile_money'];
 const OPERATION_ACTOR_TYPES = ['agent', 'admin', 'client', 'system'];
-const WITHDRAWAL_STATUSES = ['requested', 'paid', 'cancelled', 'rejected'];
-const WITHDRAWAL_CHANNELS = ['agent_cash'];
+const WITHDRAWAL_STATUSES = [
+  'requested',
+  'approved',
+  'paid',
+  'cancelled',
+  'rejected',
+];
+const WITHDRAWAL_CHANNELS = ['agent_cash', 'mobile_money', 'bank_transfer'];
 const AGENT_BALANCE_HISTORY_TYPES = [
   'topUp',
   'clientDeposit',

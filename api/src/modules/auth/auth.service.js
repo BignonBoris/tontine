@@ -1,31 +1,84 @@
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const { parsePhoneNumberWithError } = require('libphonenumber-js');
 const env = require('../../config/env');
 const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
+const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
 const { models, sequelize } = require('../../database/models');
 
+function validateAndNormalizePhone(phoneNumber, defaultCountry = 'BJ') {
+  const rawStr = String(phoneNumber || '').trim();
+  if (!rawStr) {
+    throw new AppError('Le numéro de téléphone est obligatoire.', 422);
+  }
+
+  const digitsOnly = rawStr.replace(/\D/g, '');
+  if (digitsOnly.length < 8 || /^(\d)\1+$/.test(digitsOnly)) {
+    throw new AppError('Le numéro de téléphone fourni est invalide.', 422);
+  }
+
+  try {
+    const parsed = parsePhoneNumberWithError(rawStr, defaultCountry);
+    if (!parsed || !parsed.isValid()) {
+      throw new AppError(
+        'Numéro de téléphone invalide selon le plan de numérotation.',
+        422,
+      );
+    }
+
+    const nationalDigits = parsed.nationalNumber;
+    const normalizedPhone =
+      nationalDigits.length > 10 ? nationalDigits.slice(-10) : nationalDigits;
+
+    return {
+      normalizedPhone,
+      e164: parsed.format('E.164'),
+      country: parsed.country || defaultCountry,
+      type: parsed.getType(),
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    if (digitsOnly.length === 10) {
+      return {
+        normalizedPhone: digitsOnly,
+        e164: `+229${digitsOnly}`,
+        country: defaultCountry,
+        type: 'MOBILE',
+      };
+    }
+    throw new AppError(
+      'Numéro de téléphone invalide ou impossible à vérifier.',
+      422,
+    );
+  }
+}
+
 function normalizePhone(phoneNumber) {
-  const digits = String(phoneNumber || '').replace(/\D/g, '');
-  return digits.length > 10 ? digits.slice(-10) : digits;
+  try {
+    const result = validateAndNormalizePhone(phoneNumber);
+    return result.normalizedPhone;
+  } catch {
+    const digits = String(phoneNumber || '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  }
 }
 
 function displayPhone(phoneNumber) {
-  const normalizedPhone = String(phoneNumber || '').trim();
-  if (!normalizedPhone) {
-    return 'Non renseigne';
+  const rawStr = String(phoneNumber || '').trim();
+  if (!rawStr) {
+    return 'Non renseigné';
   }
-  if (normalizedPhone.length !== 10) {
-    return `+229 ${normalizedPhone}`;
+  try {
+    const parsed = parsePhoneNumberWithError(rawStr, 'BJ');
+    return parsed.formatInternational();
+  } catch {
+    return rawStr;
   }
-  return `+229 ${normalizedPhone.slice(0, 2)} ${normalizedPhone.slice(
-    2,
-    4,
-  )} ${normalizedPhone.slice(4, 6)} ${normalizedPhone.slice(6, 8)} ${normalizedPhone.slice(
-    8,
-    10,
-  )}`;
 }
 
 function normalizeDisplayName(displayName) {
@@ -90,8 +143,17 @@ function generateOtpCode() {
   return `${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
-function hashClientPin(pinCode) {
-  return crypto.createHash('sha256').update(String(pinCode || '')).digest('hex');
+async function hashClientPin(pinCode) {
+  return bcrypt.hash(String(pinCode || ''), 12);
+}
+
+async function verifyClientPin(pinCode, storedHash) {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('$2b$') || storedHash.startsWith('$2a$')) {
+    return bcrypt.compare(String(pinCode || ''), storedHash);
+  }
+  const legacyHash = crypto.createHash('sha256').update(String(pinCode || '')).digest('hex');
+  return legacyHash === storedHash;
 }
 
 function isValidPinCode(pinCode) {
@@ -237,23 +299,24 @@ async function createFreshOtp({
     transaction,
   });
 
+  // Envoi asynchrone par WhatsApp si connecté
+  whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
+    console.warn('[WhatsApp OTP Error]', err.message);
+  });
+
   return {
     otpId: otp.id,
     phoneNumber: displayPhone(normalizedPhone),
     normalizedPhoneNumber: normalizedPhone,
     expiresAt: otp.expiresAt,
-    debugOtpCode: code,
+    ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
   };
 }
 
 async function requestOtp(payload, context) {
   const { phoneNumber, purpose, pinCode } = payload;
-  const normalizedPhone = normalizePhone(phoneNumber);
+  const { normalizedPhone } = validateAndNormalizePhone(phoneNumber);
   const authContext = buildAuthContext(context);
-
-  if (normalizedPhone.length !== 10) {
-    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
-  }
 
   const user = await assertPhonePurposeConsistency(normalizedPhone, purpose);
 
@@ -265,8 +328,79 @@ async function requestOtp(payload, context) {
     if (!isValidPinCode(pinCode)) {
       throw new AppError('Le code PIN doit contenir 4 chiffres.', 422);
     }
-    if (user.preferences.pinCode !== hashClientPin(pinCode)) {
-      throw new AppError('Code PIN incorrect.', 401);
+
+    const latestOtp = await getLatestOtp(normalizedPhone, purpose);
+    if (
+      latestOtp?.blockedUntil &&
+      new Date(latestOtp.blockedUntil).getTime() > Date.now()
+    ) {
+      const minutesRemaining = Math.max(
+        1,
+        Math.ceil(
+          (new Date(latestOtp.blockedUntil).getTime() - Date.now()) / (60 * 1000),
+        ),
+      );
+      throw new AppError(
+        `Trop de tentatives. Votre compte est suspendu. Veuillez réessayer dans ${minutesRemaining} minute(s).`,
+        429,
+      );
+    }
+
+    const isPinValid = await verifyClientPin(pinCode, user.preferences.pinCode);
+    if (isPinValid && !user.preferences.pinCode.startsWith('$2b$')) {
+      await user.preferences.update({ pinCode: await hashClientPin(pinCode) });
+    }
+    
+    if (!isPinValid) {
+      const currentAttempts = Number(latestOtp?.attemptCount || 0) + 1;
+      const isMaxReached = currentAttempts >= env.otpMaxAttempts;
+      const blockedUntil = isMaxReached ? computeBlockDate() : null;
+
+      if (latestOtp) {
+        await latestOtp.update({
+          attemptCount: currentAttempts,
+          blockedUntil,
+        });
+      } else {
+        await models.AuthOtp.create({
+          phoneNumber: normalizedPhone,
+          purpose,
+          code: '0000',
+          expiresAt: computeExpiryDate(),
+          lastSentAt: new Date(),
+          attemptCount: currentAttempts,
+          resendCount: 0,
+          blockedUntil,
+        });
+      }
+
+      await writeAuditLog({
+        userId: user.id,
+        action: 'auth.pin_failed',
+        entityType: 'user',
+        entityId: user.id,
+        status: 'failed',
+        ipAddress: authContext.ipAddress,
+        userAgent: authContext.userAgent,
+        metadata: {
+          phoneNumber: normalizedPhone,
+          attemptCount: currentAttempts,
+          blockedUntil,
+        },
+      });
+
+      if (isMaxReached) {
+        throw new AppError(
+          "Nombre maximal d'essais de PIN atteint (3/3). Votre compte est temporairement bloqué pendant 15 minutes.",
+          429,
+        );
+      }
+
+      const remaining = env.otpMaxAttempts - currentAttempts;
+      throw new AppError(
+        `Code PIN incorrect. Il vous reste ${remaining} essai(s) avant suspension du compte.`,
+        401,
+      );
     }
   }
 
@@ -293,12 +427,8 @@ async function requestOtp(payload, context) {
 
 async function resendOtp(payload, context) {
   const { phoneNumber, purpose } = payload;
-  const normalizedPhone = normalizePhone(phoneNumber);
+  const { normalizedPhone } = validateAndNormalizePhone(phoneNumber);
   const authContext = buildAuthContext(context);
-
-  if (normalizedPhone.length !== 10) {
-    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
-  }
 
   await assertPhonePurposeConsistency(normalizedPhone, purpose);
 
@@ -379,12 +509,17 @@ async function resendOtp(payload, context) {
       transaction,
     });
 
+    // Envoi asynchrone par WhatsApp du nouveau code généré
+    whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
+      console.warn('[WhatsApp OTP Resend Error]', err.message);
+    });
+
     return {
       otpId: otp.id,
       phoneNumber: displayPhone(normalizedPhone),
       normalizedPhoneNumber: normalizedPhone,
       expiresAt: otp.expiresAt,
-      debugOtpCode: code,
+      ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
     };
   });
 }
@@ -393,13 +528,9 @@ async function verifyOtp(
   { phoneNumber, code, firstName, lastName, birthDate, pinCode },
   context,
 ) {
-  const normalizedPhone = normalizePhone(phoneNumber);
+  const { normalizedPhone } = validateAndNormalizePhone(phoneNumber);
   const normalizedCode = String(code || '').replace(/\D/g, '').trim();
   const authContext = buildAuthContext(context);
-
-  if (normalizedPhone.length !== 10) {
-    throw new AppError('Le numero doit contenir 10 chiffres.', 422);
-  }
   if (!/^\d{4}$/.test(normalizedCode)) {
     throw new AppError('Le code OTP doit contenir 4 chiffres.', 422);
   }
@@ -418,12 +549,18 @@ async function verifyOtp(
         reason: 'otp_not_found',
       },
     });
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    throw new AppError('Code OTP invalide ou expiré. Veuillez demander un nouveau code.', 422);
   }
 
   if (otp.blockedUntil && new Date(otp.blockedUntil).getTime() > Date.now()) {
+    const minutesRemaining = Math.max(
+      1,
+      Math.ceil(
+        (new Date(otp.blockedUntil).getTime() - Date.now()) / (60 * 1000),
+      ),
+    );
     throw new AppError(
-      "Trop de tentatives. Reessayez plus tard avant de verifier un nouveau code.",
+      `Trop de tentatives infructueuses. Veuillez réessayer dans ${minutesRemaining} minute(s).`,
       429,
     );
   }
@@ -441,7 +578,7 @@ async function verifyOtp(
         reason: 'otp_expired',
       },
     });
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    throw new AppError('Ce code de sécurité a expiré. Veuillez en demander un nouveau.', 422);
   }
 
   if (otp.code !== normalizedCode) {
@@ -471,12 +608,16 @@ async function verifyOtp(
 
     if (nextAttemptCount >= env.otpMaxAttempts) {
       throw new AppError(
-        "Nombre maximal d'essais atteint. Reessayez plus tard avec un nouveau code.",
+        "Nombre maximal d'essais atteint (3/3). Votre compte est temporairement bloqué pendant 15 minutes.",
         429,
       );
     }
 
-    throw new AppError('Code OTP invalide ou expire.', 422);
+    const remaining = env.otpMaxAttempts - nextAttemptCount;
+    throw new AppError(
+      `Code de sécurité incorrect. Il vous reste ${remaining} essai(s) avant blocage temporaire.`,
+      422,
+    );
   }
 
   return sequelize.transaction(async (transaction) => {
@@ -543,7 +684,7 @@ async function verifyOtp(
       await preferences.update(
         {
           pinEnabled: true,
-          pinCode: hashClientPin(pinCode),
+          pinCode: await hashClientPin(pinCode),
         },
         { transaction },
       );
@@ -625,6 +766,7 @@ async function getCurrentUserProfile(userId) {
 }
 
 module.exports = {
+  validateAndNormalizePhone,
   normalizePhone,
   displayPhone,
   normalizeDisplayName,

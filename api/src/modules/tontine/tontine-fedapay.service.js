@@ -101,6 +101,22 @@ function isLockWaitTimeoutError(error) {
   );
 }
 
+function buildWebhookReplayHeader(rawBody, secret = getFedapayWebhookSecret()) {
+  const payload = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody || '');
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${payload}`, 'utf8')
+    .digest('hex');
+
+  return {
+    timestamp,
+    signature,
+    header: `t=${timestamp},s=${signature}`,
+    payload,
+  };
+}
+
 async function requestFedapay(path, options = {}) {
   const url = `${getFedapayBaseUrl()}${path}`;
 
@@ -152,11 +168,11 @@ async function requestFedapay(path, options = {}) {
 function extractFedapayEventName(event) {
   return String(
     event?.name ||
-      event?.event ||
-      event?.type ||
-      event?.data?.name ||
-      event?.data?.type ||
-      '',
+    event?.event ||
+    event?.type ||
+    event?.data?.name ||
+    event?.data?.type ||
+    '',
   ).trim();
 }
 
@@ -184,15 +200,15 @@ function extractMerchantReference(transaction) {
   const resource = unwrapFedapayResource(transaction);
   return String(
     resource?.merchant_reference ||
-      resource?.merchantReference ||
-      resource?.reference ||
-      resource?.data?.merchant_reference ||
-      resource?.data?.merchantReference ||
-      resource?.data?.reference ||
-      resource?.transaction?.merchant_reference ||
-      resource?.transaction?.merchantReference ||
-      resource?.transaction?.reference ||
-      '',
+    resource?.merchantReference ||
+    resource?.reference ||
+    resource?.data?.merchant_reference ||
+    resource?.data?.merchantReference ||
+    resource?.data?.reference ||
+    resource?.transaction?.merchant_reference ||
+    resource?.transaction?.merchantReference ||
+    resource?.transaction?.reference ||
+    '',
   ).trim();
 }
 
@@ -200,18 +216,18 @@ function extractProviderTransactionId(transaction) {
   const resource = unwrapFedapayResource(transaction);
   return String(
     resource?.id ||
-      resource?.transaction_id ||
-      resource?.transactionId ||
-      resource?.reference ||
-      resource?.data?.id ||
-      resource?.data?.transaction_id ||
-      resource?.data?.transactionId ||
-      resource?.data?.reference ||
-      resource?.transaction?.id ||
-      resource?.transaction?.transaction_id ||
-      resource?.transaction?.transactionId ||
-      resource?.transaction?.reference ||
-      '',
+    resource?.transaction_id ||
+    resource?.transactionId ||
+    resource?.reference ||
+    resource?.data?.id ||
+    resource?.data?.transaction_id ||
+    resource?.data?.transactionId ||
+    resource?.data?.reference ||
+    resource?.transaction?.id ||
+    resource?.transaction?.transaction_id ||
+    resource?.transaction?.transactionId ||
+    resource?.transaction?.reference ||
+    '',
   ).trim();
 }
 
@@ -219,12 +235,12 @@ function extractProviderStatus(transaction) {
   const resource = unwrapFedapayResource(transaction);
   return String(
     resource?.status ||
-      resource?.state ||
-      resource?.data?.status ||
-      resource?.data?.state ||
-      resource?.transaction?.status ||
-      resource?.transaction?.state ||
-      '',
+    resource?.state ||
+    resource?.data?.status ||
+    resource?.data?.state ||
+    resource?.transaction?.status ||
+    resource?.transaction?.state ||
+    '',
   ).trim();
 }
 
@@ -673,6 +689,8 @@ async function syncApprovedFedapayIntent(intent, fedapayTransaction, requestCont
     processedAt: new Date(),
     failureReason: null,
     depositHistoryId: depositResult.historyId || null,
+  }, {
+    transaction: requestContext.transaction,
   });
 
   await writeAuditLog({
@@ -694,15 +712,32 @@ async function syncApprovedFedapayIntent(intent, fedapayTransaction, requestCont
     transaction: requestContext.transaction,
   });
 
-  return serializeIntent(await intent.reload());
+  return serializeIntent(
+    await intent.reload({ transaction: requestContext.transaction }),
+  );
 }
 
-async function processFedapayWebhook(req) {
+async function processFedapayWebhook(req, res) {
   const signatureHeader =
     req.get('x-fedapay-signature') ||
     req.get('x-fedapay-signaturev2') ||
     req.get('x-fedapay-signature-v2');
   const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+  const rawBodyText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody || '');
+
+  if (env.nodeEnv !== 'production') {
+    const webhookSecret = String(env.fedapayWebhookSecret || '').trim();
+    const replay = webhookSecret
+      ? buildWebhookReplayHeader(rawBodyText, webhookSecret)
+      : null;
+    console.info('[FedaPay webhook debug] replay data', {
+      method: req.method,
+      path: req.originalUrl || req.url,
+      receivedSignature: signatureHeader || null,
+      rawBody: rawBodyText,
+      replayHeader: replay?.header || null,
+    });
+  }
 
   if (!Webhook) {
     throw new AppError(
@@ -718,6 +753,7 @@ async function processFedapayWebhook(req) {
       signatureHeader,
       getFedapayWebhookSecret(),
     );
+
   } catch (error) {
     throw new AppError(
       `Webhook FedaPay invalide: ${error?.message || 'signature refusee'}.`,
@@ -728,6 +764,17 @@ async function processFedapayWebhook(req) {
   const eventName = extractFedapayEventName(event);
   const transaction = extractFedapayTransaction(event);
   const merchantReference = extractMerchantReference(transaction);
+  const providerTransactionId = extractProviderTransactionId(transaction);
+  const providerStatus = extractProviderStatus(transaction);
+
+  if (env.nodeEnv !== 'production') {
+    console.info('[FedaPay webhook debug] transaction summary', {
+      eventName,
+      merchantReference: merchantReference || null,
+      providerTransactionId: providerTransactionId || null,
+      providerStatus: providerStatus || null,
+    });
+  }
 
   if (!merchantReference) {
     return {
@@ -751,9 +798,6 @@ async function processFedapayWebhook(req) {
       merchantReference,
     };
   }
-
-  const providerTransactionId = extractProviderTransactionId(transaction);
-  const providerStatus = extractProviderStatus(transaction);
 
   if (eventName !== 'transaction.approved') {
     const nextStatus =
@@ -811,10 +855,11 @@ async function processFedapayWebhook(req) {
       where: { id: intent.id },
       transaction: transactionDb,
       lock: transactionDb.LOCK.UPDATE,
+      skipLocked: true,
     });
 
     if (!lockedIntent) {
-      throw new AppError('Demande de paiement introuvable.', 404);
+      return null;
     }
 
     if (lockedIntent.status === 'processed') {
@@ -827,6 +872,19 @@ async function processFedapayWebhook(req) {
       userAgent: req.get('user-agent') || null,
     });
   });
+
+  if (!processedIntent) {
+    return {
+      received: true,
+      processed: false,
+      eventName,
+      merchantReference,
+      intentId: intent.id,
+      status: intent.status,
+      providerStatus,
+      reason: 'locked',
+    };
+  }
 
   return {
     received: true,
@@ -915,10 +973,9 @@ async function renderFedapayReturnPage(req, res) {
       <span class="badge">FedaPay</span>
       <h1>${title}</h1>
       <p>${message}</p>
-      ${
-        merchantReference
-          ? `<p>Reference: <code>${merchantReference}</code></p>`
-          : ''
+      ${merchantReference
+        ? `<p>Reference: <code>${merchantReference}</code></p>`
+        : ''
       }
       <p class="hint">Vous pouvez fermer cette page et revenir a l application.</p>
     </main>

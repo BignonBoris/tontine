@@ -12,6 +12,9 @@ import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_action_button.dart';
+import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
+import 'package:uuid/uuid.dart';
 
 class GoalDetailScreen extends StatefulWidget {
   final String goalId;
@@ -24,6 +27,7 @@ class GoalDetailScreen extends StatefulWidget {
 
 class _GoalDetailScreenState extends State<GoalDetailScreen> {
   late ConfettiController _confettiController;
+  bool _isHistoryCalendarView = false;
 
   @override
   void initState() {
@@ -72,169 +76,211 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           children: [
             Scaffold(
               backgroundColor: const Color(0xFFF8F9FE),
-              appBar: AppBar(
-                title: Text(
-                  goal.title,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+              floatingActionButton: FloatingActionButton.extended(
+                onPressed: () => _showDepositSheet(context, state, goal),
+                backgroundColor: AppTheme.primaryColor,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  "Deposer",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.archive_outlined,
-                      color: AppTheme.errorColor,
+              ),
+              body: Column(
+                children: [
+                  FinanceHeroHeader(
+                    title: goal.title,
+                    titleFontSize: 18,
+                    showBackButton: true,
+                    actions: [
+                      Theme(
+                        data: Theme.of(context).copyWith(
+                          iconTheme: const IconThemeData(color: Colors.white),
+                        ),
+                        child: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'close') {
+                              _confirmClose(context, goal);
+                            }
+                          },
+                          icon: const Icon(Icons.more_vert, color: Colors.white),
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            PopupMenuItem<String>(
+                              value: 'close',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.archive_outlined, color: AppTheme.errorColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Cloturer le coffre',
+                                    style: TextStyle(color: AppTheme.errorColor, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      "${formatFCFA(goal.currentAmount)} F",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 34,
+                                        fontWeight: FontWeight.w700,
+                                        color: goal.color,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: goal.color.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.calendar_today_outlined, size: 14, color: goal.color),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            "${goal.remainingDays} j",
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.bold,
+                                              color: goal.color,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Objectif ${formatFCFA(goal.targetAmount)} F",
+                                  style: GoogleFonts.inter(
+                                    color: AppTheme.textSecondaryColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: LinearProgressIndicator(
+                                    value: goal.progress,
+                                    minHeight: 12,
+                                    backgroundColor: goal.color.withOpacity(0.12),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      goal.color,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    _HeroMetric(
+                                      label: "Progression",
+                                      value: "${(goal.progress * 100).toInt()}%",
+                                    ),
+                                    _HeroMetric(
+                                      label: "Reste",
+                                      value:
+                                          "${formatFCFA((goal.targetAmount - goal.currentAmount).toInt())} F",
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.fromLTRB(20, 20, 20, 100), // padding for FAB
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "Historique",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        InkWell(
+                                          onTap: () => setState(() => _isHistoryCalendarView = false),
+                                          child: Icon(
+                                            Icons.list_rounded,
+                                            color: !_isHistoryCalendarView ? AppTheme.primaryColor : Colors.grey,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        InkWell(
+                                          onTap: () => setState(() => _isHistoryCalendarView = true),
+                                          child: Icon(
+                                            Icons.calendar_month_rounded,
+                                            color: _isHistoryCalendarView ? AppTheme.primaryColor : Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                if (goal.transactions.isEmpty)
+                                  _buildEmptyHistory()
+                                else if (_isHistoryCalendarView)
+                                  _buildHistoryCalendar(goal)
+                                else
+                                  _buildTransactionList(goal),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    onPressed: () => _confirmClose(context, goal),
                   ),
                 ],
-              ),
-              body: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.vertical(
-                          bottom: Radius.circular(30),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            goal.title,
-                            style: GoogleFonts.poppins(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "${formatFCFA(goal.currentAmount)} F",
-                            style: GoogleFonts.poppins(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w700,
-                              color: goal.color,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "Objectif ${formatFCFA(goal.targetAmount)} F",
-                            style: GoogleFonts.inter(
-                              color: AppTheme.textSecondaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: goal.progress,
-                              minHeight: 12,
-                              backgroundColor: goal.color.withOpacity(0.12),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                goal.color,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _HeroMetric(
-                                  label: "Progression",
-                                  value: "${(goal.progress * 100).toInt()}%",
-                                ),
-                              ),
-                              Expanded(
-                                child: _HeroMetric(
-                                  label: "Reste",
-                                  value:
-                                      "${formatFCFA((goal.targetAmount - goal.currentAmount).toInt())} F",
-                                ),
-                              ),
-                              Expanded(
-                                child: _HeroMetric(
-                                  label: "Echeance",
-                                  value: "${goal.remainingDays} j",
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            TontineActionButton(
-                              label: "Deposer",
-                              icon: Icons.add_circle_outline_rounded,
-                              color: AppTheme.secondaryColor,
-                              onTap: () =>
-                                  _showDepositSheet(context, state, goal),
-                            ),
-                            const SizedBox(width: 12),
-                            TontineActionButton(
-                              label: "Cloturer",
-                              icon: Icons.archive_outlined,
-                              color: AppTheme.errorColor,
-                              onTap: () => _confirmClose(context, goal),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Historique",
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (goal.transactions.isEmpty)
-                            _buildEmptyHistory()
-                          else
-                            _buildTransactionList(goal),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
             Align(
@@ -365,8 +411,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         return;
                       }
 
+                      final syncId = const Uuid().v4();
                       context.read<DashboardBloc>().add(
-                        AddFundsToGoal(goal.id, amount),
+                        AddFundsToGoal(goal.id, amount, syncId),
                       );
                       Navigator.pop(sheetContext);
                       _confettiController.play();
@@ -437,6 +484,32 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
   }
 
+  Widget _buildHistoryCalendar(TontineGoal goal) {
+    final transactionDays = goal.transactions.map((t) {
+      return DateTime(t.date.year, t.date.month, t.date.day);
+    }).toSet();
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: const ColorScheme.light(
+          primary: AppTheme.primaryColor,
+          onPrimary: Colors.white,
+          onSurface: AppTheme.primaryColor,
+        ),
+      ),
+      child: CalendarDatePicker(
+        initialDate: DateTime.now(),
+        firstDate: goal.startDate,
+        lastDate: goal.endDate.isAfter(DateTime.now()) ? goal.endDate : DateTime.now(),
+        onDateChanged: (date) {},
+        selectableDayPredicate: (date) {
+          final day = DateTime(date.year, date.month, date.day);
+          return transactionDays.contains(day);
+        },
+      ),
+    );
+  }
+
   void _showSnackBar(
     BuildContext context,
     String message, {
@@ -450,13 +523,63 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
   }
 
-  void _confirmClose(BuildContext context, TontineGoal goal) {
+  void _confirmClose(BuildContext context, TontineGoal goal) async {
+    final bool isEarlyClosure = goal.remainingDays > 0;
+    num penaltyPercent = 0.0;
+    
+    if (isEarlyClosure) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        final config = await RemoteDashboardService().getGoalConfig();
+        penaltyPercent = config['earlyClosurePenaltyPercent'] ?? 5.0;
+        if (context.mounted) Navigator.pop(context); // close loader
+      } catch (e) {
+        if (context.mounted) Navigator.pop(context); // close loader
+        penaltyPercent = 5.0; // fallback
+      }
+    }
+    
+    if (!context.mounted) return;
+
+    final penaltyAmount = isEarlyClosure ? (goal.currentAmount * penaltyPercent / 100) : 0.0;
+    final returnedAmount = goal.currentAmount - penaltyAmount;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text("Cloturer le coffre ?"),
-        content: Text(
-          "Le solde de ${goal.currentAmount.toInt()} F sera reverse sur votre compte disponible.",
+        title: Text(isEarlyClosure ? "Cloture anticipee" : "Cloturer le coffre ?"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isEarlyClosure)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE57373)),
+                ),
+                child: Text(
+                  "Attention : Cloturer ce coffre avant son echeance entrainera une penalite de $penaltyPercent% sur votre solde actuel.",
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFFB71C1C),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            Text(
+              isEarlyClosure
+                  ? "Vous recupererez ${returnedAmount.toInt()} F (Penalite de ${penaltyAmount.toInt()} F)."
+                  : "Le solde de ${goal.currentAmount.toInt()} F sera reverse sur votre compte disponible.",
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -520,21 +643,23 @@ class _HeroMetric extends StatelessWidget {
   final String label;
   final String value;
 
-  const _HeroMetric({required this.label, required this.value});
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          label,
+          "$label : ",
           style: GoogleFonts.inter(
-            fontSize: 11,
+            fontSize: 12,
             color: AppTheme.textSecondaryColor,
           ),
         ),
-        const SizedBox(height: 4),
         Text(
           value,
           style: GoogleFonts.poppins(

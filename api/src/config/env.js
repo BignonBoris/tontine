@@ -16,12 +16,12 @@ const env = {
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
   adminJwtExpiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
-  otpExpiresInMinutes: Number(process.env.OTP_EXPIRES_IN_MINUTES || 2),
-  otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 5),
+  otpExpiresInMinutes: Number(process.env.OTP_EXPIRES_IN_MINUTES || 5),
+  otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 3),
   otpMaxResends: Number(process.env.OTP_MAX_RESENDS || 3),
-  otpBlockMinutes: Number(process.env.OTP_BLOCK_MINUTES || 10),
+  otpBlockMinutes: Number(process.env.OTP_BLOCK_MINUTES || 15),
   otpResendCooldownSeconds: Number(
-    process.env.OTP_RESEND_COOLDOWN_SECONDS || 30,
+    process.env.OTP_RESEND_COOLDOWN_SECONDS || 120,
   ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
@@ -33,6 +33,32 @@ const env = {
     (process.env.FEDAPAY_ENV === 'live' || process.env.NODE_ENV === 'production'
       ? 'https://api.fedapay.com/v1'
       : 'https://sandbox-api.fedapay.com/v1'),
+  afrikmoneyApiBaseUrl:
+    process.env.AFRIKMONEY_API_BASE_URL || 'https://pay.afrikmoney.com',
+  afrikmoneyApiKey: process.env.AFRIKMONEY_API_KEY || '',
+  afrikmoneyWebhookSecret: process.env.AFRIKMONEY_WEBHOOK_SECRET || '',
+  afrikmoneyCustomerEmailDomain:
+    process.env.AFRIKMONEY_CUSTOMER_EMAIL_DOMAIN || 'example.com',
+  mtnMomoEnv: process.env.MTN_MOMO_ENV || 'sandbox',
+  mtnMomoApiBaseUrl:
+    process.env.MTN_MOMO_API_BASE_URL ||
+    (process.env.MTN_MOMO_ENV === 'live' || process.env.NODE_ENV === 'production'
+      ? 'https://proxy.momoapi.mtn.com'
+      : 'https://sandbox.momodeveloper.mtn.com'),
+  mtnMomoTargetEnvironment:
+    process.env.MTN_MOMO_TARGET_ENVIRONMENT || 'sandbox',
+  mtnMomoCollectionSubscriptionKey:
+    process.env.MTN_MOMO_COLLECTION_SUBSCRIPTION_KEY || '',
+  mtnMomoApiUser: process.env.MTN_MOMO_API_USER || '',
+  mtnMomoApiKey: process.env.MTN_MOMO_API_KEY || '',
+  mtnMomoCurrency: process.env.MTN_MOMO_CURRENCY || 'EUR',
+  mtnMomoCallbackBaseUrl:
+    process.env.MTN_MOMO_CALLBACK_BASE_URL ||
+    process.env.APP_BASE_URL ||
+    'http://localhost:3000',
+  mtnMomoMsisdnCountryCode: process.env.MTN_MOMO_MSISDN_COUNTRY_CODE || '',
+  sentryDsn: process.env.SENTRY_DSN || '',
+  makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),

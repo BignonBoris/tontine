@@ -158,6 +158,45 @@ async function recordWithdrawal(req, res) {
   return ok(res, data, 'Retrait enregistre avec succes.', 201);
 }
 
+async function approveWithdrawal(req, res) {
+  const data = await service.approveWithdrawalForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait approuve.');
+}
+
+async function rejectWithdrawal(req, res) {
+  const data = await service.rejectWithdrawalForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait refuse.');
+}
+
+async function markWithdrawalPaid(req, res) {
+  const data = await service.markWithdrawalPaidForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait marque comme paye.');
+}
+
 async function reverseContribution(req, res) {
   const data = await service.reverseClientContribution(
     req.params.userId,
@@ -234,7 +273,62 @@ async function auditLogs(req, res) {
   return ok(res, data, 'Audit charge.');
 }
 
+async function getWhatsAppStatus(req, res) {
+  const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
+  return ok(res, {
+    status: whatsAppOtpService.status,
+    isReady: whatsAppOtpService.isReady,
+    qrCode: whatsAppOtpService.qrCode,
+    lastError: whatsAppOtpService.lastError,
+  }, 'Statut WhatsApp recupere.');
+}
+
+async function refreshWhatsApp(req, res) {
+  const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
+  const forceNewSession = req.body.forceNewSession === true;
+  whatsAppOtpService.reinitialize(forceNewSession).catch((err) => {
+    console.error('❌ Erreur de reinitialisation WhatsApp :', err.message);
+  });
+  return ok(res, { success: true }, 'Reinitialisation WhatsApp lancee.');
+}
+
+async function getTontineKycLimits(req, res) {
+  const { listTontineKycLimits } = require('../tontine/tontine-kyc-limit.service');
+  const items = await listTontineKycLimits();
+  return ok(res, { items }, 'Plafonds KYC tontine charges.');
+}
+
+async function updateTontineKycLimits(req, res) {
+  const { updateTontineKycLimits } = require('../tontine/tontine-kyc-limit.service');
+  const items = await updateTontineKycLimits(req.body.items, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, { items }, 'Plafonds KYC tontine mis a jour.');
+}
+
+async function getSystemSettings(req, res) {
+  const data = await service.getSystemSettings();
+  return ok(res, data, 'Parametres charges.');
+}
+
+async function updateSystemSetting(req, res) {
+  const data = await service.updateSystemSetting(
+    req.params.key,
+    req.body,
+    getRequestContext(req)
+  );
+  return ok(res, data, 'Parametre mis a jour.');
+}
+
 module.exports = {
+  getTontineKycLimits,
+  updateTontineKycLimits,
+  getWhatsAppStatus,
+  refreshWhatsApp,
+  getSystemSettings,
+  updateSystemSetting,
   overview,
   marketplaceOverview,
   marketplaceOrders,
@@ -255,6 +349,9 @@ module.exports = {
   startTontine,
   recordContribution,
   recordWithdrawal,
+  approveWithdrawal,
+  rejectWithdrawal,
+  markWithdrawalPaid,
   reverseContribution,
   updateClientStatus,
   recovery,

@@ -10,6 +10,11 @@ const TontineHistory = sequelize.define(
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
     },
+    syncId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      unique: true,
+    },
     userId: {
       type: DataTypes.UUID,
       allowNull: false,

@@ -21,12 +21,20 @@ const dashboardRoutes = require('../../modules/dashboard/dashboard.routes');
 const clientGroupsRoutes = require('../../modules/client-groups/client-groups.routes');
 const clientGroupInvitationsRoutes = require('../../modules/client-group-invitations/client-group-invitations.routes');
 const groupInvitationsRoutes = require('../../modules/group-invitations/group-invitations.routes');
+const paymentMethodsRoutes = require('../../modules/payment-methods/payment-methods.routes');
+const paymentMethodsAdminRoutes = require('../../modules/payment-methods/payment-methods.admin.routes');
+const goalTemplatesRoutes = require('../../modules/goal-templates/goal-templates.routes');
+const goalTemplatesAdminRoutes = require('../../modules/goal-templates/goal-templates.admin.routes');
+const kycRoutes = require('../../modules/kyc/kyc.routes');
+const kycAdminRoutes = require('../../modules/kyc/kyc.admin.routes');
+const adminReconciliationRoutes = require('../../modules/admin/admin-reconciliation.routes');
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
 router.use('/admin/auth', adminAuthRoutes);
 router.use('/admin', adminRoutes);
+router.use('/admin', adminReconciliationRoutes);
 router.use('/agent/auth', agentAuthRoutes);
 router.use('/agent/clients', agentClientsRoutes);
 router.use('/agent/dashboard', agentDashboardRoutes);
@@ -46,5 +54,11 @@ router.use('/client/groups', clientGroupsRoutes);
 router.use('/client/group-invitations', clientGroupInvitationsRoutes);
 router.use('/admin/commissions', adminCommissionsRoutes);
 router.use('/group-invitations', groupInvitationsRoutes);
+router.use('/payment-methods', paymentMethodsRoutes);
+router.use('/admin/payment-methods', paymentMethodsAdminRoutes);
+router.use('/goal-templates', goalTemplatesRoutes);
+router.use('/admin/goal-templates', goalTemplatesAdminRoutes);
+router.use('/kyc', kycRoutes);
+router.use('/admin/kyc', kycAdminRoutes);
 
 module.exports = router;

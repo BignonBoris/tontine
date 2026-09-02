@@ -103,6 +103,7 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
   const clientUserId = String(payload?.clientUserId || '').trim();
   const amount = Number(payload?.amount);
   const notes = payload?.notes ? String(payload.notes).trim() : null;
+  const syncId = payload?.syncId ? String(payload.syncId).trim() : null;
 
   await validateProvisioningRequest(clientUserId, amount);
 
@@ -126,6 +127,7 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
         source: 'agent',
         status: 'validated',
         notes,
+        syncId,
         validatedAt: new Date(),
         validatedByUserId: agentProfile.userId,
         initiatedByUserId: agentProfile.userId,
@@ -140,6 +142,7 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
       initiatedByUserId: agentProfile.userId,
       initiatorType: 'agent',
       provisioningId: created.id,
+      syncId,
     });
 
     const cashChange = await applyAgentBalanceChange(

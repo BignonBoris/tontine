@@ -49,6 +49,11 @@ const MainRoutes = [
         component: () => import("../views/platform/WithdrawalsView.vue"),
       },
       {
+        name: "PaymentMethods",
+        path: "/payment-methods",
+        component: () => import("../views/platform/PaymentMethodsView.vue"),
+      },
+      {
         name: "Marketplace",
         path: "/marketplace",
         component: () => import("../views/platform/MarketplaceView.vue"),
@@ -62,6 +67,21 @@ const MainRoutes = [
         path: '/supervision/commissions',
         name: 'Commissions',
         component: () => import('../views/modules/commissions.vue'),
+      },
+      {
+        path: '/goal-templates',
+        name: 'GoalTemplates',
+        component: () => import('../views/modules/goal-templates.vue'),
+      },
+      {
+        path: '/kyc',
+        name: 'Kyc',
+        component: () => import('../views/platform/KycView.vue'),
+      },
+      {
+        path: '/whatsapp',
+        name: 'WhatsApp',
+        component: () => import('../views/platform/WhatsAppView.vue'),
       },
 
       {

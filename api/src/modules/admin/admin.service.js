@@ -31,6 +31,9 @@ const {
 } = require('../commission/commission.service');
 const {
   createWithdrawal: createClientWithdrawal,
+  approveWithdrawalByAdmin,
+  rejectWithdrawalByAdmin,
+  markWithdrawalPaidByAdmin,
 } = require('../withdrawals/withdrawals.service');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 
@@ -307,10 +310,17 @@ function serializeWithdrawalEntry(entry) {
     status: entry.status,
     channel: entry.channel,
     requestedAt: entry.requestedAt,
+    approvedAt: entry.approvedAt,
+    approvedByAdminUsername: entry.approvedByAdminUsername || null,
     paidAt: entry.paidAt,
+    paidByAdminUsername: entry.paidByAdminUsername || null,
     cancelledAt: entry.cancelledAt,
     initiatorType: entry.initiatorType,
     cancellationReason: entry.cancellationReason,
+    rejectionReason: entry.rejectionReason || null,
+    paymentReference: entry.paymentReference || null,
+    paymentProofImageUrl: entry.paymentProofImageUrl || null,
+    paymentProofUploadedAt: entry.paymentProofUploadedAt || null,
     client: entry.user
       ? {
           id: entry.user.id,
@@ -2347,10 +2357,14 @@ async function listWithdrawals(query = {}) {
   const status = String(query.status || '').trim();
   const reference = String(query.reference || '').trim();
   const search = String(query.search || '').trim();
+  const channel = String(query.channel || '').trim();
 
   const whereClause = {};
   if (status) {
     whereClause.status = status;
+  }
+  if (channel) {
+    whereClause.channel = channel;
   }
   if (reference) {
     whereClause.reference = {
@@ -2397,6 +2411,33 @@ async function listWithdrawals(query = {}) {
       total: result.count,
     },
   };
+}
+
+async function approveWithdrawalForAdmin(
+  withdrawalId,
+  payload,
+  requestContext = {},
+) {
+  await approveWithdrawalByAdmin(withdrawalId, payload, requestContext);
+  return getWithdrawalDetail(withdrawalId);
+}
+
+async function rejectWithdrawalForAdmin(
+  withdrawalId,
+  payload,
+  requestContext = {},
+) {
+  await rejectWithdrawalByAdmin(withdrawalId, payload, requestContext);
+  return getWithdrawalDetail(withdrawalId);
+}
+
+async function markWithdrawalPaidForAdmin(
+  withdrawalId,
+  payload,
+  requestContext = {},
+) {
+  await markWithdrawalPaidByAdmin(withdrawalId, payload, requestContext);
+  return getWithdrawalDetail(withdrawalId);
 }
 
 async function getMarketplaceOverview() {
@@ -2935,6 +2976,9 @@ async function getWithdrawalDetail(withdrawalId) {
     throw new AppError('Retrait introuvable.', 404);
   }
 
+  const isAgentCashWithdrawal =
+    String(withdrawal.channel || '').trim() === 'agent_cash';
+
   const [wallet, payerAgentProfile, auditLogs] = await Promise.all([
     models.Wallet.findOne({ where: { userId: withdrawal.userId } }),
     withdrawal.paidByAgentProfileId
@@ -2967,12 +3011,17 @@ async function getWithdrawalDetail(withdrawalId) {
         : null,
       initiatedByUserId: withdrawal.initiatedByUserId,
       paidByAgentProfileId: withdrawal.paidByAgentProfileId,
-      confirmationCodeExpiresAt: withdrawal.confirmationCodeExpiresAt,
-      confirmationCodeAttempts: Number(
-        withdrawal.confirmationCodeAttempts || 0,
-      ),
-      isConfirmationCodeExpired:
-        new Date(withdrawal.confirmationCodeExpiresAt) < new Date(),
+      confirmationCodeExpiresAt: isAgentCashWithdrawal
+        ? withdrawal.confirmationCodeExpiresAt
+        : null,
+      confirmationCodeAttempts: isAgentCashWithdrawal
+        ? Number(withdrawal.confirmationCodeAttempts || 0)
+        : 0,
+      isConfirmationCodeExpired: isAgentCashWithdrawal
+        ? withdrawal.confirmationCodeExpiresAt != null
+          ? new Date(withdrawal.confirmationCodeExpiresAt) < new Date()
+          : false
+        : false,
       clientWalletSnapshot: {
         availableBalance: toNumber(wallet?.availableBalance),
         reservedWithdrawalBalance: toNumber(
@@ -3205,6 +3254,41 @@ async function listAuditLogs(query = {}) {
   };
 }
 
+async function getSystemSettings() {
+  const settings = await models.SystemSetting.findAll();
+  return settings;
+}
+
+async function updateSystemSetting(key, payload, requestContext) {
+  const setting = await models.SystemSetting.findByPk(key);
+  if (!setting) {
+    throw new AppError('Parametre introuvable', 404);
+  }
+  
+  if (payload.value === undefined) {
+    throw new AppError('La valeur est requise', 422);
+  }
+
+  await setting.update({
+    value: payload.value,
+    description: payload.description || setting.description,
+  });
+
+  await writeAuditLog({
+    userId: requestContext.userId,
+    action: 'system_setting.updated',
+    entityType: 'system_setting',
+    entityId: key,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      newValue: payload.value,
+    },
+  });
+
+  return setting;
+}
+
 module.exports = {
   getOverview,
   getMarketplaceOverview,
@@ -3226,6 +3310,9 @@ module.exports = {
   startTontine,
   recordClientContribution,
   recordClientWithdrawal,
+  approveWithdrawalForAdmin,
+  rejectWithdrawalForAdmin,
+  markWithdrawalPaidForAdmin,
   reverseClientContribution,
   getClientDetail,
   updateClientStatus,
@@ -3238,4 +3325,6 @@ module.exports = {
   getWithdrawalDetail,
   getOperationalAnomalies,
   listAuditLogs,
+  getSystemSettings,
+  updateSystemSetting,
 };

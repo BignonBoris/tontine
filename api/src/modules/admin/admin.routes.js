@@ -19,6 +19,9 @@ router.get('/anomalies', asyncHandler(controller.anomalies));
 router.get('/operations', asyncHandler(controller.operations));
 router.get('/recouvrement', asyncHandler(controller.recovery));
 router.post('/operations/withdrawals', asyncHandler(controller.recordWithdrawal));
+router.post('/withdrawals/:withdrawalId/approve', asyncHandler(controller.approveWithdrawal));
+router.post('/withdrawals/:withdrawalId/reject', asyncHandler(controller.rejectWithdrawal));
+router.post('/withdrawals/:withdrawalId/paid', asyncHandler(controller.markWithdrawalPaid));
 router.get('/clients', asyncHandler(controller.clients));
 router.post('/clients', asyncHandler(controller.createClient));
 router.get('/clients/:userId', asyncHandler(controller.clientDetail));
@@ -26,6 +29,8 @@ router.patch('/clients/:userId', asyncHandler(controller.updateClient));
 router.post('/clients/:userId/start-tontine', asyncHandler(controller.startTontine));
 router.post('/clients/:userId/contributions', asyncHandler(controller.recordContribution));
 router.post('/clients/:userId/contributions/:historyId/reverse', asyncHandler(controller.reverseContribution));
+router.get('/tontines/kyc-limits', asyncHandler(controller.getTontineKycLimits));
+router.put('/tontines/kyc-limits', asyncHandler(controller.updateTontineKycLimits));
 router.get('/tontines', asyncHandler(controller.tontines));
 router.get('/tontines/:cycleId/calendar', asyncHandler(controller.tontineCalendar));
 router.patch('/tontines/:cycleId', asyncHandler(controller.updateTontineCycle));
@@ -42,5 +47,10 @@ router.post(
 router.get('/withdrawals', asyncHandler(controller.withdrawals));
 router.get('/withdrawals/:withdrawalId', asyncHandler(controller.withdrawalDetail));
 router.get('/audit-logs', asyncHandler(controller.auditLogs));
+router.get('/whatsapp/status', asyncHandler(controller.getWhatsAppStatus));
+router.post('/whatsapp/refresh', asyncHandler(controller.refreshWhatsApp));
+
+router.get('/settings', asyncHandler(controller.getSystemSettings));
+router.put('/settings/:key', asyncHandler(controller.updateSystemSetting));
 
 module.exports = router;
