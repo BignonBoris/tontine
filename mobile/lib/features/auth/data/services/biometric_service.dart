@@ -16,7 +16,7 @@ class BiometricService {
       final canAuthenticate =
           canAuthenticateWithBiometrics || await _auth.isDeviceSupported();
       return canAuthenticate;
-    } on PlatformException catch (_) {
+    } catch (_) {
       return false;
     }
   }
@@ -37,6 +37,8 @@ class BiometricService {
           e.code == 'PermanentlyLockedOut') {
         // Locked out
       }
+      return false;
+    } catch (_) {
       return false;
     }
   }

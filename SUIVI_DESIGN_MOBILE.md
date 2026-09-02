@@ -16,7 +16,7 @@ Ce document trace l'avancement écran par écran du chantier de modernisation UI
 | 5️⃣ | **Validation OTP (WhatsApp)** | `auth_otp_screen.dart` | ✅ Terminé | 100% Validé & Conforme Prod (WhatsApp 100%) |
 | 6️⃣ | **Configuration Code PIN** | `auth_pin_setup_screen.dart` | ✅ Terminé | 100% Validé & Conforme |
 | 7️⃣ | **Sélection Boxs d'Épargne (Onboarding)** | `onboarding_goals_selection_screen.dart` | ✅ Terminé | 100% Validé & Connecté API |
-| 8️⃣ | **Vérification KYC & Identité** | `kyc_screen.dart` | ⏳ À venir | À venir |
+| 8️⃣ | **Vérification KYC & Identité** | `kyc_submission_screen.dart` | ✅ Terminé | 100% Validé & Conforme (BCEAO / APDP) |
 | 9️⃣ | **Gestion de Tontine (UX/UI)** | `tontine_detail_screen.dart` | ✅ Terminé | 100% Validé & Conforme |
 
 ---
@@ -121,9 +121,9 @@ Ce document trace l'avancement écran par écran du chantier de modernisation UI
 
 ---
 
-## 🎯 Prochaine Étape Recommandée
-
-➡️ **Écran N°8 : Vérification KYC & Identité (`kyc_screen.dart`)**
-- Téléversement CIP / CNI / Passeport.
-- Prise de photo / Selfie de vérification.
-- Niveau de conformité réglementaire BCEAO / APDP.
+### 8️⃣ Vérification KYC & Identité (`kyc_submission_screen.dart`)
+- **Apports UI/UX, Conformité & Sécurité** :
+  - **Capture Multi-Face** : Prise en charge distincte du Recto et du Verso selon le type de document (CNI, CIP, Passeport).
+  - **Selfie de Vérification** : Module de capture via la caméra frontale pour le contrôle de la vivacité (liveness).
+  - **Suivi des Statuts** : Intégration complète avec les statuts du backend (`pending_review`, `verified`, `rejected`) affichés via une carte de statut (couleurs sémantiques).
+  - **Réassurance (APDP)** : Mention explicite du chiffrement des données et de la conformité à la réglementation BCEAO et APDP.
