@@ -4,7 +4,7 @@
   "description": "API MVP maTontine basee sur Express, Sequelize, MySQL et Swagger",
   "main": "app.js",
   "scripts": {
-    "render-build": "npm run build",
+    "render-build": "npm run build && npx puppeteer browsers install chrome",
     "build": "tsc && tsc-alias",
     "start": "node app.js",
     "dev": "nodemon app.js",
