@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import { fetchWhatsAppStatus, refreshWhatsAppStatus, type WhatsAppStatus } from "@/lib/admin-api";
-import { Loader2, RefreshCw, Smartphone, CheckCircle, AlertTriangle, LogOut } from "lucide-vue-next";
+import { Loader2, RefreshCw, Smartphone, CheckCircle, AlertTriangle, LogOut, Power } from "lucide-vue-next";
 
 const status = ref<WhatsAppStatus | null>(null);
 const isLoading = ref(true);
@@ -16,9 +16,11 @@ async function loadStatus(showLoader = false) {
     const res = await fetchWhatsAppStatus();
     status.value = res;
     
-    // Auto-adjust polling: if initializing or qr_ready, we should keep polling
-    if (res.status === 'initializing' || res.status === 'qr_ready' || res.status === 'disconnected') {
-      startPolling();
+    // Auto-adjust polling: if initializing or qr_ready, poll faster to display QR immediately
+    if (res.status === 'initializing' || res.status === 'qr_ready') {
+      startPolling(2500);
+    } else if (res.status === 'disconnected') {
+      startPolling(5000);
     } else {
       stopPolling();
     }
@@ -29,12 +31,12 @@ async function loadStatus(showLoader = false) {
   }
 }
 
-async function triggerRefresh(forceNewSession = false) {
+async function triggerRefresh(options: boolean | { forceNewSession?: boolean; enable?: boolean } = false) {
   isRefreshing.value = true;
   errorMessage.value = "";
   try {
-    await refreshWhatsAppStatus(forceNewSession);
-    // Wait a brief moment and reload
+    await refreshWhatsAppStatus(options);
+    startPolling(2500);
     setTimeout(() => {
       loadStatus(false);
       isRefreshing.value = false;
@@ -45,11 +47,11 @@ async function triggerRefresh(forceNewSession = false) {
   }
 }
 
-function startPolling() {
-  if (pollInterval) return;
+function startPolling(intervalMs = 3000) {
+  if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(() => {
     loadStatus(false);
-  }, 5000);
+  }, intervalMs);
 }
 
 function stopPolling() {
@@ -67,6 +69,8 @@ function statusClass(s?: string) {
       return 'bg-amber-100 text-amber-800 border-amber-200';
     case 'qr_ready':
       return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'disabled':
+      return 'bg-slate-100 text-slate-700 border-slate-200';
     case 'auth_failure':
     case 'disconnected':
     default:
@@ -75,9 +79,10 @@ function statusClass(s?: string) {
 }
 
 const statusLabel: Record<string, string> = {
+  disabled: "Désactivé",
   disconnected: "Déconnecté",
   initializing: "Initialisation du navigateur...",
-  qr_ready: "Prêt à scanner",
+  qr_ready: "Prêt à scanner (QR Code)",
   ready: "Connecté et opérationnel",
   auth_failure: "Échec d'authentification",
 };
@@ -140,18 +145,48 @@ onUnmounted(() => {
             <Loader2 class="h-12 w-12 animate-spin text-amber-600" />
             <h3 class="text-lg font-bold text-slate-900">Démarrage du Navigateur Virtuel...</h3>
             <p class="text-sm text-slate-500 max-w-sm">
-              L'API démarre une instance Puppeteer en arrière-plan et charge WhatsApp Web. Veuillez patienter...
+              L'API démarre une instance Chromium en arrière-plan et prépare WhatsApp Web. Le QR Code va apparaître ci-contre...
             </p>
           </div>
 
+          <!-- QR Ready State -->
+          <div v-else-if="status.status === 'qr_ready'" class="flex flex-col items-center py-6 text-center space-y-3">
+            <div class="rounded-full bg-blue-100 p-4 text-blue-600">
+              <Smartphone class="h-12 w-12" />
+            </div>
+            <h3 class="text-lg font-bold text-slate-900">QR Code Prêt</h3>
+            <p class="text-sm text-slate-500 max-w-sm">
+              Scannez le QR Code affiché à droite avec votre application WhatsApp pour synchroniser la session.
+            </p>
+          </div>
+
+          <!-- Disabled State -->
+          <div v-else-if="status.status === 'disabled'" class="flex flex-col items-center py-6 text-center space-y-3">
+            <div class="rounded-full bg-slate-100 p-4 text-slate-500">
+              <Power class="h-12 w-12" />
+            </div>
+            <h3 class="text-lg font-bold text-slate-900">Passerelle Inactive</h3>
+            <p class="text-sm text-slate-500 max-w-sm">
+              La passerelle WhatsApp est actuellement inactive. Cliquez sur le bouton ci-dessous pour démarrer le navigateur virtuel et générer le QR Code.
+            </p>
+            <button 
+              @click="triggerRefresh({ forceNewSession: false, enable: true })" 
+              class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition"
+              :disabled="isRefreshing"
+            >
+              <RefreshCw class="h-4 w-4" :class="isRefreshing ? 'animate-spin' : ''" />
+              Activer et Démarrer
+            </button>
+          </div>
+
           <!-- Disconnected or failure State -->
-          <div v-else-if="status.status === 'disconnected' || status.status === 'auth_failure'" class="flex flex-col items-center py-6 text-center space-y-3">
+          <div v-else class="flex flex-col items-center py-6 text-center space-y-3">
             <div class="rounded-full bg-red-100 p-4 text-red-600">
               <AlertTriangle class="h-12 w-12" />
             </div>
             <h3 class="text-lg font-bold text-slate-900">Passerelle Déconnectée</h3>
             <p class="text-sm text-slate-500 max-w-sm">
-              Le service est actuellement déconnecté. Vous devez scanner le QR Code pour lier un compte WhatsApp.
+              Le service est actuellement déconnecté. Cliquez sur « Démarrer / Rafraîchir » pour lancer le navigateur virtuel et afficher le QR Code.
             </p>
           </div>
 
@@ -167,16 +202,16 @@ onUnmounted(() => {
           <!-- Quick Actions Button Group -->
           <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
             <button 
-              @click="triggerRefresh(false)" 
+              @click="triggerRefresh({ forceNewSession: false, enable: true })" 
               class="flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition"
               :disabled="isRefreshing"
             >
               <RefreshCw class="h-4 w-4" :class="isRefreshing ? 'animate-spin' : ''" />
-              Rafraîchir
+              Démarrer / Rafraîchir
             </button>
             
             <button 
-              @click="triggerRefresh(true)" 
+              @click="triggerRefresh({ forceNewSession: true, enable: true })" 
               class="flex items-center gap-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-100 px-4 py-2.5 text-sm font-semibold text-red-700 transition ml-auto"
               :disabled="isRefreshing"
             >
@@ -198,17 +233,18 @@ onUnmounted(() => {
           </p>
         </div>
 
-        <div v-if="status && status.status === 'qr_ready' && status.qrCode" class="flex flex-col items-center py-6 space-y-4">
-          <div class="rounded-xl border-4 border-slate-900 bg-white p-2">
+        <!-- Display QR Code when ready -->
+        <div v-if="status && (status.status === 'qr_ready' || status.qrCode || status.qrCodeDataUrl) && (status.qrCodeDataUrl || status.qrCode)" class="flex flex-col items-center py-6 space-y-4">
+          <div class="rounded-2xl border-4 border-slate-900 bg-white p-3 shadow-md">
             <img 
-              :src="`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(status.qrCode)}`" 
-              alt="QR Code WhatsApp a scanner" 
-              class="h-[230px] w-[230px]"
+              :src="status.qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(status.qrCode || '')}`" 
+              alt="QR Code WhatsApp à scanner" 
+              class="h-[240px] w-[240px] object-contain"
             />
           </div>
           <div class="text-center space-y-1">
             <p class="text-sm font-bold text-slate-800">Scan Requis</p>
-            <p class="text-xs text-slate-400 max-w-[280px]">
+            <p class="text-xs text-slate-500 max-w-[280px]">
               Ouvrez WhatsApp sur votre smartphone > Appareils connectés > Connecter un appareil, puis scannez ce code.
             </p>
           </div>
@@ -222,11 +258,33 @@ onUnmounted(() => {
           </p>
         </div>
 
+        <div v-else-if="status && status.status === 'initializing'" class="flex flex-col items-center justify-center py-16 text-slate-300 space-y-3">
+          <Loader2 class="h-12 w-12 animate-spin text-amber-500" />
+          <p class="text-sm font-medium text-slate-600">
+            Démarrage du navigateur et chargement de WhatsApp...
+          </p>
+          <p class="text-xs text-slate-400 max-w-xs text-center">
+            Le QR Code va s'afficher dès que WhatsApp Web aura initialisé la session (environ 10 à 20 secondes).
+          </p>
+        </div>
+
+        <div v-else-if="status && status.status === 'disabled'" class="flex flex-col items-center justify-center py-16 text-slate-300 space-y-3">
+          <Smartphone class="h-16 w-16 text-slate-300" />
+          <p class="text-sm font-medium text-slate-500">
+            Passerelle actuellement en sommeil
+          </p>
+          <p class="text-xs text-slate-400 text-center max-w-xs">
+            Cliquez sur « Activer et Démarrer » pour lancer le processus et afficher le QR code.
+          </p>
+        </div>
+
         <div v-else class="flex flex-col items-center justify-center py-16 text-slate-300 space-y-3">
-          <Loader2 class="h-10 w-10 animate-spin text-slate-300" v-if="status && status.status === 'initializing'" />
-          <Smartphone class="h-16 w-16" v-else />
+          <Smartphone class="h-16 w-16 text-slate-300" />
           <p class="text-sm font-medium text-slate-400">
             Attente du démarrage du navigateur...
+          </p>
+          <p class="text-xs text-slate-400 text-center max-w-xs">
+            Cliquez sur « Démarrer / Rafraîchir » pour générer le QR Code de synchronisation.
           </p>
         </div>
 

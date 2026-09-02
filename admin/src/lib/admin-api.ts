@@ -136,10 +136,12 @@ export async function deleteGoalTemplate(id: string): Promise<void> {
 // --- WhatsApp Configuration ---
 
 export type WhatsAppStatus = {
-  status: 'disconnected' | 'initializing' | 'qr_ready' | 'ready' | 'auth_failure'
+  status: 'disconnected' | 'initializing' | 'qr_ready' | 'ready' | 'auth_failure' | 'disabled'
   isReady: boolean
   qrCode?: string | null
+  qrCodeDataUrl?: string | null
   lastError?: string | null
+  enabled?: boolean
 }
 
 export async function fetchWhatsAppStatus(): Promise<WhatsAppStatus> {
@@ -147,7 +149,13 @@ export async function fetchWhatsAppStatus(): Promise<WhatsAppStatus> {
   return (response.data?.data || {}) as WhatsAppStatus
 }
 
-export async function refreshWhatsAppStatus(forceNewSession = false): Promise<any> {
-  const response = await adminApi.post('/admin/whatsapp/refresh', { forceNewSession })
+export async function refreshWhatsAppStatus(
+  options: boolean | { forceNewSession?: boolean; enable?: boolean } = false
+): Promise<any> {
+  const payload =
+    typeof options === 'boolean'
+      ? { forceNewSession: options, enable: true }
+      : { forceNewSession: options.forceNewSession === true, enable: options.enable !== false }
+  const response = await adminApi.post('/admin/whatsapp/refresh', payload)
   return response.data?.data || {}
 }
