@@ -275,11 +275,11 @@ function handleCopy() {
                 <h5 class="card-title">Toggle Switch</h5>
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-6 ">
                     <div class="flex items-center gap-2">
-                        <Switch :checked="switch1" @update:checked="(v: boolean) => switch1 = v" />
+                        <Switch :model-value="switch1" @update:modelValue="(v: boolean) => switch1 = v" />
                         <Label>Toggle me</Label>
                     </div>
                     <div class="flex items-center gap-2">
-                        <Switch :model-value="switch2" @update:checked="(v: boolean) => switch2 = v" />
+                        <Switch :model-value="switch2" @update:modelValue="(v: boolean) => switch2 = v" />
                         <Label>Toggle me (checked)</Label>
                     </div>
                     <div class="flex items-center gap-2">
@@ -291,7 +291,7 @@ function handleCopy() {
                         <Label>Disabled (checked)</Label>
                     </div>
                     <div class="flex items-center gap-2">
-                        <Switch :model-value="switch3" @update:checked="(v: boolean) => switch3 = v" />
+                        <Switch :model-value="switch3" @update:modelValue="(v: boolean) => switch3 = v" />
                     </div>
                 </div>
             </CardBox>

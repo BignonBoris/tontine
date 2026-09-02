@@ -21,6 +21,8 @@ const dashboardRoutes = require('../../modules/dashboard/dashboard.routes');
 const clientGroupsRoutes = require('../../modules/client-groups/client-groups.routes');
 const clientGroupInvitationsRoutes = require('../../modules/client-group-invitations/client-group-invitations.routes');
 const groupInvitationsRoutes = require('../../modules/group-invitations/group-invitations.routes');
+const paymentMethodsRoutes = require('../../modules/payment-methods/payment-methods.routes');
+const paymentMethodsAdminRoutes = require('../../modules/payment-methods/payment-methods.admin.routes');
 
 const router = express.Router();
 
@@ -46,5 +48,7 @@ router.use('/client/groups', clientGroupsRoutes);
 router.use('/client/group-invitations', clientGroupInvitationsRoutes);
 router.use('/admin/commissions', adminCommissionsRoutes);
 router.use('/group-invitations', groupInvitationsRoutes);
+router.use('/payment-methods', paymentMethodsRoutes);
+router.use('/admin/payment-methods', paymentMethodsAdminRoutes);
 
 module.exports = router;

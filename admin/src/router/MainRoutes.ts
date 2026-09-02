@@ -49,6 +49,11 @@ const MainRoutes = [
         component: () => import("../views/platform/WithdrawalsView.vue"),
       },
       {
+        name: "PaymentMethods",
+        path: "/payment-methods",
+        component: () => import("../views/platform/PaymentMethodsView.vue"),
+      },
+      {
         name: "Marketplace",
         path: "/marketplace",
         component: () => import("../views/platform/MarketplaceView.vue"),

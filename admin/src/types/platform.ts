@@ -407,10 +407,18 @@ export interface WithdrawalItem {
   status: string;
   channel: string;
   requestedAt: string;
+  approvedAt: string | null;
+  approvedByAdminUsername: string | null;
   paidAt: string | null;
+  paidByAdminUsername: string | null;
   cancelledAt: string | null;
+  rejectedAt: string | null;
   initiatorType: string | null;
   cancellationReason: string | null;
+  rejectionReason: string | null;
+  paymentReference: string | null;
+  paymentProofImageUrl: string | null;
+  paymentProofUploadedAt: string | null;
   client: {
     id: string;
     displayName: string;
@@ -428,9 +436,14 @@ export interface WithdrawalDetail {
     } | null;
     initiatedByUserId: string | null;
     paidByAgentProfileId: string | null;
-    confirmationCodeExpiresAt: string;
+    approvedAt: string | null;
+    approvedByAdminUsername: string | null;
+    confirmationCodeExpiresAt: string | null;
     confirmationCodeAttempts: number;
     isConfirmationCodeExpired: boolean;
+    paymentReference: string | null;
+    paymentProofImageUrl: string | null;
+    paymentProofUploadedAt: string | null;
     clientWalletSnapshot: {
       availableBalance: number;
       reservedWithdrawalBalance: number;
@@ -448,6 +461,21 @@ export interface WithdrawalDetail {
       phoneNumber: string;
     } | null;
   }>;
+}
+
+export interface PaymentMethodItem {
+  id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  provider: string;
+  operation: string;
+  flowType: string;
+  enabled: boolean;
+  sortOrder: number;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface OperationItem {

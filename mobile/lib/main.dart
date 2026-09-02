@@ -8,6 +8,7 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/auth/screens/auth_choice_screen.dart';
@@ -47,6 +48,7 @@ void main() async {
   SessionStorage.registerBeforeClearHook(() async {
     await DashboardCacheService().clear();
     await GroupsCacheService().clear();
+    await LocalSecurityService.clearTemporaryAppLockBypass();
   });
   runApp(const MaTontineApp());
 }

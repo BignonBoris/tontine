@@ -17,6 +17,29 @@ router.get(
   authenticate,
   asyncHandler(controller.getFedapayDepositIntent),
 );
+router.post(
+  '/afrikmoney/deposits',
+  authenticate,
+  asyncHandler(controller.initializeAfrikmoneyDeposit),
+);
+router.get(
+  '/afrikmoney/deposits/:intentId',
+  authenticate,
+  asyncHandler(controller.getAfrikmoneyDepositIntent),
+);
+router.post('/afrikmoney/webhook', asyncHandler(controller.afrikmoneyWebhook));
+router.post(
+  '/mtn-momo/deposits',
+  authenticate,
+  asyncHandler(controller.initializeMtnMomoDeposit),
+);
+router.get(
+  '/mtn-momo/deposits/:intentId',
+  authenticate,
+  asyncHandler(controller.getMtnMomoDepositIntent),
+);
+router.post('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
+router.put('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
 
 /**
  * @swagger

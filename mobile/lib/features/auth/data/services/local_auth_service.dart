@@ -79,7 +79,7 @@ class LocalAuthService {
 
   static Future<void> _saveSuggestedPhoneNumber(String rawPhoneNumber) async {
     final normalizedPhone = normalizePhone(rawPhoneNumber);
-    if (normalizedPhone.length != 10) {
+    if (normalizedPhone.length < 8) {
       return;
     }
     final prefs = await SharedPreferences.getInstance();

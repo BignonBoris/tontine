@@ -3,6 +3,7 @@ const env = require('./config/env');
 const { sequelize, models } = require('./database/models');
 const runBootstrap = require('./database/bootstrap/run-bootstrap');
 const runSeeds = require('./database/seeds/run-seeds');
+const whatsAppOtpService = require('./common/services/whatsapp-otp.service');
 
 async function start() {
   try {
@@ -37,6 +38,7 @@ async function start() {
 
     app.listen(env.port, () => {
       console.log(`${env.appName} demarree sur ${env.appBaseUrl}`);
+      whatsAppOtpService.initialize();
     });
   } catch (error) {
     console.error('Echec de demarrage API:', error);

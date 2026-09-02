@@ -7,11 +7,15 @@ import 'package:mobile/core/security/local_security_service.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
+import 'package:mobile/features/dashboard/data/services/remote_dashboard_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_archive_entry.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_cycle.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_history_entry.dart';
+import 'package:mobile/features/dashboard/domain/entities/payment_method_option.dart';
+import 'package:mobile/features/dashboard/data/services/tontine_afrikmoney_service.dart';
 import 'package:mobile/features/dashboard/data/services/tontine_fedapay_service.dart';
+import 'package:mobile/features/dashboard/data/services/tontine_mtn_momo_service.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
@@ -23,8 +27,6 @@ import 'package:mobile/features/groups/presentation/widgets/my_groups_section.da
 import 'package:mobile/features/groups/presentation/widgets/pending_group_requests_section.dart';
 import 'package:mobile/features/groups/presentation/widgets/pending_group_invitations_section.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-enum _TontineDepositMode { wallet, fedapay }
 
 class TontineDetailScreen extends StatefulWidget {
   final bool showBackButton;
@@ -41,7 +43,12 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
   int _pendingRequestCount = 0;
   late final TabController _tabController;
   bool _refreshOnResumeAfterFedapay = false;
+  bool _refreshOnResumeAfterAfrikmoney = false;
+  bool _refreshOnResumeAfterMtnMomo = false;
   String? _pendingFedapayIntentId;
+  String? _pendingAfrikmoneyIntentId;
+  String? _pendingMtnMomoIntentId;
+  bool _isMonitoringMtnMomoIntent = false;
 
   void _handleInvitationCountChanged(int count) {
     if (_pendingInvitationCount == count) {
@@ -82,9 +89,25 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _refreshOnResumeAfterFedapay) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    if (_refreshOnResumeAfterFedapay) {
       _refreshOnResumeAfterFedapay = false;
       unawaited(_refreshFedapayDepositAfterResume());
+      return;
+    }
+
+    if (_refreshOnResumeAfterAfrikmoney) {
+      _refreshOnResumeAfterAfrikmoney = false;
+      unawaited(_refreshAfrikmoneyDepositAfterResume());
+      return;
+    }
+
+    if (_refreshOnResumeAfterMtnMomo) {
+      _refreshOnResumeAfterMtnMomo = false;
+      unawaited(_refreshMtnMomoDepositAfterResume());
     }
   }
 
@@ -111,6 +134,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
         if (status == 'processed' || providerStatus == 'approved') {
           _pendingFedapayIntentId = null;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
           if (!mounted) {
             return;
           }
@@ -128,6 +152,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
             status == 'failed' ||
             status == 'expired') {
           _pendingFedapayIntentId = null;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
           if (!mounted) {
             return;
           }
@@ -159,6 +184,188 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
         content: Text('Paiement FedaPay en attente de confirmation.'),
       ),
     );
+  }
+
+  Future<void> _refreshAfrikmoneyDepositAfterResume() async {
+    final intentId = _pendingAfrikmoneyIntentId?.trim();
+    if (intentId == null || intentId.isEmpty) {
+      if (mounted) {
+        context.read<DashboardBloc>().add(LoadDashboardData());
+      }
+      return;
+    }
+
+    final afrikmoneyService = TontineAfrikmoneyService();
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      if (!mounted) {
+        return;
+      }
+
+      try {
+        final intent = await afrikmoneyService.fetchDepositIntent(intentId);
+        final status = intent.status.toLowerCase();
+        final providerStatus = intent.providerStatus?.toLowerCase() ?? '';
+
+        if (status == 'processed' ||
+            providerStatus == 'success' ||
+            providerStatus == 'succeeded' ||
+            providerStatus == 'completed' ||
+            providerStatus == 'approved') {
+          _pendingAfrikmoneyIntentId = null;
+          _refreshOnResumeAfterAfrikmoney = false;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
+          if (!mounted) {
+            return;
+          }
+
+          context.read<DashboardBloc>().add(LoadDashboardData());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Paiement Afrikmoney confirme. Mise a jour en cours.',
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (status == 'cancelled' ||
+            status == 'failed' ||
+            status == 'expired') {
+          _pendingAfrikmoneyIntentId = null;
+          _refreshOnResumeAfterAfrikmoney = false;
+          await LocalSecurityService.clearTemporaryAppLockBypass();
+          if (!mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Le paiement Afrikmoney a ete annule ou refuse.',
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        break;
+      }
+
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _refreshOnResumeAfterAfrikmoney = true;
+    context.read<DashboardBloc>().add(LoadDashboardData());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Paiement Afrikmoney en attente de confirmation.'),
+      ),
+    );
+  }
+
+  Future<void> _refreshMtnMomoDepositAfterResume() async {
+    if (_isMonitoringMtnMomoIntent) {
+      return;
+    }
+
+    _isMonitoringMtnMomoIntent = true;
+    try {
+      final intentId = _pendingMtnMomoIntentId?.trim();
+      if (intentId == null || intentId.isEmpty) {
+        _refreshOnResumeAfterMtnMomo = false;
+        if (mounted) {
+          context.read<DashboardBloc>().add(LoadDashboardData());
+        }
+        return;
+      }
+
+      final mtnMomoService = TontineMtnMomoService();
+
+      for (var attempt = 0; attempt < 6; attempt++) {
+        if (!mounted) {
+          return;
+        }
+
+        try {
+          final intent = await mtnMomoService.fetchDepositIntent(intentId);
+          final status = intent.status.toLowerCase();
+          final providerStatus = intent.providerStatus?.toLowerCase() ?? '';
+
+          if (status == 'processed' ||
+              providerStatus == 'approved' ||
+              providerStatus == 'successful') {
+            _pendingMtnMomoIntentId = null;
+            _refreshOnResumeAfterMtnMomo = false;
+            if (!mounted) {
+              return;
+            }
+
+            context.read<DashboardBloc>().add(LoadDashboardData());
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Paiement MTN MoMo confirme. Mise a jour en cours.',
+                ),
+              ),
+            );
+            return;
+          }
+
+          if (status == 'cancelled' ||
+              status == 'failed' ||
+              status == 'expired') {
+            _pendingMtnMomoIntentId = null;
+            _refreshOnResumeAfterMtnMomo = false;
+            if (!mounted) {
+              return;
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Le paiement MTN MoMo a ete annule ou refuse.',
+                ),
+              ),
+            );
+            return;
+          }
+        } catch (_) {
+          break;
+        }
+
+        await Future.delayed(const Duration(seconds: 2));
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      _refreshOnResumeAfterMtnMomo = true;
+      context.read<DashboardBloc>().add(LoadDashboardData());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Paiement MTN MoMo en attente de confirmation.',
+          ),
+        ),
+      );
+    } finally {
+      _isMonitoringMtnMomoIntent = false;
+    }
+  }
+
+  Future<void> _suspendAppLockForFedapay() {
+    return LocalSecurityService.startTemporaryAppLockBypass();
+  }
+
+  Future<void> _clearFedapayAppLockBypass() {
+    return LocalSecurityService.clearTemporaryAppLockBypass();
   }
 
   void _handleTabChanged() {
@@ -416,7 +623,11 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
             icon: Icons.add_circle_outline_rounded,
             color: AppTheme.secondaryColor,
             onTap: () =>
-                _showDepositSheetWithFedapay(context, cycle, availableBalance),
+                _showDepositSheetWithPaymentMethods(
+                  context,
+                  cycle,
+                  availableBalance,
+                ),
           ),
           const SizedBox(width: 12),
           TontineActionButton(
@@ -560,16 +771,40 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     );
   }
 
-  Future<void> _showDepositSheetWithFedapay(
+  Future<void> _showDepositSheetWithPaymentMethods(
     BuildContext context,
     TontineCycle cycle,
     double availableBalance,
   ) async {
+    final paymentMethodsService = RemoteDashboardService();
+    final fetchedMethods = await paymentMethodsService.fetchPaymentMethods(
+      'tontine_deposit',
+    );
+    final paymentMethods = fetchedMethods
+        .where((method) => _isSupportedTontineDepositMethod(method.code))
+        .toList();
+
+    if (!context.mounted) {
+      return;
+    }
+    if (paymentMethods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aucun moyen de paiement disponible pour le moment.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final controller = TextEditingController();
     final fedapayService = TontineFedapayService();
+    final afrikmoneyService = TontineAfrikmoneyService();
+    final mtnMomoService = TontineMtnMomoService();
     String? errorMessage;
     bool isSubmitting = false;
-    _TontineDepositMode selectedMode = _TontineDepositMode.wallet;
+    String selectedMethodCode = paymentMethods.first.code;
     final remaining = (cycle.targetAmount - cycle.cumulativeAmount).clamp(
       0.0,
       double.infinity,
@@ -585,6 +820,11 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (sheetContext, setSheetState) {
+              PaymentMethodOption selectedMethod = paymentMethods.firstWhere(
+                (method) => method.code == selectedMethodCode,
+                orElse: () => paymentMethods.first,
+              );
+
               Future<void> submitDeposit() async {
                 final amount = double.tryParse(controller.text);
                 final remaining =
@@ -594,14 +834,14 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                     );
 
                 if (amount == null || amount <= 0) {
-                  setSheetState(() => errorMessage = "Montant invalide");
+                  setSheetState(() => errorMessage = 'Montant invalide');
                   return;
                 }
 
                 if (amount % AppInputRules.financialAmountStep != 0) {
                   setSheetState(
                     () => errorMessage =
-                        "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
+                        'Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}',
                   );
                   return;
                 }
@@ -613,10 +853,10 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   return;
                 }
 
-                if (selectedMode == _TontineDepositMode.wallet &&
+                if (selectedMethod.code == 'wallet' &&
                     amount > availableBalance) {
                   setSheetState(
-                    () => errorMessage = "Solde disponible insuffisant",
+                    () => errorMessage = 'Solde disponible insuffisant',
                   );
                   return;
                 }
@@ -624,18 +864,22 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 final authorized =
                     await LocalSecurityService.authorizeIfEnabled(
                       context,
-                      title: selectedMode == _TontineDepositMode.wallet
+                      title: selectedMethod.code == 'wallet'
                           ? 'Transferer vers la tontine'
-                          : 'Payer avec FedaPay',
-                      message: selectedMode == _TontineDepositMode.wallet
-                          ? "Entrez votre PIN pour confirmer ce versement dans votre tontine."
-                          : "Entrez votre PIN pour lancer le paiement FedaPay.",
-                    );
+                          : 'Payer avec le moyen choisi',
+                      message: selectedMethod.code == 'wallet'
+                          ? 'Entrez votre PIN pour confirmer ce versement dans votre tontine.'
+                          : selectedMethod.code == 'mtn_momo'
+                              ? 'Entrez votre PIN pour envoyer la demande MTN MoMo.'
+                              : selectedMethod.code == 'afrikmoney'
+                                  ? 'Entrez votre PIN pour ouvrir le paiement Afrikmoney.'
+                              : 'Entrez votre PIN pour lancer le paiement.',
+                );
                 if (!context.mounted || !authorized) {
                   return;
                 }
 
-                if (selectedMode == _TontineDepositMode.wallet) {
+                if (selectedMethod.code == 'wallet') {
                   context.read<DashboardBloc>().add(
                     MakeTontineDeposit(amount),
                   );
@@ -651,63 +895,162 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 });
 
                 try {
-                  final session = await fedapayService.createDeposit(amount);
-                  _pendingFedapayIntentId = session.id;
-                  final paymentUrl = session.paymentUrl?.trim() ?? '';
-                  final paymentUri = paymentUrl.isEmpty
-                      ? null
-                      : Uri.tryParse(paymentUrl);
+                  if (selectedMethod.code == 'fedapay') {
+                    final session = await fedapayService.createDeposit(amount);
+                    _pendingFedapayIntentId = session.id;
+                    final paymentUrl = session.paymentUrl?.trim() ?? '';
+                    final paymentUri = paymentUrl.isEmpty
+                        ? null
+                        : Uri.tryParse(paymentUrl);
 
-                  if (paymentUri == null ||
-                      !(paymentUri.scheme == 'https' ||
-                          paymentUri.scheme == 'http')) {
-                    _pendingFedapayIntentId = null;
-                    if (sheetContext.mounted) {
-                      setSheetState(() {
-                        isSubmitting = false;
-                        errorMessage =
-                            "Le lien de paiement FedaPay est indisponible.";
-                      });
+                    if (paymentUri == null ||
+                        !(paymentUri.scheme == 'https' ||
+                            paymentUri.scheme == 'http')) {
+                      _pendingFedapayIntentId = null;
+                      if (sheetContext.mounted) {
+                        setSheetState(() {
+                          isSubmitting = false;
+                          errorMessage =
+                              'Le lien de paiement est indisponible.';
+                        });
+                      }
+                      return;
                     }
-                    return;
-                  }
 
-                  _refreshOnResumeAfterFedapay = true;
-                  final launched = await launchUrl(
-                    paymentUri,
-                    mode: LaunchMode.externalApplication,
-                  );
+                    await _suspendAppLockForFedapay();
+                    _refreshOnResumeAfterFedapay = true;
+                    final launched = await launchUrl(
+                      paymentUri,
+                      mode: LaunchMode.externalApplication,
+                    );
 
-                  if (!launched) {
-                    _refreshOnResumeAfterFedapay = false;
-                    _pendingFedapayIntentId = null;
-                    if (sheetContext.mounted) {
-                      setSheetState(() {
-                        isSubmitting = false;
-                        errorMessage = "Impossible d'ouvrir la page FedaPay.";
-                      });
+                    if (!launched) {
+                      _refreshOnResumeAfterFedapay = false;
+                      _pendingFedapayIntentId = null;
+                      await _clearFedapayAppLockBypass();
+                      if (sheetContext.mounted) {
+                        setSheetState(() {
+                          isSubmitting = false;
+                          errorMessage =
+                              "Impossible d'ouvrir la page de paiement.";
+                        });
+                      }
+                      return;
                     }
-                    return;
-                  }
 
-                  if (!context.mounted) {
-                    return;
-                  }
+                    if (!context.mounted) {
+                      return;
+                    }
 
-                  if (modalContext.mounted) {
-                    Navigator.pop(modalContext);
-                  }
+                    if (modalContext.mounted) {
+                      Navigator.pop(modalContext);
+                    }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Paiement FedaPay ouvert. Revenez dans l'application apres validation.",
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Paiement ouvert. Revenez dans l\'application apres validation.',
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                    return;
+                  }
+
+                  if (selectedMethod.code == 'afrikmoney') {
+                    final session = await afrikmoneyService.createDeposit(amount);
+                    _pendingAfrikmoneyIntentId = session.id;
+                    final paymentUrl = session.paymentUrl?.trim() ?? '';
+                    final paymentUri = paymentUrl.isEmpty
+                        ? null
+                        : Uri.tryParse(paymentUrl);
+
+                    if (paymentUri == null ||
+                        !(paymentUri.scheme == 'https' ||
+                            paymentUri.scheme == 'http')) {
+                      _pendingAfrikmoneyIntentId = null;
+                      if (sheetContext.mounted) {
+                        setSheetState(() {
+                          isSubmitting = false;
+                          errorMessage =
+                              'Le lien de paiement Afrikmoney est indisponible.';
+                        });
+                      }
+                      return;
+                    }
+
+                    await _suspendAppLockForFedapay();
+                    _refreshOnResumeAfterAfrikmoney = true;
+                    final launched = await launchUrl(
+                      paymentUri,
+                      mode: LaunchMode.externalApplication,
+                    );
+
+                    if (!launched) {
+                      _refreshOnResumeAfterAfrikmoney = false;
+                      _pendingAfrikmoneyIntentId = null;
+                      await _clearFedapayAppLockBypass();
+                      if (sheetContext.mounted) {
+                        setSheetState(() {
+                          isSubmitting = false;
+                          errorMessage =
+                              "Impossible d'ouvrir la page de paiement Afrikmoney.";
+                        });
+                      }
+                      return;
+                    }
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    if (modalContext.mounted) {
+                      Navigator.pop(modalContext);
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Paiement Afrikmoney ouvert. Revenez dans l\'application apres validation.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (selectedMethod.code == 'mtn_momo') {
+                    final session = await mtnMomoService.createDeposit(amount);
+                    _pendingMtnMomoIntentId = session.id;
+                    _refreshOnResumeAfterMtnMomo = true;
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    if (modalContext.mounted) {
+                      Navigator.pop(modalContext);
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Demande MTN MoMo envoyee. Validez la requete sur votre telephone.',
+                        ),
+                      ),
+                    );
+
+                    unawaited(_refreshMtnMomoDepositAfterResume());
+                    return;
+                  }
+
+                  throw Exception('Methode de paiement non supportee.');
                 } catch (error) {
                   _pendingFedapayIntentId = null;
                   _refreshOnResumeAfterFedapay = false;
+                  _pendingAfrikmoneyIntentId = null;
+                  _refreshOnResumeAfterAfrikmoney = false;
+                  _pendingMtnMomoIntentId = null;
+                  _refreshOnResumeAfterMtnMomo = false;
+                  await _clearFedapayAppLockBypass();
                   if (!sheetContext.mounted) {
                     return;
                   }
@@ -733,7 +1076,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Verser dans la tontine",
+                        'Verser dans la tontine',
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -741,7 +1084,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "Choisissez le mode de paiement. Le montant doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser le reste a verser du cycle.",
+                        'Choisissez le mode de paiement. Le montant doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser le reste a verser du cycle.',
                         style: GoogleFonts.inter(
                           color: AppTheme.textSecondaryColor,
                           fontSize: 13,
@@ -750,7 +1093,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        "Mode de paiement",
+                        'Mode de paiement',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -761,36 +1104,34 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
-                        children: [
-                          ChoiceChip(
-                            label: const Text("Solde disponible"),
-                            selected:
-                                selectedMode == _TontineDepositMode.wallet,
-                            onSelected: (selected) {
-                              if (!selected) {
-                                return;
-                              }
-                              setSheetState(() {
-                                selectedMode = _TontineDepositMode.wallet;
-                                errorMessage = null;
-                              });
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text("FedaPay"),
-                            selected:
-                                selectedMode == _TontineDepositMode.fedapay,
-                            onSelected: (selected) {
-                              if (!selected) {
-                                return;
-                              }
-                              setSheetState(() {
-                                selectedMode = _TontineDepositMode.fedapay;
-                                errorMessage = null;
-                              });
-                            },
-                          ),
-                        ],
+                        children: paymentMethods
+                            .map(
+                              (method) => ChoiceChip(
+                                label: Text(method.label),
+                                selected: selectedMethod.code == method.code,
+                                onSelected: (selected) {
+                                  if (!selected) {
+                                    return;
+                                  }
+                                  setSheetState(() {
+                                    selectedMethodCode = method.code;
+                                    selectedMethod = method;
+                                    errorMessage = null;
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        selectedMethod.description ??
+                            _depositMethodDescription(selectedMethod),
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textSecondaryColor,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       TextField(
@@ -804,13 +1145,13 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                           }
                         },
                         decoration: InputDecoration(
-                          labelText: selectedMode == _TontineDepositMode.wallet
-                              ? "Montant a transferer"
-                              : "Montant a payer",
-                          suffixText: "F CFA",
-                          helperText: selectedMode == _TontineDepositMode.wallet
-                              ? "Disponible : ${formatFCFA(availableBalance)} F - Reste : ${formatFCFA(remaining.toInt())} F"
-                              : "Paiement externe via FedaPay - Reste a verser : ${formatFCFA(remaining.toInt())} F",
+                          labelText: selectedMethod.code == 'wallet'
+                              ? 'Montant a transferer'
+                              : 'Montant a payer',
+                          suffixText: 'F CFA',
+                          helperText: selectedMethod.code == 'wallet'
+                              ? 'Disponible : ${formatFCFA(availableBalance)} F - Reste : ${formatFCFA(remaining.toInt())} F'
+                              : 'Paiement externe - Reste a verser : ${formatFCFA(remaining.toInt())} F',
                         ),
                       ),
                       if (errorMessage != null) ...[
@@ -832,11 +1173,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                                     color: Colors.white,
                                   ),
                                 )
-                              : Text(
-                                  selectedMode == _TontineDepositMode.wallet
-                                      ? "Confirmer le transfert"
-                                      : "Ouvrir FedaPay",
-                                ),
+                              : Text(_depositActionLabel(selectedMethod.code)),
                         ),
                       ),
                     ],
@@ -849,6 +1186,43 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       );
     } finally {
       controller.dispose();
+    }
+  }
+
+  bool _isSupportedTontineDepositMethod(String code) {
+    return code == 'wallet' ||
+        code == 'fedapay' ||
+        code == 'afrikmoney' ||
+        code == 'mtn_momo';
+  }
+
+  String _depositMethodDescription(PaymentMethodOption method) {
+    switch (method.code) {
+      case 'wallet':
+        return 'Transfert interne depuis le solde disponible.';
+      case 'fedapay':
+        return 'Paiement externe via FedaPay. Vous serez redirige vers la page de paiement.';
+      case 'afrikmoney':
+        return 'Paiement externe via Afrikmoney. Vous serez redirige vers la page de paiement.';
+      case 'mtn_momo':
+        return 'Une demande sera envoyee sur votre ligne MTN MoMo. Confirmez la requete sur votre telephone.';
+      default:
+        return 'Paiement externe via le moyen selectionne.';
+    }
+  }
+
+  String _depositActionLabel(String code) {
+    switch (code) {
+      case 'wallet':
+        return 'Confirmer le transfert';
+      case 'fedapay':
+        return 'Ouvrir le paiement';
+      case 'afrikmoney':
+        return 'Ouvrir Afrikmoney';
+      case 'mtn_momo':
+        return 'Lancer MTN MoMo';
+      default:
+        return 'Confirmer';
     }
   }
 

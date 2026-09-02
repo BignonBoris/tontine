@@ -158,6 +158,45 @@ async function recordWithdrawal(req, res) {
   return ok(res, data, 'Retrait enregistre avec succes.', 201);
 }
 
+async function approveWithdrawal(req, res) {
+  const data = await service.approveWithdrawalForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait approuve.');
+}
+
+async function rejectWithdrawal(req, res) {
+  const data = await service.rejectWithdrawalForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait refuse.');
+}
+
+async function markWithdrawalPaid(req, res) {
+  const data = await service.markWithdrawalPaidForAdmin(
+    req.params.withdrawalId,
+    req.body,
+    {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      adminUsername: req.admin?.username || null,
+    },
+  );
+  return ok(res, data, 'Retrait marque comme paye.');
+}
+
 async function reverseContribution(req, res) {
   const data = await service.reverseClientContribution(
     req.params.userId,
@@ -255,6 +294,9 @@ module.exports = {
   startTontine,
   recordContribution,
   recordWithdrawal,
+  approveWithdrawal,
+  rejectWithdrawal,
+  markWithdrawalPaid,
   reverseContribution,
   updateClientStatus,
   recovery,

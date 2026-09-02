@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 
 class AuthChoiceScreen extends StatelessWidget {
   const AuthChoiceScreen({super.key});
@@ -16,8 +17,8 @@ class AuthChoiceScreen extends StatelessWidget {
             children: [
               const Spacer(),
               Container(
-                width: 118,
-                height: 118,
+                width: 110,
+                height: 110,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -28,118 +29,165 @@ class AuthChoiceScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.accentDarkColor.withValues(alpha: 0.12),
+                      color: AppTheme.accentDarkColor.withValues(alpha: 0.15),
                       blurRadius: 24,
-                      offset: const Offset(0, 12),
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
                 child: Image.asset(AppTheme.brandIconAsset),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               Text(
-                "Pret a construire votre prochain projet ?",
+                "Prêt à concrétiser vos projets ?",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  fontSize: 28,
+                  fontSize: 26,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
-                  height: 1.15,
+                  height: 1.18,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Text(
-                "Avec VizioBox, votre tontine alimente vos objectifs, vos coffres et vos achats utiles sans alourdir votre parcours.",
+                "Gérez vos tontines, votre épargne et vos achats utiles en toute sécurité.",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: Colors.white.withValues(alpha: 0.78),
-                  height: 1.55,
+                  fontSize: 14.5,
+                  color: Colors.white.withValues(alpha: 0.82),
+                  height: 1.5,
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppTheme.accentColor.withValues(alpha: 0.30),
+                    color: Colors.white.withValues(alpha: 0.12),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.accentDarkColor.withValues(alpha: 0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
                 ),
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 10,
-                  runSpacing: 10,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _BrandPill(
-                      background: AppTheme.primaryColor.withValues(alpha: 0.09),
-                      foreground: AppTheme.primaryColor,
+                      background: AppTheme.accentColor.withValues(alpha: 0.20),
+                      foreground: AppTheme.accentColor,
                       label: 'Tontine',
+                      icon: Icons.repeat_rounded,
                     ),
                     _BrandPill(
-                      background: AppTheme.secondaryColor.withValues(
-                        alpha: 0.14,
-                      ),
-                      foreground: AppTheme.secondaryVariantColor,
+                      background: AppTheme.secondaryColor.withValues(alpha: 0.20),
+                      foreground: AppTheme.secondaryColor,
                       label: 'Coffres',
+                      icon: Icons.savings_outlined,
                     ),
                     _BrandPill(
-                      background: AppTheme.accentColor.withValues(alpha: 0.18),
-                      foreground: AppTheme.accentDarkColor,
+                      background: Colors.white.withValues(alpha: 0.15),
+                      foreground: Colors.white,
                       label: 'Marketplace',
+                      icon: Icons.storefront_outlined,
                     ),
                   ],
                 ),
               ),
               const Spacer(),
-              SizedBox(
+              Container(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/register'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("Ouvrir un compte"),
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.accentGradient,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.accentColor.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/login'),
-                  style: OutlinedButton.styleFrom(
-                    // foregroundColor: AppTheme.primaryColor,
-                    foregroundColor: AppTheme.accentColor,
-                    side: BorderSide(
-                      color: AppTheme.accentColor.withValues(alpha: 0.55),
-                      width: 1.2,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => Navigator.pushNamed(context, '/register'),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Ouvrir un compte",
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: const Text("Se connecter"),
                 ),
               ),
-              const SizedBox(height: 24),
-              TextButton(
-                onPressed: () {},
-                child: Text(
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => Navigator.pushNamed(context, '/login'),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Se connecter",
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextButton.icon(
+                onPressed: () => AuthHelpBottomSheet.show(context),
+                icon: Icon(
+                  Icons.help_outline_rounded,
+                  size: 16,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
+                label: Text(
                   "Besoin d'aide ?",
                   style: GoogleFonts.inter(
-                    // color: AppTheme.accentDarkColor,
-                    color: Colors.white,
-                    decoration: TextDecoration.underline,
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -155,30 +203,37 @@ class _BrandPill extends StatelessWidget {
   final Color background;
   final Color foreground;
   final String label;
+  final IconData icon;
 
   const _BrandPill({
     required this.background,
     required this.foreground,
     required this.label,
+    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        softWrap: false,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: foreground,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: foreground),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: foreground,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -32,6 +32,7 @@ const CommissionWallet = require('./commission-wallet.model');
 const CommissionLedgerEntry = require('./commission-ledger-entry.model');
 const WithdrawalCommissionReserve = require('./withdrawal-commission-reserve.model');
 const WithdrawalCommissionConsumption = require('./withdrawal-commission-consumption.model');
+const PaymentMethod = require('./payment-method.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -368,6 +369,7 @@ WithdrawalCommissionConsumption.belongsTo(WithdrawalCommissionReserve, {
   as: 'reserve',
 });
 
+
 const models = {
   User,
   UserPreference,
@@ -402,6 +404,7 @@ const models = {
   CommissionLedgerEntry,
   WithdrawalCommissionReserve,
   WithdrawalCommissionConsumption,
+  PaymentMethod,
 };
 
 module.exports = { sequelize, models };
