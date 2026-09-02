@@ -58,6 +58,13 @@ async function ensureUserCompatibility(sequelize) {
     );
   }
 
+  await ensureColumn(
+    sequelize,
+    columns,
+    'punctuality_score',
+    '`punctuality_score` INT NOT NULL DEFAULT 50'
+  );
+
   await sequelize.query(
     "UPDATE `users` SET `phone_number` = NULL WHERE TRIM(COALESCE(`phone_number`, '')) = '';",
   );
