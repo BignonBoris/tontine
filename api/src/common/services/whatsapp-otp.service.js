@@ -1,15 +1,12 @@
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 
-// Version WhatsApp Web épinglée sur le cache local (.wwebjs_cache).
-// SANS version épinglée, LocalWebCache.resolve(undefined) cherche "undefined.html",
-// échoue et whatsapp-web.js bascule sur un listener 'response' interne (Client.js:1267)
-// qui lève "ProtocolError: Could not load response body" quand Chrome sert
-// web.whatsapp.com depuis son Service Worker -> rejet non géré -> crash complet
-// du processus Node (et donc de toute l'API). Surchargable via WHATSAPP_WEB_VERSION.
-const WHATSAPP_WEB_VERSION = process.env.WHATSAPP_WEB_VERSION || '2.3000.1046226669';
+// Version WhatsApp Web stable compatible avec le remote cache wppconnect-team
+const DEFAULT_WHATSAPP_WEB_VERSION = '2.3000.1046618780-alpha';
+const WHATSAPP_WEB_VERSION = process.env.WHATSAPP_WEB_VERSION || DEFAULT_WHATSAPP_WEB_VERSION;
 const MAX_INIT_ATTEMPTS = 3;
 const INIT_RETRY_DELAY_MS = 15000;
 
@@ -19,8 +16,9 @@ class WhatsAppOtpService {
     this.isReady = false;
     this.initAttempts = 0;
     this.signalHandlersRegistered = false;
-    this.status = 'disconnected';
+    this.status = process.env.ENABLE_WHATSAPP_OTP === 'false' ? 'disabled' : 'disconnected';
     this.qrCode = null;
+    this.qrCodeDataUrl = null;
     this.lastError = null;
     this.hasLoggedQr = false;
   }
@@ -28,6 +26,9 @@ class WhatsAppOtpService {
   initialize() {
     if (process.env.ENABLE_WHATSAPP_OTP === 'false') {
       console.log('ℹ️ WhatsApp OTP Service désactivé dans la configuration.');
+      this.status = 'disabled';
+      this.qrCode = null;
+      this.qrCodeDataUrl = null;
       return;
     }
 
@@ -35,14 +36,28 @@ class WhatsAppOtpService {
       console.log('🔄 Initialisation du service WhatsApp OTP (Open-Source)...');
       this.status = 'initializing';
       this.qrCode = null;
+      this.qrCodeDataUrl = null;
       this.lastError = null;
       this.hasLoggedQr = false;
+
+      const webVersion = process.env.WHATSAPP_WEB_VERSION || DEFAULT_WHATSAPP_WEB_VERSION;
+
+      // Nettoyage préventif des verrous Chromium (SingletonLock) lors des rechargements Nodemon
+      const sessionDir = path.join(process.cwd(), '.wwebjs_auth', 'session-tontine-session');
+      const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+      for (const file of lockFiles) {
+        try {
+          fsp.rm(path.join(sessionDir, file), { force: true }).catch(() => {});
+        } catch (_) {}
+      }
+
       this.client = new Client({
         authStrategy: new LocalAuth({ clientId: 'tontine-session' }),
+        webVersion,
         webVersionCache: {
           type: 'remote',
           remotePath:
-            'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+            'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
         },
         puppeteer: {
           headless: true,
@@ -58,9 +73,15 @@ class WhatsAppOtpService {
         },
       });
 
-      this.client.on('qr', (qr) => {
+      this.client.on('qr', async (qr) => {
         this.status = 'qr_ready';
         this.qrCode = qr;
+        try {
+          this.qrCodeDataUrl = await QRCode.toDataURL(qr, { margin: 2, width: 280 });
+        } catch (err) {
+          console.warn('⚠️ Erreur lors de la conversion du QR Code en image base64 :', err.message);
+        }
+
         if (this.hasLoggedQr) {
           return;
         }
@@ -68,7 +89,7 @@ class WhatsAppOtpService {
         console.log('\n======================================================');
         console.log('📱 SCANNEZ CE QR CODE AVEC VOTRE WHATSAPP POUR LA DEMO :');
         console.log('======================================================\n');
-        qrcode.generate(qr, { small: true });
+        qrcodeTerminal.generate(qr, { small: true });
         console.log('\n======================================================\n');
       });
 
@@ -76,12 +97,14 @@ class WhatsAppOtpService {
         this.isReady = true;
         this.status = 'ready';
         this.qrCode = null;
+        this.qrCodeDataUrl = null;
         console.log('✅ Service WhatsApp OTP prêt ! Les codes OTP seront envoyés en temps réel par WhatsApp.');
       });
 
       this.client.on('authenticated', () => {
         this.status = 'ready';
         this.qrCode = null;
+        this.qrCodeDataUrl = null;
         console.log('🔐 Session WhatsApp authentifiée avec succès.');
       });
 
@@ -90,6 +113,7 @@ class WhatsAppOtpService {
         this.isReady = false;
         this.status = 'auth_failure';
         this.qrCode = null;
+        this.qrCodeDataUrl = null;
         this.lastError = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
       });
 
@@ -98,23 +122,42 @@ class WhatsAppOtpService {
         this.isReady = false;
         this.status = 'disconnected';
         this.qrCode = null;
+        this.qrCodeDataUrl = null;
         this.lastError = typeof reason === 'object' ? JSON.stringify(reason) : String(reason);
       });
 
       // Nettoyage propre du processus Puppeteer lors des redémarrages Nodemon ou arrêts
-      const cleanup = async () => {
-        if (this.client) {
-          try {
-            await this.client.destroy();
-          } catch (_) {}
-        }
-      };
-      process.once('SIGINT', cleanup);
-      process.once('SIGTERM', cleanup);
-      process.once('SIGUSR2', cleanup);
+      if (!this.signalHandlersRegistered) {
+        this.signalHandlersRegistered = true;
+        const cleanup = async () => {
+          if (this.client) {
+            try {
+              await this.client.destroy();
+            } catch (_) {}
+            this.client = null;
+          }
+        };
+
+        process.once('SIGUSR2', async () => {
+          await cleanup();
+          process.kill(process.pid, 'SIGUSR2');
+        });
+
+        process.once('SIGINT', async () => {
+          await cleanup();
+          process.exit(0);
+        });
+
+        process.once('SIGTERM', async () => {
+          await cleanup();
+          process.exit(0);
+        });
+      }
 
       this.client.initialize().catch((err) => {
-        console.warn('⚠️ Remarque WhatsApp Initialisation :', err.message);
+        const errorDetails = err?.stack || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        console.warn('⚠️ Remarque WhatsApp Initialisation :', errorDetails);
+        this.lastError = errorDetails;
       });
     } catch (error) {
       console.warn('⚠️ Service WhatsApp OTP non démarré :', error.message);
@@ -160,11 +203,37 @@ class WhatsAppOtpService {
     }
   }
 
-  async reinitialize(forceNewSession = false) {
-    console.log(`🔄 Demande de réinitialisation du service WhatsApp (forceNewSession=${forceNewSession})...`);
+  getStatus() {
+    const isConfigDisabled = process.env.ENABLE_WHATSAPP_OTP === 'false';
+    const effectiveStatus =
+      isConfigDisabled && this.status === 'disconnected' ? 'disabled' : this.status;
+    return {
+      status: effectiveStatus,
+      isReady: this.isReady,
+      qrCode: this.qrCode,
+      qrCodeDataUrl: this.qrCodeDataUrl,
+      lastError: this.lastError,
+      enabled: !isConfigDisabled,
+    };
+  }
+
+  async reinitialize(options = {}) {
+    const forceNewSession =
+      typeof options === 'boolean' ? options : options.forceNewSession === true;
+    const enable =
+      typeof options === 'object' && options.enable !== undefined ? options.enable : true;
+
+    if (enable) {
+      process.env.ENABLE_WHATSAPP_OTP = 'true';
+    }
+
+    console.log(
+      `🔄 Demande de réinitialisation du service WhatsApp (forceNewSession=${forceNewSession}, enable=${enable})...`,
+    );
     this.isReady = false;
     this.status = 'initializing';
     this.qrCode = null;
+    this.qrCodeDataUrl = null;
     this.lastError = null;
 
     if (this.client) {
