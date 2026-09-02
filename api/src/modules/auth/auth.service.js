@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const { parsePhoneNumberWithError } = require('libphonenumber-js');
 const env = require('../../config/env');
 const AppError = require('../../common/errors/app-error');
@@ -142,8 +143,17 @@ function generateOtpCode() {
   return `${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
-function hashClientPin(pinCode) {
-  return crypto.createHash('sha256').update(String(pinCode || '')).digest('hex');
+async function hashClientPin(pinCode) {
+  return bcrypt.hash(String(pinCode || ''), 12);
+}
+
+async function verifyClientPin(pinCode, storedHash) {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('$2b$') || storedHash.startsWith('$2a$')) {
+    return bcrypt.compare(String(pinCode || ''), storedHash);
+  }
+  const legacyHash = crypto.createHash('sha256').update(String(pinCode || '')).digest('hex');
+  return legacyHash === storedHash;
 }
 
 function isValidPinCode(pinCode) {
@@ -299,7 +309,7 @@ async function createFreshOtp({
     phoneNumber: displayPhone(normalizedPhone),
     normalizedPhoneNumber: normalizedPhone,
     expiresAt: otp.expiresAt,
-    ...(process.env.NODE_ENV === 'test' ? { debugOtpCode: code } : {}),
+    ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
   };
 }
 
@@ -336,7 +346,12 @@ async function requestOtp(payload, context) {
       );
     }
 
-    if (user.preferences.pinCode !== hashClientPin(pinCode)) {
+    const isPinValid = await verifyClientPin(pinCode, user.preferences.pinCode);
+    if (isPinValid && !user.preferences.pinCode.startsWith('$2b$')) {
+      await user.preferences.update({ pinCode: await hashClientPin(pinCode) });
+    }
+    
+    if (!isPinValid) {
       const currentAttempts = Number(latestOtp?.attemptCount || 0) + 1;
       const isMaxReached = currentAttempts >= env.otpMaxAttempts;
       const blockedUntil = isMaxReached ? computeBlockDate() : null;
@@ -504,7 +519,7 @@ async function resendOtp(payload, context) {
       phoneNumber: displayPhone(normalizedPhone),
       normalizedPhoneNumber: normalizedPhone,
       expiresAt: otp.expiresAt,
-      ...(process.env.NODE_ENV === 'test' ? { debugOtpCode: code } : {}),
+      ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
     };
   });
 }
@@ -669,7 +684,7 @@ async function verifyOtp(
       await preferences.update(
         {
           pinEnabled: true,
-          pinCode: hashClientPin(pinCode),
+          pinCode: await hashClientPin(pinCode),
         },
         { transaction },
       );

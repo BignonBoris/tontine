@@ -128,6 +128,7 @@ class FinanceHeroHeader extends StatelessWidget {
   final List<Widget>? actions;
   final Widget? bottom;
   final double bottomPadding;
+  final double titleFontSize;
 
   const FinanceHeroHeader({
     super.key,
@@ -138,6 +139,7 @@ class FinanceHeroHeader extends StatelessWidget {
     this.actions,
     this.bottom,
     this.bottomPadding = 14,
+    this.titleFontSize = 22,
   });
 
   @override
@@ -213,7 +215,7 @@ class FinanceHeroHeader extends StatelessWidget {
                           Text(
                             title,
                             style: GoogleFonts.poppins(
-                              fontSize: 22,
+                              fontSize: titleFontSize,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: -0.3,

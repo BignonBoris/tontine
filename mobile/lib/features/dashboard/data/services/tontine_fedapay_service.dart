@@ -59,10 +59,10 @@ class TontineFedapayService {
   TontineFedapayService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
-  Future<TontineFedapayDepositIntent> createDeposit(double amount) async {
+  Future<TontineFedapayDepositIntent> createDeposit(double amount, String syncId) async {
     final payload = await _apiClient.post(
       '/tontine/fedapay/deposits',
-      body: {'amount': amount},
+      body: {'amount': amount, 'syncId': syncId},
     );
     final intent = TontineFedapayDepositIntent.fromMap(_asMap(payload));
     if (!intent.hasPaymentUrl) {

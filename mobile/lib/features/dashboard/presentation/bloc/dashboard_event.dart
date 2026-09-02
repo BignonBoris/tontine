@@ -5,7 +5,10 @@ import '../../domain/entities/user_profile.dart';
 
 abstract class DashboardEvent {}
 
-class LoadDashboardData extends DashboardEvent {}
+class LoadDashboardData extends DashboardEvent {
+  final bool isSilent;
+  LoadDashboardData({this.isSilent = false});
+}
 
 class AddGoal extends DashboardEvent {
   final TontineGoal goal;
@@ -42,9 +45,10 @@ class ReorderGoalPriority extends DashboardEvent {
 
 class AddFundsToGoal extends DashboardEvent {
   final String goalId;
-  final double amount;
+  final num amount;
+  final String? syncId;
 
-  AddFundsToGoal(this.goalId, this.amount);
+  AddFundsToGoal(this.goalId, this.amount, [this.syncId]);
 }
 
 class TransferToTontine extends DashboardEvent {
@@ -62,8 +66,9 @@ class ConfigureTontineStake extends DashboardEvent {
 
 class MakeTontineDeposit extends DashboardEvent {
   final double amount;
+  final String syncId;
 
-  MakeTontineDeposit(this.amount);
+  MakeTontineDeposit(this.amount, this.syncId);
 }
 
 class ConfirmTontineCyclePayout extends DashboardEvent {}

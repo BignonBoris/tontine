@@ -32,6 +32,7 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String? _selectedCategory;
+  bool _isGridView = true;
 
   @override
   Widget build(BuildContext context) {
@@ -121,11 +122,54 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      _SectionHeading(
-                        title: "Tous les articles",
-                        subtitle: visibleOffers.isEmpty
-                            ? "Aucun article ne correspond a ce filtre."
-                            : "Choisissez un article et passez a l'action.",
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: _SectionHeading(
+                              title: "Tous les articles",
+                              subtitle: visibleOffers.isEmpty
+                                  ? "Aucun article ne correspond a ce filtre."
+                                  : "Choisissez un article et passez a l'action.",
+                            ),
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                InkWell(
+                                  onTap: () => setState(() => _isGridView = true),
+                                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Icon(
+                                      Icons.grid_view_rounded,
+                                      size: 20,
+                                      color: _isGridView ? AppTheme.primaryColor : Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                Container(width: 1, height: 24, color: Colors.grey.shade200),
+                                InkWell(
+                                  onTap: () => setState(() => _isGridView = false),
+                                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Icon(
+                                      Icons.view_list_rounded,
+                                      size: 20,
+                                      color: !_isGridView ? AppTheme.primaryColor : Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                     ],
@@ -146,7 +190,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     ),
                   ),
                 )
-              else
+              else if (_isGridView)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   sliver: SliverGrid(
@@ -177,8 +221,40 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         onCreateGoal: () => _handleCreateGoal(context, offer),
                       );
                     }, childCount: visibleOffers.length),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final offer = visibleOffers[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: SizedBox(
+                          height: 262,
+                          child: MarketplaceOfferCompactCard(
+                            offer: offer,
+                            isFavorite: state.favoriteOfferIds.contains(offer.id),
+                            onTap: () => _showOfferDetailSheet(
+                              context,
+                              offers.indexWhere((item) => item.id == offer.id),
+                            ),
+                            onBuyNow: () => _handleBuyNow(context, offer),
+                            onToggleFavorite: () {
+                              _toggleFavorite(
+                                context,
+                                offer,
+                                state.favoriteOfferIds,
+                              );
+                            },
+                            onCreateGoal: () => _handleCreateGoal(context, offer),
+                          ),
+                        ),
+                      );
+                    }, childCount: visibleOffers.length),
+                  ),
                 ),
-              ),
             ],
           ),
         );

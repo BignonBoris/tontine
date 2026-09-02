@@ -60,6 +60,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   late final PageController _marketplaceController;
   Timer? _marketplaceTimer;
   int _currentMarketplaceIndex = 0;
+  
+  Timer? _backgroundFetchTimer;
 
   // Clés cibles pour le tutoriel pas-à-pas interactif
   final GlobalKey _headerProfileKey = GlobalKey();
@@ -78,12 +80,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     WidgetsBinding.instance.addObserver(this);
     _marketplaceController = PageController(viewportFraction: 0.88);
     _startMarketplaceAutoSlide();
+    _startBackgroundFetch();
+  }
+
+  void _startBackgroundFetch() {
+    _backgroundFetchTimer?.cancel();
+    _backgroundFetchTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        context.read<DashboardBloc>().add(LoadDashboardData(isSilent: true));
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _marketplaceTimer?.cancel();
+    _backgroundFetchTimer?.cancel();
     _marketplaceController.dispose();
     super.dispose();
   }
@@ -95,8 +108,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _marketplaceTimer?.cancel();
+      _backgroundFetchTimer?.cancel();
     } else if (state == AppLifecycleState.resumed) {
       _startMarketplaceAutoSlide();
+      _startBackgroundFetch();
+      if (mounted) {
+        context.read<DashboardBloc>().add(LoadDashboardData(isSilent: true));
+      }
     }
   }
 

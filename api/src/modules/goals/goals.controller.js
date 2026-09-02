@@ -12,6 +12,11 @@ async function getGoal(req, res) {
   return ok(res, data, 'Coffre charge.');
 }
 
+async function getGoalConfig(req, res) {
+  const data = await service.getGoalConfig();
+  return ok(res, data, 'Configuration chargee.');
+}
+
 async function createGoal(req, res) {
   const data = await service.createGoal(
     req.auth.userId,
@@ -43,6 +48,7 @@ async function closeGoal(req, res) {
 module.exports = {
   listGoals,
   getGoal,
+  getGoalConfig,
   createGoal,
   fundGoal,
   closeGoal,

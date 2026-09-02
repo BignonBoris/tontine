@@ -1,6 +1,6 @@
 const marketOffersSeed = require('./market-offers.seed');
 const goalTemplatesSeed = require('./goal-templates.seed');
-const { hashPin } = require('../../modules/agent-auth/agent-auth.service');
+const { hashAgentPin } = require('../../modules/agent-auth/agent-auth.service');
 const { normalizePhone } = require('../../modules/auth/auth.service');
 
 async function runSeeds(models) {
@@ -72,7 +72,7 @@ async function runSeeds(models) {
     defaults: {
       userId: user.id,
       agentCode: defaultAgentCode,
-      pinHash: hashPin(defaultAgentPin),
+      pinHash: await hashAgentPin(defaultAgentPin),
       fullName: defaultAgentName,
       agentBalance: Number.isFinite(defaultAgentBalance)
         ? Math.max(defaultAgentBalance, 0)
@@ -84,7 +84,7 @@ async function runSeeds(models) {
   if (!created) {
     await agentProfile.update({
       agentCode: defaultAgentCode,
-      pinHash: hashPin(defaultAgentPin),
+      pinHash: await hashAgentPin(defaultAgentPin),
       fullName: defaultAgentName,
       isActive: true,
     });

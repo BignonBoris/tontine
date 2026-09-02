@@ -308,11 +308,27 @@ async function updateTontineKycLimits(req, res) {
   return ok(res, { items }, 'Plafonds KYC tontine mis a jour.');
 }
 
+async function getSystemSettings(req, res) {
+  const data = await service.getSystemSettings();
+  return ok(res, data, 'Parametres charges.');
+}
+
+async function updateSystemSetting(req, res) {
+  const data = await service.updateSystemSetting(
+    req.params.key,
+    req.body,
+    getRequestContext(req)
+  );
+  return ok(res, data, 'Parametre mis a jour.');
+}
+
 module.exports = {
   getTontineKycLimits,
   updateTontineKycLimits,
   getWhatsAppStatus,
   refreshWhatsApp,
+  getSystemSettings,
+  updateSystemSetting,
   overview,
   marketplaceOverview,
   marketplaceOrders,

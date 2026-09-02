@@ -3254,6 +3254,41 @@ async function listAuditLogs(query = {}) {
   };
 }
 
+async function getSystemSettings() {
+  const settings = await models.SystemSetting.findAll();
+  return settings;
+}
+
+async function updateSystemSetting(key, payload, requestContext) {
+  const setting = await models.SystemSetting.findByPk(key);
+  if (!setting) {
+    throw new AppError('Parametre introuvable', 404);
+  }
+  
+  if (payload.value === undefined) {
+    throw new AppError('La valeur est requise', 422);
+  }
+
+  await setting.update({
+    value: payload.value,
+    description: payload.description || setting.description,
+  });
+
+  await writeAuditLog({
+    userId: requestContext.userId,
+    action: 'system_setting.updated',
+    entityType: 'system_setting',
+    entityId: key,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      newValue: payload.value,
+    },
+  });
+
+  return setting;
+}
+
 module.exports = {
   getOverview,
   getMarketplaceOverview,
@@ -3290,4 +3325,6 @@ module.exports = {
   getWithdrawalDetail,
   getOperationalAnomalies,
   listAuditLogs,
+  getSystemSettings,
+  updateSystemSetting,
 };

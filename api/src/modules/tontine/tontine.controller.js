@@ -57,7 +57,7 @@ async function initializeFedapayDeposit(req, res) {
   const data = await fedapayService.initializeFedapayTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement FedaPay initialise.');
 }
@@ -71,7 +71,7 @@ async function initializeAfrikmoneyDeposit(req, res) {
   const data = await afrikmoneyService.initializeAfrikmoneyTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement Afrikmoney initialise.');
 }
@@ -101,7 +101,7 @@ async function initializeMtnMomoDeposit(req, res) {
   const data = await mtnMomoService.initializeMtnMomoTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement MTN MoMo initialise.');
 }

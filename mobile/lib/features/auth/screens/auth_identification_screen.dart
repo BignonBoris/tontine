@@ -6,6 +6,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/features/auth/data/services/biometric_service.dart';
 import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 import 'package:mobile/features/auth/widgets/legal_terms_bottom_sheet.dart';
 
@@ -29,12 +30,45 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   bool _isSubmitting = false;
   String? _errorMessage;
   String _normalizedPhone = '';
+  
+  bool _canUseBiometrics = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _isRegistrationMode = widget.isRegistration;
+    _checkBiometrics();
     _loadSuggestedPhoneNumber();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final canUse = await BiometricService.isBiometricAvailable();
+    final isEnabled = await BiometricService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _canUseBiometrics = canUse;
+        _isBiometricEnabled = isEnabled;
+      });
+    }
+  }
+
+  Future<void> _triggerBiometricAuth() async {
+    if (!_canUseBiometrics || !_isBiometricEnabled) return;
+    final savedPin = await BiometricService.getSavedPin();
+    if (savedPin == null || savedPin.isEmpty) return;
+
+    final authenticated = await BiometricService.authenticate();
+    if (authenticated && mounted) {
+      setState(() {
+        _pinController.text = savedPin;
+        _refreshValidation();
+      });
+      // Automatically submit if everything is valid
+      if (_isValid) {
+        _handleContinue(context);
+      }
+    }
   }
 
   @override
@@ -57,6 +91,10 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       _normalizedPhone = LocalAuthService.normalizePhone(suggestedPhone);
       _refreshValidation();
     });
+    
+    if (!_isRegistrationMode) {
+      _triggerBiometricAuth();
+    }
   }
 
   void _refreshValidation() {
@@ -348,6 +386,10 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                               _refreshValidation();
                             });
                           },
+                          customSuffixIcon: (_canUseBiometrics && _isBiometricEnabled) ? IconButton(
+                            icon: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryColor),
+                            onPressed: _triggerBiometricAuth,
+                          ) : null,
                         ),
                         const SizedBox(height: 6),
                         Align(
@@ -735,6 +777,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     bool enableInteractiveSelection = true,
     bool enableSuggestions = true,
     bool autocorrect = true,
+    Widget? customSuffixIcon,
   }) {
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -777,13 +820,13 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppTheme.primaryColor, size: 20),
           prefixIconConstraints: const BoxConstraints(minWidth: 36),
-          suffixIcon: isValid
+          suffixIcon: customSuffixIcon ?? (isValid
               ? const Icon(
                   Icons.check_circle_rounded,
                   color: AppTheme.secondaryColor,
                   size: 20,
                 )
-              : null,
+              : null),
           hintText: hintText,
           hintStyle: GoogleFonts.poppins(
             color: AppTheme.textSecondaryColor,

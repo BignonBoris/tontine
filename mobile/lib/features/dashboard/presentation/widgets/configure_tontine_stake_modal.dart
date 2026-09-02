@@ -312,7 +312,7 @@ class _ConfigureTontineStakeModalState
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: AppTheme.textDarkColor,
+                              color: AppTheme.textPrimaryColor,
                               height: 1.4,
                             ),
                           ),

@@ -114,7 +114,7 @@ class _KycSubmissionScreenState extends State<KycSubmissionScreen> {
         children: [
           const FinanceHeroHeader(
             title: 'Vérification KYC',
-            subtitle: 'Conformité & identité certifiée',
+            titleFontSize: 18,
             showBackButton: true,
           ),
           Expanded(
@@ -146,6 +146,7 @@ class _KycSubmissionScreenState extends State<KycSubmissionScreen> {
                     ),
                     const SizedBox(height: 24),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _documentType,
                       style: GoogleFonts.poppins(
                         fontSize: 15,

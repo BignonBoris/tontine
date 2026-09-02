@@ -94,10 +94,10 @@ class TontineMtnMomoService {
   TontineMtnMomoService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
-  Future<TontineMtnMomoDepositIntent> createDeposit(double amount) async {
+  Future<TontineMtnMomoDepositIntent> createDeposit(double amount, String syncId) async {
     final payload = await _apiClient.post(
       '/tontine/mtn-momo/deposits',
-      body: {'amount': amount},
+      body: {'amount': amount, 'syncId': syncId},
     );
     return TontineMtnMomoDepositIntent.fromMap(_asMap(payload));
   }

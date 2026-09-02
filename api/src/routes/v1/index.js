@@ -27,12 +27,14 @@ const goalTemplatesRoutes = require('../../modules/goal-templates/goal-templates
 const goalTemplatesAdminRoutes = require('../../modules/goal-templates/goal-templates.admin.routes');
 const kycRoutes = require('../../modules/kyc/kyc.routes');
 const kycAdminRoutes = require('../../modules/kyc/kyc.admin.routes');
+const adminReconciliationRoutes = require('../../modules/admin/admin-reconciliation.routes');
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
 router.use('/admin/auth', adminAuthRoutes);
 router.use('/admin', adminRoutes);
+router.use('/admin', adminReconciliationRoutes);
 router.use('/agent/auth', agentAuthRoutes);
 router.use('/agent/clients', agentClientsRoutes);
 router.use('/agent/dashboard', agentDashboardRoutes);

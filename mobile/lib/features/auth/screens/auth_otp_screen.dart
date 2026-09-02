@@ -7,6 +7,7 @@ import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/features/auth/data/services/biometric_service.dart';
 import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 
 class AuthOtpScreen extends StatefulWidget {
@@ -616,10 +617,14 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       if (_pinCode != null && _pinCode!.trim().length == 4) {
         await LocalSecurityService.saveSettings(
           pinEnabled: true,
-          biometricEnabled: false,
+          biometricEnabled: true, // Auto-enable in local security
           pinCode: _pinCode!.trim(),
           phoneNumber: _normalizedPhoneNumber,
         );
+        
+        if (await BiometricService.isBiometricAvailable()) {
+          await BiometricService.setBiometricEnabled(true, pinCode: _pinCode!.trim());
+        }
       }
       if (!mounted) {
         return;
@@ -649,10 +654,14 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     if (_pinCode != null && _pinCode!.trim().length == 4) {
       await LocalSecurityService.saveSettings(
         pinEnabled: true,
-        biometricEnabled: false,
+        biometricEnabled: true, // Auto-enable in local security
         pinCode: _pinCode!.trim(),
         phoneNumber: _normalizedPhoneNumber,
       );
+      
+      if (await BiometricService.isBiometricAvailable()) {
+        await BiometricService.setBiometricEnabled(true, pinCode: _pinCode!.trim());
+      }
     }
 
     if (!mounted) {

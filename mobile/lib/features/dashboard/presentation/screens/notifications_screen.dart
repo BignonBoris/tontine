@@ -25,7 +25,7 @@ class NotificationsScreen extends StatelessWidget {
             children: [
               FinanceHeroHeader(
                 title: "Notifications",
-                subtitle: "Alertes & activités du compte",
+                titleFontSize: 18,
                 showBackButton: true,
                 actions: [
                   if (hasUnread)

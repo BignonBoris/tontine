@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const env = require('../../config/env');
 const AppError = require('../../common/errors/app-error');
@@ -6,8 +7,17 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models } = require('../../database/models');
 const { normalizePhone, displayPhone } = require('../auth/auth.service');
 
-function hashPin(pin) {
-  return crypto.createHash('sha256').update(String(pin)).digest('hex');
+async function hashAgentPin(pin) {
+  return bcrypt.hash(String(pin), 12);
+}
+
+async function verifyAgentPin(pin, storedHash) {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('$2b$') || storedHash.startsWith('$2a$')) {
+    return bcrypt.compare(String(pin), storedHash);
+  }
+  const legacyHash = crypto.createHash('sha256').update(String(pin)).digest('hex');
+  return legacyHash === storedHash;
 }
 
 function signAgentToken(user) {
@@ -44,7 +54,11 @@ async function loginAgent({ phoneNumber, pin }, context = {}) {
     throw new AppError('Compte agent introuvable ou inactif.', 401);
   }
 
-  if (user.agentProfile.pinHash !== hashPin(pin)) {
+  const isPinValid = await verifyAgentPin(pin, user.agentProfile.pinHash);
+  if (isPinValid && !user.agentProfile.pinHash.startsWith('$2b$')) {
+    await user.agentProfile.update({ pinHash: await hashAgentPin(pin) });
+  }
+  if (!isPinValid) {
     await writeAuditLog({
       userId: user.id,
       action: 'agent.login_failed',
@@ -83,4 +97,4 @@ async function loginAgent({ phoneNumber, pin }, context = {}) {
   };
 }
 
-module.exports = { loginAgent, hashPin };
+module.exports = { loginAgent, hashAgentPin, verifyAgentPin };

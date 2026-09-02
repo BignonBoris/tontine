@@ -57,6 +57,8 @@ const env = {
     process.env.APP_BASE_URL ||
     'http://localhost:3000',
   mtnMomoMsisdnCountryCode: process.env.MTN_MOMO_MSISDN_COUNTRY_CODE || '',
+  sentryDsn: process.env.SENTRY_DSN || '',
+  makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),

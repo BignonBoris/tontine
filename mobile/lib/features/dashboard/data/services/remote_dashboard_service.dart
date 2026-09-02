@@ -225,8 +225,7 @@ class RemoteDashboardService {
     );
   }
 
-  Future<void> makeTontineDeposit(double amount) {
-    final syncId = const Uuid().v4();
+  Future<void> makeTontineDeposit(double amount, String syncId) {
     return _apiClient.post(
       '/tontine/deposit',
       body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
@@ -271,11 +270,20 @@ class RemoteDashboardService {
     );
   }
 
-  Future<void> fundGoal(String goalId, double amount) {
-    return _apiClient.post('/goals/$goalId/fund', body: {'amount': amount});
+  Future<void> fundGoal(String goalId, num amount, [String? syncId]) async {
+    await _apiClient.post(
+      '/goals/$goalId/fund',
+      body: {'amount': amount},
+      idempotencyKey: syncId,
+    );
   }
 
-  Future<void> closeGoal(String goalId) {
+  Future<Map<String, dynamic>> getGoalConfig() async {
+    final response = await _apiClient.get('/goals/config');
+    return response['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> closeGoal(String goalId) async {
     return _apiClient.post('/goals/$goalId/close');
   }
 

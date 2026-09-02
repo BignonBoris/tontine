@@ -51,5 +51,7 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>La camera est utilisee pour scanner les QR codes et photographier les documents KYC.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>L'application utilise Face ID pour authentifier rapidement votre compte sans avoir à taper votre code PIN.</string>
 </dict>
 </plist>

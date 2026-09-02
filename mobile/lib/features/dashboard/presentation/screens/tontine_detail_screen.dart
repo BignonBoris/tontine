@@ -29,6 +29,7 @@ import 'package:mobile/features/dashboard/presentation/widgets/tontine_history_l
 import 'package:mobile/features/groups/presentation/widgets/my_groups_section.dart';
 import 'package:mobile/features/groups/presentation/widgets/unified_adhesions_section.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
 class TontineDetailScreen extends StatefulWidget {
   final bool showBackButton;
@@ -1056,6 +1057,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     String? errorMessage;
     bool isSubmitting = false;
     String selectedMethodCode = paymentMethods.first.code;
+    final String depositSyncId = const Uuid().v4();
     final remaining = (cycle.targetAmount - cycle.cumulativeAmount).clamp(
       0.0,
       double.infinity,
@@ -1113,27 +1115,26 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   return;
                 }
 
-                final authorized =
-                    await LocalSecurityService.authorizeIfEnabled(
-                      context,
-                      title: selectedMethod.code == 'wallet'
-                          ? 'Transferer vers la tontine'
-                          : 'Payer avec le moyen choisi',
-                      message: selectedMethod.code == 'wallet'
-                          ? 'Entrez votre PIN pour confirmer ce versement dans votre tontine.'
-                          : selectedMethod.code == 'mtn_momo'
-                              ? 'Entrez votre PIN pour envoyer la demande MTN MoMo.'
-                              : selectedMethod.code == 'afrikmoney'
-                                  ? 'Entrez votre PIN pour ouvrir le paiement Afrikmoney.'
-                              : 'Entrez votre PIN pour lancer le paiement.',
-                );
+                bool authorized = true;
+                
+                // On ne demande le PIN que si l'argent sort du portefeuille interne (wallet).
+                // Pour les dépôts externes (Mobile Money), l'opérateur demandera déjà son propre PIN,
+                // donc on ne bloque pas l'UX avec un double PIN.
+                if (selectedMethod.code == 'wallet') {
+                  authorized = await LocalSecurityService.authorizeIfEnabled(
+                    context,
+                    title: 'Transferer vers la tontine',
+                    message: 'Entrez votre PIN pour confirmer ce versement dans votre tontine.',
+                  );
+                }
+
                 if (!context.mounted || !authorized) {
                   return;
                 }
 
                 if (selectedMethod.code == 'wallet') {
                   context.read<DashboardBloc>().add(
-                    MakeTontineDeposit(amount),
+                    MakeTontineDeposit(amount, depositSyncId),
                   );
                   if (modalContext.mounted) {
                     Navigator.pop(modalContext);
@@ -1148,7 +1149,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
                 try {
                   if (selectedMethod.code == 'fedapay') {
-                    final session = await fedapayService.createDeposit(amount);
+                    final session = await fedapayService.createDeposit(amount, depositSyncId);
                     _pendingFedapayIntentId = session.id;
                     final paymentUrl = session.paymentUrl?.trim() ?? '';
                     final paymentUri = paymentUrl.isEmpty
@@ -1209,7 +1210,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   }
 
                   if (selectedMethod.code == 'afrikmoney') {
-                    final session = await afrikmoneyService.createDeposit(amount);
+                    final session = await afrikmoneyService.createDeposit(amount, depositSyncId);
                     _pendingAfrikmoneyIntentId = session.id;
                     final paymentUrl = session.paymentUrl?.trim() ?? '';
                     final paymentUri = paymentUrl.isEmpty
@@ -1270,7 +1271,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   }
 
                   if (selectedMethod.code == 'mtn_momo') {
-                    final session = await mtnMomoService.createDeposit(amount);
+                    final session = await mtnMomoService.createDeposit(amount, depositSyncId);
                     _pendingMtnMomoIntentId = session.id;
                     _refreshOnResumeAfterMtnMomo = true;
 
@@ -1999,39 +2000,6 @@ class _TontineHeroCard extends StatelessWidget {
                         color: AppTheme.textSecondaryColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.09),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            size: 12,
-                            color: AppTheme.accentDarkColor,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            "Épargne bloquée jusqu'à terme (31j)",
-                            style: GoogleFonts.inter(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -2112,6 +2080,40 @@ class _TontineHeroCard extends StatelessWidget {
             ],
           ),
 
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: 0.09),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 12,
+                  color: AppTheme.accentDarkColor,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  "Épargne bloquée jusqu'à terme (31j)",
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),

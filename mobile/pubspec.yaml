@@ -63,6 +63,8 @@ dependencies:
   printing: ^5.13.0
   share_plus: ^10.1.3
   path_provider: ^2.1.5
+  sentry_flutter: ^8.14.2
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

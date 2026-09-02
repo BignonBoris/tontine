@@ -441,6 +441,51 @@ async function depositToCycle(
     throw new AppError('Source de versement invalide.', 422);
   }
 
+  // [R-04] Idempotence : Mode Hors-Ligne
+  if (requestContext.syncId) {
+    const existingHistory = await models.TontineHistory.findOne({
+      where: { syncId: requestContext.syncId },
+    });
+    if (existingHistory) {
+      const cycle = await models.TontineCycle.findByPk(existingHistory.cycleId);
+      if (cycle) {
+        return {
+          ...serializeCycle(cycle),
+          historyId: existingHistory.id,
+        };
+      }
+    }
+  }
+
+  // [R-04] Protection contre les doubles encaissements accidentels (Temporal Check)
+  const TIME_WINDOW_MINUTES = 5;
+  const timeWindowMs = TIME_WINDOW_MINUTES * 60 * 1000;
+  
+  const actorForCheck = resolveActorForUser(userId, requestContext);
+  
+  // Si c'est un agent, on vérifie qu'il n'a pas fait exactement le même versement au même client dans les 5 dernières minutes.
+  // (Sauf s'il a explicitement forcé la transaction avec forceDuplicate=true).
+  if (actorForCheck.initiatorType === 'agent' && !requestContext.forceDuplicate) {
+    const recentDuplicate = await models.TontineHistory.findOne({
+      where: {
+        userId,
+        type: 'versement',
+        amount,
+        initiatedByUserId: actorForCheck.initiatorId,
+        occurredAt: {
+          [Op.gte]: new Date(Date.now() - timeWindowMs),
+        }
+      }
+    });
+
+    if (recentDuplicate) {
+      throw new AppError(
+        `Un versement identique de ${amount} F a déjà été enregistré pour ce client il y a moins de ${TIME_WINDOW_MINUTES} minutes. Veuillez patienter ou vérifier l'historique avant de réessayer.`,
+        409
+      );
+    }
+  }
+
   if (
     !amount ||
     amount <= 0 ||

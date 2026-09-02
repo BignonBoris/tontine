@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,7 +51,19 @@ void main() async {
     await GroupsCacheService().clear();
     await LocalSecurityService.clearTemporaryAppLockBypass();
   });
-  runApp(const MaTontineApp());
+
+  final sentryDsn = dotenv.env['SENTRY_DSN'] ?? '';
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.tracesSampleRate = 1.0;
+      },
+      appRunner: () => runApp(const MaTontineApp()),
+    );
+  } else {
+    runApp(const MaTontineApp());
+  }
 }
 
 class MaTontineApp extends StatelessWidget {

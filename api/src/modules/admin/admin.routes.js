@@ -50,4 +50,7 @@ router.get('/audit-logs', asyncHandler(controller.auditLogs));
 router.get('/whatsapp/status', asyncHandler(controller.getWhatsAppStatus));
 router.post('/whatsapp/refresh', asyncHandler(controller.refreshWhatsApp));
 
+router.get('/settings', asyncHandler(controller.getSystemSettings));
+router.put('/settings/:key', asyncHandler(controller.updateSystemSetting));
+
 module.exports = router;
