@@ -3,7 +3,12 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  file_selector_windows
   firebase_core
+  local_auth_windows
+  printing
+  sentry_flutter
+  share_plus
   url_launcher_windows
 )
 

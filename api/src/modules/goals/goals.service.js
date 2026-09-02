@@ -1,6 +1,7 @@
 const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const { models, sequelize } = require('../../database/models');
+const { getUserEffectiveKycLimit } = require('../tontine/tontine.service');
 
 function addMonthsPreservingDay(date, monthsToAdd) {
   const source = new Date(date);
@@ -89,6 +90,22 @@ async function validateGoalCreationRules(userId, targetAmount, endDate) {
       422,
       { maxTargetAmount },
     );
+  }
+
+  // Vérification de la limite KYC
+  const kycLimit = await getUserEffectiveKycLimit(userId);
+  if (kycLimit && kycLimit.maxVaultCumulative) {
+    const totalExistingGoals = await models.Goal.sum('targetAmount', {
+      where: { userId, status: 'active' },
+    }) || 0;
+
+    const projectedTotal = Number(totalExistingGoals) + targetAmount;
+    if (projectedTotal > Number(kycLimit.maxVaultCumulative)) {
+      throw new AppError(
+        `Votre niveau de vérification plafonne le cumul de vos coffres à ${Number(kycLimit.maxVaultCumulative)} F CFA.`,
+        403,
+      );
+    }
   }
 
   return { activeCycle, wallet, now };
@@ -272,6 +289,16 @@ async function fundGoal(userId, goalId, amount, requestContext = {}) {
   });
 }
 
+async function getGoalConfig() {
+  const penaltySetting = await models.SystemSetting.findOne({
+    where: { key: 'GOAL_EARLY_CLOSURE_PENALTY_PERCENT' },
+  });
+  
+  return {
+    earlyClosurePenaltyPercent: penaltySetting ? Number(penaltySetting.value) : 5.0,
+  };
+}
+
 async function closeGoal(userId, goalId, requestContext = {}) {
   return sequelize.transaction(async (transaction) => {
     const goal = await models.Goal.findOne({
@@ -286,29 +313,63 @@ async function closeGoal(userId, goalId, requestContext = {}) {
     }
 
     const wallet = await models.Wallet.findOne({ where: { userId }, transaction });
+    const now = new Date();
+    const isEarlyClosure = now < goal.endDate;
+    
+    let penaltyAmount = 0;
+    let penaltyPercent = 0;
+    
+    if (isEarlyClosure) {
+      const penaltySetting = await models.SystemSetting.findOne({
+        where: { key: 'GOAL_EARLY_CLOSURE_PENALTY_PERCENT' },
+        transaction,
+      });
+      penaltyPercent = penaltySetting ? Number(penaltySetting.value) : 5.0;
+      penaltyAmount = (Number(goal.currentAmount) * penaltyPercent) / 100;
+    }
+
+    const returnedAmount = Number(goal.currentAmount) - penaltyAmount;
+
     await wallet.update(
       {
-        availableBalance:
-          Number(wallet.availableBalance) + Number(goal.currentAmount),
+        availableBalance: Number(wallet.availableBalance) + returnedAmount,
       },
       { transaction },
     );
+    
     await models.AvailableBalanceHistory.create(
       {
         userId,
         type: 'goalFunding',
-        amount: goal.currentAmount,
+        amount: returnedAmount,
         label: `Cloture coffre ${goal.title}`,
         isCredit: true,
       },
       { transaction },
     );
+    
+    if (penaltyAmount > 0) {
+      // Trace de la pénalité conservée
+      await models.AvailableBalanceHistory.create(
+        {
+          userId,
+          type: 'adjustment',
+          amount: penaltyAmount,
+          label: `Penalite cloture anticipee coffre ${goal.title} (${penaltyPercent}%)`,
+          isCredit: false,
+        },
+        { transaction },
+      );
+    }
+
     await models.Notification.create(
       {
         userId,
         type: 'goal',
         title: 'Coffre cloture',
-        message: `${Number(goal.currentAmount).toFixed(0)} F reverses sur votre solde disponible pour le coffre ${goal.title}.`,
+        message: penaltyAmount > 0 
+            ? `${returnedAmount.toFixed(0)} F reverses sur votre solde pour le coffre ${goal.title} (Penalite: ${penaltyAmount.toFixed(0)} F).`
+            : `${returnedAmount.toFixed(0)} F reverses sur votre solde disponible pour le coffre ${goal.title}.`,
       },
       { transaction },
     );
@@ -321,7 +382,11 @@ async function closeGoal(userId, goalId, requestContext = {}) {
       ipAddress: requestContext.ipAddress,
       userAgent: requestContext.userAgent,
       metadata: {
-        returnedAmount: Number(goal.currentAmount),
+        totalAmount: Number(goal.currentAmount),
+        returnedAmount,
+        penaltyAmount,
+        penaltyPercent,
+        isEarlyClosure,
       },
       transaction,
     });
@@ -331,6 +396,7 @@ async function closeGoal(userId, goalId, requestContext = {}) {
 
 module.exports = {
   listGoals,
+  getGoalConfig,
   getGoal,
   createGoal,
   fundGoal,

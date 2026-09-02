@@ -59,10 +59,10 @@ class TontineAfrikmoneyService {
   TontineAfrikmoneyService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
-  Future<TontineAfrikmoneyDepositIntent> createDeposit(double amount) async {
+  Future<TontineAfrikmoneyDepositIntent> createDeposit(double amount, String syncId) async {
     final payload = await _apiClient.post(
       '/tontine/afrikmoney/deposits',
-      body: {'amount': amount},
+      body: {'amount': amount, 'syncId': syncId},
     );
     final intent = TontineAfrikmoneyDepositIntent.fromMap(_asMap(payload));
     if (!intent.hasPaymentUrl) {

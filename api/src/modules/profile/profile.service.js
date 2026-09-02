@@ -14,7 +14,10 @@ const {
 
 async function getProfile(userId) {
   const user = await models.User.findByPk(userId, {
-    include: [{ model: models.UserPreference, as: 'preferences' }],
+    include: [
+      { model: models.UserPreference, as: 'preferences' },
+      { model: models.KycCase, as: 'kycCase' },
+    ],
   });
   if (!user) {
     throw new AppError('Utilisateur introuvable.', 404);
@@ -30,6 +33,16 @@ async function getProfile(userId) {
     accountType: user.accountType,
     memberSince: user.memberSince,
     lastLoginAt: user.lastLoginAt,
+    kyc: user.kycCase
+      ? {
+          status: user.kycCase.status,
+          level: user.kycCase.level,
+          submittedAt: user.kycCase.submittedAt,
+          reviewedAt: user.kycCase.reviewedAt,
+          expiresAt: user.kycCase.expiresAt,
+          rejectionReason: user.kycCase.rejectionReason,
+        }
+      : { status: 'unverified', level: 'basic', submittedAt: null, reviewedAt: null, expiresAt: null, rejectionReason: null },
     preferences: user.preferences
       ? {
           id: user.preferences.id,

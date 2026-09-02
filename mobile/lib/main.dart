@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile/core/theme/app_theme.dart';
@@ -25,6 +25,7 @@ import 'package:mobile/features/groups/presentation/screens/group_qr_scanner_scr
 import 'package:mobile/features/navigation/presentation/bloc/navigation_bloc.dart';
 import 'package:mobile/features/navigation/presentation/screens/main_navigation_screen.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
+import 'package:mobile/features/onboarding/presentation/screens/onboarding_goals_selection_screen.dart';
 import 'package:mobile/features/security/presentation/screens/app_unlock_screen.dart';
 import 'package:mobile/features/splashscreen/splash_screen.dart';
 
@@ -50,7 +51,19 @@ void main() async {
     await GroupsCacheService().clear();
     await LocalSecurityService.clearTemporaryAppLockBypass();
   });
-  runApp(const MaTontineApp());
+
+  final sentryDsn = dotenv.env['SENTRY_DSN'] ?? '';
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.tracesSampleRate = 1.0;
+      },
+      appRunner: () => runApp(const MaTontineApp()),
+    );
+  } else {
+    runApp(const MaTontineApp());
+  }
 }
 
 class MaTontineApp extends StatelessWidget {
@@ -94,12 +107,20 @@ class MaTontineApp extends StatelessWidget {
             const AuthIdentificationScreen(isRegistration: true),
         '/auth_otp': (context) => const AuthOtpScreen(),
         '/auth_pin_setup': (context) => const AuthPinSetupScreen(),
+        '/onboarding_goals': (context) =>
+            const OnboardingGoalsSelectionScreen(),
         '/unlock': (context) => const AppUnlockScreen(),
         '/group-scanner': (context) => const GroupQrScannerScreen(),
-        '/dashboard': (context) => BlocProvider(
-          create: (context) => NavigationBloc(),
-          child: const MainNavigationScreen(),
-        ),
+        '/dashboard': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return BlocProvider(
+            create: (context) => NavigationBloc(),
+            child: MainNavigationScreen(
+              skipOnboarding: args?['skip_onboarding'] ?? false,
+            ),
+          );
+        },
       },
     );
   }

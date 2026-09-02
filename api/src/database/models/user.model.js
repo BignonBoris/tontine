@@ -58,6 +58,15 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: true,
     },
+    punctualityScore: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 50,
+      validate: {
+        min: 0,
+        max: 100,
+      },
+    },
   },
   {
     tableName: 'users',

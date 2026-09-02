@@ -1,5 +1,6 @@
 const express = require('express');
 const authenticate = require('../../common/middlewares/authenticate');
+const idempotency = require('../../common/middlewares/idempotency');
 const asyncHandler = require('../../common/utils/async-handler');
 const controller = require('./tontine.controller');
 
@@ -53,14 +54,16 @@ router.put('/mtn-momo/webhook', asyncHandler(controller.mtnMomoWebhook));
  *       200:
  *         description: Vue tontine
  */
+router.get('/kyc-limits', authenticate, asyncHandler(controller.getKycLimits));
 router.get('/', authenticate, asyncHandler(controller.getOverview));
-router.post('/configure', authenticate, asyncHandler(controller.configure));
-router.post('/deposit', authenticate, asyncHandler(controller.deposit));
+router.post('/configure', authenticate, idempotency(), asyncHandler(controller.configure));
+router.post('/deposit', authenticate, idempotency(), asyncHandler(controller.deposit));
 router.post(
   '/confirm-payout',
   authenticate,
+  idempotency(),
   asyncHandler(controller.confirmPayout),
 );
-router.post('/stop-early', authenticate, asyncHandler(controller.stopEarly));
+router.post('/stop-early', authenticate, idempotency(), asyncHandler(controller.stopEarly));
 
 module.exports = router;

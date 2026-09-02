@@ -1,4 +1,5 @@
 const { ok } = require('../../common/utils/api-response');
+const AppError = require('../../common/errors/app-error');
 const { getRequestContext } = require('../../common/utils/request-context');
 const {
   assertPaymentMethodEnabled,
@@ -14,10 +15,17 @@ async function getOverview(req, res) {
 }
 
 async function configure(req, res) {
+  if (req.body.termsAccepted !== true) {
+    throw new AppError(
+      "Vous devez lire et accepter les conditions générales d'épargne pour démarrer une tontine.",
+      422,
+    );
+  }
+  
   const data = await service.configureStake(
     req.auth.userId,
     req.body.stakeAmount,
-    getRequestContext(req),
+    { ...getRequestContext(req), termsAccepted: true },
   );
   return ok(res, data, 'Mise configuree.');
 }
@@ -32,7 +40,10 @@ async function deposit(req, res) {
     req.auth.userId,
     Number(req.body.amount),
     'wallet',
-    getRequestContext(req),
+    {
+      ...getRequestContext(req),
+      syncId: req.body.syncId,
+    },
   );
   return ok(res, data, 'Versement enregistre.');
 }
@@ -46,7 +57,7 @@ async function initializeFedapayDeposit(req, res) {
   const data = await fedapayService.initializeFedapayTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement FedaPay initialise.');
 }
@@ -60,7 +71,7 @@ async function initializeAfrikmoneyDeposit(req, res) {
   const data = await afrikmoneyService.initializeAfrikmoneyTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement Afrikmoney initialise.');
 }
@@ -90,7 +101,7 @@ async function initializeMtnMomoDeposit(req, res) {
   const data = await mtnMomoService.initializeMtnMomoTontineDeposit(
     req.auth.userId,
     Number(req.body.amount),
-    getRequestContext(req),
+    { ...getRequestContext(req), syncId: req.body.syncId },
   );
   return ok(res, data, 'Paiement MTN MoMo initialise.');
 }
@@ -138,7 +149,14 @@ async function stopEarly(req, res) {
   return ok(res, data, 'Tontine arretee.');
 }
 
+async function getKycLimits(req, res) {
+  const limits = await service.listTontineKycLimits();
+  const userLimit = await service.getUserEffectiveKycLimit(req.auth.userId);
+  return ok(res, { limits, userLimit }, 'Plafonds KYC tontine charges.');
+}
+
 module.exports = {
+  getKycLimits,
   getOverview,
   configure,
   deposit,

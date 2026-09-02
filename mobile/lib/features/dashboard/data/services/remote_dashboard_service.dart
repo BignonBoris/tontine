@@ -1,4 +1,5 @@
 import 'package:mobile/core/network/api_client.dart';
+import 'package:uuid/uuid.dart';
 import 'package:mobile/features/dashboard/domain/entities/app_notification_item.dart';
 import 'package:mobile/features/dashboard/domain/entities/available_balance_history_entry.dart';
 import 'package:mobile/features/dashboard/domain/entities/market_offer.dart';
@@ -214,24 +215,28 @@ class RemoteDashboardService {
     }
   }
 
-  Future<void> configureStake(double stakeAmount) {
+  Future<void> configureStake(double stakeAmount, {required bool termsAccepted}) {
     return _apiClient.post(
       '/tontine/configure',
-      body: {'stakeAmount': stakeAmount},
+      body: {
+        'stakeAmount': stakeAmount,
+        'termsAccepted': termsAccepted,
+      },
     );
   }
 
-  Future<void> makeTontineDeposit(double amount) {
+  Future<void> makeTontineDeposit(double amount, String syncId) {
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 
   Future<void> transferAvailableToTontine(double amount) {
+    final syncId = const Uuid().v4();
     return _apiClient.post(
       '/tontine/deposit',
-      body: {'amount': amount, 'source': 'wallet'},
+      body: {'amount': amount, 'source': 'wallet', 'syncId': syncId},
     );
   }
 
@@ -265,11 +270,20 @@ class RemoteDashboardService {
     );
   }
 
-  Future<void> fundGoal(String goalId, double amount) {
-    return _apiClient.post('/goals/$goalId/fund', body: {'amount': amount});
+  Future<void> fundGoal(String goalId, num amount, [String? syncId]) async {
+    await _apiClient.post(
+      '/goals/$goalId/fund',
+      body: {'amount': amount},
+      idempotencyKey: syncId,
+    );
   }
 
-  Future<void> closeGoal(String goalId) {
+  Future<Map<String, dynamic>> getGoalConfig() async {
+    final response = await _apiClient.get('/goals/config');
+    return response['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> closeGoal(String goalId) async {
     return _apiClient.post('/goals/$goalId/close');
   }
 
@@ -547,6 +561,7 @@ class RemoteDashboardService {
       lastLoginAt: map['lastLoginAt'] == null
           ? null
           : _toDateTime(map['lastLoginAt']),
+      kyc: KycSummary.fromMap(map['kyc'] is Map ? map['kyc'] as Map : null),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/currency_formatter.dart';
@@ -23,109 +24,265 @@ class TontineCycleListItem extends StatelessWidget {
     }
 
     final activeCycle = cycle!;
+    final daysCount = activeCycle.stakeAmount > 0
+        ? (activeCycle.cumulativeAmount / activeCycle.stakeAmount)
+            .round()
+            .clamp(0, 31)
+        : 0;
+    final progressPercent = (activeCycle.progress * 100).toInt();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.accentColor.withValues(alpha: 0.18),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppTheme.primaryColor.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Rangée 1 : En-tête avec Icône + Titre & Compteur Visuel Direct (Jour X / 31)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.heroGradient,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.20),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.cached_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.lock_clock_outlined,
-                      color: AppTheme.primaryColor,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                "Tontine Active",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15.5,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.secondaryColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Mise : ${formatFCFA(activeCycle.stakeAmount)} F / jour",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textSecondaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Tontine active",
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: AppTheme.primaryColor,
+
+                    // Compteur Visuel Direct Badge (Jour 18 / 31)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppTheme.accentColor.withValues(alpha: 0.40),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 12.5,
+                            color: AppTheme.accentColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Jour $daysCount / 31",
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Rangée 2 : Barre de Progression bicolore & Pourcentage
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          height: 8,
+                          color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: activeCycle.progress.clamp(0.0, 1.0),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppTheme.secondaryColor,
+                                    AppTheme.accentColor,
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "$progressPercent%",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Rangée 3 : Métriques Financières (Épargné vs Gain Net Fin de Cycle)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MetricColumn(
+                        label: "Épargné à ce jour",
+                        value: "${formatFCFA(activeCycle.cumulativeAmount)} F",
+                        valueColor: AppTheme.primaryColor,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _MetricColumn(
+                        label: "Gain net fin de cycle (J30)",
+                        value: "${formatFCFA(activeCycle.netPayoutAmount)} F",
+                        valueColor: AppTheme.accentDarkColor,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Séparateur fin
+                Divider(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                  height: 1,
+                ),
+                const SizedBox(height: 10),
+
+                // Rangée 4 : Statut du Jour & Accès au Calendrier
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 15,
+                          color: AppTheme.secondaryColor,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          "Mise ${formatFCFA(activeCycle.stakeAmount)} F",
+                          "Cotisation du jour à jour",
                           style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppTheme.textSecondaryColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.secondaryColor,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  Text(
-                    "${(activeCycle.progress * 100).toInt()}%",
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppTheme.primaryColor,
+                    Row(
+                      children: [
+                        Text(
+                          "Voir calendrier",
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textSecondaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 11,
+                          color: AppTheme.textSecondaryColor,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: activeCycle.progress,
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.08),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    AppTheme.secondaryColor,
-                  ),
-                  minHeight: 7,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MetricColumn(
-                      label: "Cumul actuel",
-                      value: "${formatFCFA(activeCycle.cumulativeAmount)} F",
-                      valueColor: AppTheme.primaryColor,
-                    ),
-                  ),
-                  Expanded(
-                    child: _MetricColumn(
-                      label: "Objectif cycle",
-                      value: "${formatFCFA(activeCycle.targetAmount)} F",
-                      valueColor: AppTheme.accentColor,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -141,53 +298,65 @@ class _TontineEmptyListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.08),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
-          padding: const EdgeInsets.all(12),
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.08),
+            color: AppTheme.accentColor.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           child: const Icon(
-            Icons.savings_outlined,
-            color: AppTheme.primaryColor,
+            Icons.savings_rounded,
+            color: AppTheme.accentDarkColor,
+            size: 22,
           ),
         ),
         title: Text(
           "Aucune tontine active",
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
             color: AppTheme.primaryColor,
           ),
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: 4),
           child: Text(
-            "Commencez une nouvelle tontine.",
+            "Configurez votre mise pour démarrer un tour.",
             style: GoogleFonts.inter(
               color: AppTheme.textSecondaryColor,
-              fontSize: 13,
+              fontSize: 12.5,
             ),
           ),
         ),
-        trailing: IconButton(
-          onPressed: onRestartPressed,
-          icon: const Icon(Icons.refresh_rounded, color: AppTheme.primaryColor),
-          tooltip: "Recommencer",
+        trailing: Container(
+          decoration: BoxDecoration(
+            gradient: AppTheme.accentGradient,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            onPressed: onRestartPressed,
+            icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+            tooltip: "Démarrer une tontine",
+          ),
         ),
       ),
     );
@@ -218,17 +387,18 @@ class _MetricColumn extends StatelessWidget {
           label,
           textAlign: textAlign,
           style: GoogleFonts.inter(
-            fontSize: 12,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w500,
             color: AppTheme.textSecondaryColor,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           value,
           textAlign: textAlign,
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
-            fontSize: 14,
+            fontSize: 14.5,
             color: valueColor,
           ),
         ),

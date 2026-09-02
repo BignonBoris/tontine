@@ -17,7 +17,9 @@ import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart'
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:mobile/features/dashboard/presentation/screens/notifications_screen.dart';
+import 'package:mobile/features/dashboard/presentation/screens/kyc_submission_screen.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/profile_metric_card.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/profile_section_tile.dart';
 
@@ -26,73 +28,49 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(
-          "Mon Profil",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          BlocBuilder<DashboardBloc, DashboardState>(
-            builder: (context, state) {
-              final unreadCount = state is DashboardLoaded
-                  ? state.notifications.where((item) => !item.isRead).length
-                  : 0;
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        final unreadCount = state is DashboardLoaded
+            ? state.notifications.where((item) => !item.isRead).length
+            : 0;
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BlocProvider.value(
-                              value: context.read<DashboardBloc>(),
-                              child: const NotificationsScreen(),
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.notifications_none_rounded),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.errorColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+        return Scaffold(
+          backgroundColor: AppTheme.backgroundColor,
+          body: Column(
+            children: [
+              FinanceHeroHeader(
+                title: "Mon Profil",
+                subtitle: "Informations & paramètres du compte",
+                showBackButton: false,
+                actions: [
+                  FinanceHeaderActionButton(
+                    icon: Icons.notifications_none_rounded,
+                    badgeCount: unreadCount,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(
+                            value: context.read<DashboardBloc>(),
+                            child: const NotificationsScreen(),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            },
+                      );
+                    },
+                  ),
+                ],
+              ),
+              Expanded(
+                child: _buildProfileBody(context, state),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: BlocBuilder<DashboardBloc, DashboardState>(
-        builder: (context, state) {
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileBody(BuildContext context, DashboardState state) {
           if (state is DashboardOffline) {
             return DashboardOfflineView(
               title: state.title,
@@ -223,6 +201,22 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 ProfileSectionTile(
                   icon: Icons.verified_user_outlined,
+                  title: "Vérification d'identité / KYC",
+                  subtitle: _kycSubtitle(state.profile.kyc),
+                  iconBackgroundColor: const Color(0xFFE7F8EE),
+                  iconColor: const Color(0xFF237A45),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<DashboardBloc>(),
+                        child: KycSubmissionScreen(currentStatus: state.profile.kyc),
+                      ),
+                    ),
+                  ),
+                ),
+                ProfileSectionTile(
+                  icon: Icons.verified_user_outlined,
                   title: "Securite",
                   subtitle: "Configurer PIN local et validation biometrique",
                   iconBackgroundColor: AppTheme.accentColor.withOpacity(0.18),
@@ -259,9 +253,6 @@ class ProfileScreen extends StatelessWidget {
               ],
             ),
           );
-        },
-      ),
-    );
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -861,6 +852,16 @@ class ProfileScreen extends StatelessWidget {
     final raw = DateFormat('MMMM yyyy', 'fr_FR').format(date);
     return raw[0].toUpperCase() + raw.substring(1);
   }
+
+  String _kycSubtitle(KycSummary kyc) {
+    switch (kyc.status) {
+      case 'verified': return 'Identite verifiee';
+      case 'pending_review': return 'Dossier en cours de revue';
+      case 'rejected': return 'Informations a corriger';
+      case 'expired': return 'Verification a renouveler';
+      default: return 'Soumettre vos informations d identite';
+    }
+  }
 }
 
 class _ProfileHeroCard extends StatelessWidget {
@@ -885,11 +886,7 @@ class _ProfileHeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.accentColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppTheme.primaryColor,
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryColor.withOpacity(0.22),
@@ -921,13 +918,23 @@ class _ProfileHeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      profile.displayName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            profile.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _KycBadge(status: profile.kyc.status),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1013,6 +1020,47 @@ class _HeroInfo extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _KycBadge extends StatelessWidget {
+  final String status;
+
+  const _KycBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final verified = status == 'verified';
+    final pending = status == 'pending_review';
+    final label = verified
+        ? 'Verifie'
+        : pending
+            ? 'En revue'
+            : status == 'rejected'
+                ? 'A revoir'
+                : 'Non verifie';
+    final color = verified
+        ? const Color(0xFFB7F4D0)
+        : pending
+            ? const Color(0xFFFFE2A8)
+            : Colors.white.withOpacity(0.76);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(verified ? Icons.verified_rounded : Icons.info_outline_rounded, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+        ],
+      ),
     );
   }
 }

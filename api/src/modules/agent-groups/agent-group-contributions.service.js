@@ -693,6 +693,7 @@ async function advanceContributionByAgent(
         beneficiaryMemberId: contribution.beneficiaryMemberId,
         agentProfileId: agentProfile.id,
         amount,
+        penaltyAmount: group.rules?.penaltyAmount || 0,
         recoveredAmount: 0,
         status: 'outstanding',
         advancedAt: new Date(),
@@ -786,16 +787,28 @@ async function recoverAdvanceByAgent(
     }
 
     const totalAmount = Number(advance.amount);
+    const penaltyAmount = Number(advance.penaltyAmount || 0);
     const recoveredAmount = Number(advance.recoveredAmount || 0);
+    const penaltyPaid = advance.penaltyPaid;
+
     const remainingAmount = Math.max(totalAmount - recoveredAmount, 0);
-    const requestedAmount = payload.amount == null
+    const payPenalty = payload.payPenalty === true;
+    
+    let requestedAmount = payload.amount == null
       ? remainingAmount
       : Number(payload.amount);
+      
+    if (payPenalty && !penaltyPaid) {
+      requestedAmount += penaltyAmount;
+    }
 
     if (!requestedAmount || requestedAmount <= 0) {
       throw new AppError('Montant de remboursement invalide.', 422);
     }
-    if (requestedAmount > remainingAmount) {
+    
+    const amountTowardsAdvance = payPenalty && !penaltyPaid ? requestedAmount - penaltyAmount : requestedAmount;
+
+    if (amountTowardsAdvance > remainingAmount) {
       throw new AppError('Le remboursement depasse le solde de l avance.', 422);
     }
 
@@ -835,7 +848,7 @@ async function recoverAdvanceByAgent(
       { transaction },
     );
 
-    const nextRecoveredAmount = recoveredAmount + requestedAmount;
+    const nextRecoveredAmount = recoveredAmount + amountTowardsAdvance;
     const nextStatus = nextRecoveredAmount >= totalAmount
       ? 'recovered'
       : 'partially_recovered';
@@ -843,6 +856,7 @@ async function recoverAdvanceByAgent(
     await advance.update(
       {
         recoveredAmount: nextRecoveredAmount,
+        penaltyPaid: payPenalty || penaltyPaid,
         status: nextStatus,
         lastRecoveredAt: new Date(),
         recoveredAt: nextStatus === 'recovered' ? new Date() : null,

@@ -59,18 +59,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
 
     if (cachedSnapshot != null) {
-      emit(
-        _buildLoadedState(
-          cachedSnapshot.snapshot,
-          lastSyncedAt: cachedSnapshot.lastSyncedAt,
-          isFromCache: true,
-          isSyncing: true,
-          statusMessage: "Synchronisation en cours...",
-          statusVariant: DashboardStatusVariant.info,
-        ),
-      );
+      if (!event.isSilent) {
+        emit(
+          _buildLoadedState(
+            cachedSnapshot.snapshot,
+            lastSyncedAt: cachedSnapshot.lastSyncedAt,
+            isFromCache: true,
+            isSyncing: true,
+            statusMessage: "Synchronisation en cours...",
+            statusVariant: DashboardStatusVariant.info,
+          ),
+        );
+      }
     } else {
-      emit(DashboardLoading());
+      if (!event.isSilent) {
+        emit(DashboardLoading());
+      }
     }
 
     try {
@@ -169,10 +173,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     AddFundsToGoal event,
     Emitter<DashboardState> emit,
   ) async {
-    await _runMutation(
-      emit,
-      () => _remoteDashboardService.fundGoal(event.goalId, event.amount),
-    );
+    try {
+      final currentState = state;
+      if (currentState is! DashboardLoaded) return;
+
+      emit(DashboardLoading());
+      await _remoteDashboardService.fundGoal(event.goalId, event.amount, event.syncId);
+      final updatedSnapshot = await _remoteDashboardService.fetchDashboardSnapshot();
+
+      emit(
+        _buildLoadedState(
+          updatedSnapshot,
+        ),
+      );
+    } catch (e) {
+      if (!isClosed) emit(DashboardError(e.toString()));
+    }
   }
 
   Future<void> _onTransferToTontine(
@@ -191,7 +207,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     await _runMutation(
       emit,
-      () => _remoteDashboardService.configureStake(event.stakeAmount),
+      () => _remoteDashboardService.configureStake(event.stakeAmount, termsAccepted: event.termsAccepted),
     );
   }
 
@@ -201,7 +217,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     await _runMutation(
       emit,
-      () => _remoteDashboardService.makeTontineDeposit(event.amount),
+      () => _remoteDashboardService.makeTontineDeposit(event.amount, event.syncId),
     );
   }
 

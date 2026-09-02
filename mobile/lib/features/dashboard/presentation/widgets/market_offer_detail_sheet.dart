@@ -74,28 +74,7 @@ class _MarketOfferDetailSheetState extends State<MarketOfferDetailSheet> {
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 12, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "Detail article",
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.close_rounded),
-                            color: AppTheme.accentColor,
-                          ),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(height: 16),
                     ClipRRect(
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(24),

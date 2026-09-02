@@ -16,12 +16,12 @@ const env = {
   adminUsername: process.env.ADMIN_USERNAME || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
   adminJwtExpiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
-  otpExpiresInMinutes: Number(process.env.OTP_EXPIRES_IN_MINUTES || 2),
-  otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 5),
+  otpExpiresInMinutes: Number(process.env.OTP_EXPIRES_IN_MINUTES || 5),
+  otpMaxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 3),
   otpMaxResends: Number(process.env.OTP_MAX_RESENDS || 3),
-  otpBlockMinutes: Number(process.env.OTP_BLOCK_MINUTES || 10),
+  otpBlockMinutes: Number(process.env.OTP_BLOCK_MINUTES || 15),
   otpResendCooldownSeconds: Number(
-    process.env.OTP_RESEND_COOLDOWN_SECONDS || 30,
+    process.env.OTP_RESEND_COOLDOWN_SECONDS || 120,
   ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
@@ -57,6 +57,8 @@ const env = {
     process.env.APP_BASE_URL ||
     'http://localhost:3000',
   mtnMomoMsisdnCountryCode: process.env.MTN_MOMO_MSISDN_COUNTRY_CODE || '',
+  sentryDsn: process.env.SENTRY_DSN || '',
+  makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),

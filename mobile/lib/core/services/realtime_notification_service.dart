@@ -23,8 +23,14 @@ class RealtimeNotificationService {
   bool _started = false;
   bool _disposed = false;
 
-  RealtimeNotificationService({http.Client? client})
+  static final RealtimeNotificationService instance = RealtimeNotificationService._internal();
+
+  RealtimeNotificationService._internal({http.Client? client})
       : _client = client ?? http.Client();
+
+  factory RealtimeNotificationService() {
+    return instance;
+  }
 
   Stream<RealtimeNotificationEvent> get stream {
     _ensureStarted();

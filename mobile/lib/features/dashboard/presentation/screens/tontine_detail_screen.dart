@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
@@ -22,11 +24,12 @@ import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart
 import 'package:mobile/features/dashboard/presentation/widgets/configure_tontine_stake_modal.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_action_button.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/tontine_carnet_grid.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_history_list.dart';
 import 'package:mobile/features/groups/presentation/widgets/my_groups_section.dart';
-import 'package:mobile/features/groups/presentation/widgets/pending_group_requests_section.dart';
-import 'package:mobile/features/groups/presentation/widgets/pending_group_invitations_section.dart';
+import 'package:mobile/features/groups/presentation/widgets/unified_adhesions_section.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
 class TontineDetailScreen extends StatefulWidget {
   final bool showBackButton;
@@ -404,86 +407,60 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
         final cycle = state.tontineCycle;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF8F9FE),
-          appBar: AppBar(
-            automaticallyImplyLeading: widget.showBackButton,
-            title: Text(
-              "Tontine",
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
-            actions: _tabController.index == 0
-                ? [
-                    IconButton(
-                      icon: const Icon(Icons.history_rounded),
-                      onPressed: () => _showTontineArchives(
-                        context,
-                        state.tontineArchives,
-                      ),
-                    ),
-                  ]
-                : _tabController.index == 2
-                    ? [
-                        IconButton(
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/group-scanner'),
-                        ),
-                      ]
-                    : const [],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  labelColor: AppTheme.primaryColor,
-                  unselectedLabelColor: AppTheme.textSecondaryColor,
-                  indicator: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelStyle: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                  unselectedLabelStyle: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  tabs: [
-                    const Tab(text: 'Personnel'),
-                    const Tab(text: 'Groupe'),
-                    Tab(
-                      child: _CountTabLabel(
-                        label: 'Adhesions',
-                        count: _adhesionPendingCount,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          body: TabBarView(
-            controller: _tabController,
+          backgroundColor: AppTheme.backgroundColor,
+          body: Column(
             children: [
-              _PersonalTontineTab(
-                cycle: cycle,
-                availableBalance: state.availableBalance,
-                history: state.tontineHistory,
-                buildActionArea: (context, cycle, availableBalance) =>
-                    _buildActionArea(context, cycle, availableBalance),
-              ),
-              const _GroupTontineTab(),
-              _AdhesionsTontineTab(
-                onInvitationCountChanged: _handleInvitationCountChanged,
-                onRequestCountChanged: _handleRequestCountChanged,
+              _buildTontineHeader(context, state),
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                    },
+                  ),
+                  child: TabBarView(
+                    controller: _tabController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _PersonalTontineTab(
+                        cycle: cycle,
+                        availableBalance: state.availableBalance,
+                        history: state.tontineHistory,
+                        buildActionArea: (context, cycle, availableBalance) =>
+                            _buildActionArea(context, cycle, availableBalance),
+                        onDepositTap: cycle != null
+                            ? () => _showDepositSheetWithPaymentMethods(
+                                context,
+                                cycle,
+                                state.availableBalance,
+                              )
+                            : null,
+                        onStopTap: cycle != null
+                            ? () => _showEarlyStopDialog(context, cycle)
+                            : null,
+                        onCarnetTap: cycle != null
+                            ? () => _showCarnetModal(
+                                context,
+                                cycle,
+                                state.availableBalance,
+                              )
+                            : null,
+                        onSeeAllTap: () => _showAllHistoryModal(
+                          context,
+                          state.tontineHistory,
+                        ),
+                      ),
+                      const _GroupTontineTab(),
+                      _AdhesionsTontineTab(
+                        onInvitationCountChanged: _handleInvitationCountChanged,
+                        onRequestCountChanged: _handleRequestCountChanged,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -492,40 +469,242 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     );
   }
 
+  Widget _buildSheetDragHandle() {
+    return Center(
+      child: Container(
+        width: 38,
+        height: 4,
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTontineHeader(BuildContext context, DashboardLoaded state) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.heroGradient,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Cercles d'arrière-plan en filigrane (Charte VizioBox)
+          Positioned(
+            top: -30,
+            right: -20,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -35,
+            left: -20,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.accentColor.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rangée supérieure : Retour (si besoin) + Titre + Actions rapides
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 6),
+                child: Row(
+                  children: [
+                    if (widget.showBackButton) ...[
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Text(
+                        "Ma Tontine",
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    if (_tabController.index == 0)
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _showTontineArchives(context, state.tontineArchives);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.history_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (_tabController.index == 2)
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pushNamed(context, '/group-scanner');
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Onglets style WhatsApp : pleine largeur, soulignés, défilement fluide
+              TabBar(
+                controller: _tabController,
+                indicatorColor: AppTheme.accentColor,
+                indicatorWeight: 3.5,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.white.withValues(alpha: 0.15),
+                dividerHeight: 1,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white.withValues(alpha: 0.65),
+                overlayColor: WidgetStateProperty.all(
+                  Colors.white.withValues(alpha: 0.08),
+                ),
+                labelStyle: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                unselectedLabelStyle: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                tabs: [
+                  const Tab(text: 'Personnel'),
+                  const Tab(text: 'Groupe'),
+                  Tab(
+                    child: _CountTabLabel(
+                      label: 'Adhésions',
+                      count: _adhesionPendingCount,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionArea(
     BuildContext context,
     TontineCycle? cycle,
     double availableBalance,
   ) {
-    if (cycle == null) {
+    if (cycle == null || cycle.status == TontineCycleStatus.nonConfiguree) {
       return _TontineInfoPanel(
         title: "Aucune tontine en cours",
         description:
-            "Vous n avez pas encore de cycle de tontine actif. Configurez votre mise pour lancer un nouveau cycle.",
+            "Vous n'avez pas encore de cycle de tontine actif. Configurez votre mise quotidienne pour lancer un nouveau cycle.",
         child: SizedBox(
           width: double.infinity,
           height: 50,
           child: ElevatedButton.icon(
-            onPressed: () => _showRestartTontineModal(context),
-            icon: const Icon(Icons.play_circle_outline_rounded),
-            label: const Text("Configurer ma tontine"),
-          ),
-        ),
-      );
-    }
-
-    if (cycle.status == TontineCycleStatus.nonConfiguree) {
-      return _TontineInfoPanel(
-        title: "Aucune tontine en cours",
-        description:
-            "Vous n avez pas encore de cycle de tontine actif. Configurez votre mise pour lancer un nouveau cycle.",
-        child: SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed: () => _showRestartTontineModal(context),
-            icon: const Icon(Icons.tune_rounded),
-            label: const Text("Configurer ma tontine"),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _showRestartTontineModal(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: const Icon(Icons.tune_rounded, color: Colors.white),
+            label: Text(
+              "Configurer ma tontine",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       );
@@ -533,13 +712,13 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
     if (cycle.status == TontineCycleStatus.enAttenteValidationFin) {
       return _TontineInfoPanel(
-        title: "Cycle atteint",
+        title: "Cycle atteint ! 🎉",
         description:
-            "Votre objectif est complete. Confirmez le reversement vers le solde disponible.",
+            "Votre objectif est complété. Confirmez le reversement vers votre solde disponible.",
         child: Column(
           children: [
             _AmountLine(
-              label: "Total cumule",
+              label: "Total cumulé",
               value: "${formatFCFA(cycle.cumulativeAmount)} F",
             ),
             _AmountLine(
@@ -547,7 +726,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
               value: "${formatFCFA(cycle.commissionAmount)} F",
             ),
             _AmountLine(
-              label: "Montant reverse",
+              label: "Montant reversé",
               value: "${formatFCFA(cycle.netPayoutAmount)} F",
               isHighlighted: true,
             ),
@@ -555,8 +734,9 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
             SizedBox(
               width: double.infinity,
               height: 50,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: () async {
+                  HapticFeedback.lightImpact();
                   final authorized = await LocalSecurityService.authorizeIfEnabled(
                     context,
                     title: 'Confirmer le reversement',
@@ -568,7 +748,21 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   }
                   context.read<DashboardBloc>().add(ConfirmTontineCyclePayout());
                 },
-                child: const Text("Confirmer le reversement"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.secondaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                label: Text(
+                  "Confirmer le reversement",
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -580,7 +774,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       return _TontineInfoPanel(
         title: "Cycle non actif",
         description:
-            "Ce cycle n'accepte plus de versement. Reconfigurez une nouvelle mise depuis le dashboard pour repartir a zero.",
+            "Ce cycle n'accepte plus de versement. Reconfigurez une nouvelle mise.",
         child: Column(
           children: [
             _AmountLine(
@@ -588,14 +782,30 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
               value: "${formatFCFA(cycle.netPayoutAmount)} F",
               isHighlighted: true,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: () => _showRestartTontineModal(context),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text("Recommencer une tontine"),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _showRestartTontineModal(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                label: Text(
+                  "Recommencer une tontine",
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -603,168 +813,210 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Row(
+      children: [
+        TontineActionButton(
+          label: "Cotiser",
+          icon: Icons.savings_rounded,
+          gradient: AppTheme.accentGradient,
+          iconColor: Colors.white,
+          textColor: Colors.white,
+          isPrimary: true,
+          onTap: () => _showDepositSheetWithPaymentMethods(
+            context,
+            cycle,
+            availableBalance,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          TontineActionButton(
-            label: "Verser",
-            icon: Icons.add_circle_outline_rounded,
-            color: AppTheme.secondaryColor,
-            onTap: () =>
-                _showDepositSheetWithPaymentMethods(
-                  context,
-                  cycle,
-                  availableBalance,
-                ),
-          ),
-          const SizedBox(width: 12),
-          TontineActionButton(
-            label: "Arreter",
-            icon: Icons.pause_circle_outline_rounded,
-            color: AppTheme.errorColor,
-            onTap: () => _showEarlyStopDialog(context, cycle),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        TontineActionButton(
+          label: "Arrêter le cycle",
+          icon: Icons.pause_circle_outline_rounded,
+          backgroundColor: Colors.white,
+          borderColor: AppTheme.errorColor.withValues(alpha: 0.35),
+          iconColor: AppTheme.errorColor,
+          textColor: AppTheme.errorColor,
+          onTap: () => _showEarlyStopDialog(context, cycle),
+        ),
+      ],
     );
   }
 
-  void _showDepositSheet(
+  void _showCarnetModal(
     BuildContext context,
     TontineCycle cycle,
     double availableBalance,
   ) {
-    final controller = TextEditingController();
-    String? errorMessage;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 24,
-              bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              Text(
-                "Transferer vers la tontine",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Le montant sera preleve de votre solde disponible. Il doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser l'objectif du cycle.",
-                style: GoogleFonts.inter(
-                  color: AppTheme.textSecondaryColor,
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-              if (errorMessage != null) ...[
-                const SizedBox(height: 14),
-                _InlineSheetError(message: errorMessage!),
-              ],
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                inputFormatters: AppInputRules.amountFormatters,
-                autofocus: true,
-                onChanged: (_) {
-                  if (errorMessage != null) {
-                    setSheetState(() => errorMessage = null);
-                  }
-                },
-                decoration: InputDecoration(
-                  labelText: "Montant a verser",
-                  suffixText: "F CFA",
-                  helperText:
-                      "Disponible : ${formatFCFA(availableBalance)} F • Reste : ${formatFCFA((cycle.targetAmount - cycle.cumulativeAmount).toInt())} F",
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final amount = double.tryParse(controller.text);
-                    final remaining =
-                        cycle.targetAmount - cycle.cumulativeAmount;
-
-                    if (amount == null || amount <= 0) {
-                      setSheetState(() => errorMessage = "Montant invalide");
-                      return;
-                    }
-                    if (amount % AppInputRules.financialAmountStep != 0) {
-                      setSheetState(
-                        () => errorMessage =
-                            "Le montant doit etre un multiple de ${AppInputRules.financialAmountStep}",
+      builder: (modalCtx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.50,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (sheetContext, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSheetDragHandle(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.accentColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.calendar_month_rounded,
+                              color: AppTheme.accentDarkColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Carnet de pointage",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                              Text(
+                                "Cycle 31 jours • ${formatFCFA(cycle.stakeAmount)} F / jour",
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(modalCtx),
+                        icon: const Icon(Icons.close_rounded),
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TontineCarnetGrid(
+                    cycle: cycle,
+                    initiallyExpanded: true,
+                    isModal: true,
+                    onPayNextDayPressed: () {
+                      Navigator.pop(modalCtx);
+                      _showDepositSheetWithPaymentMethods(
+                        context,
+                        cycle,
+                        availableBalance,
                       );
-                      return;
-                    }
-                    if (amount > remaining) {
-                      setSheetState(
-                        () => errorMessage =
-                            "Le montant depasse l'objectif restant",
-                      );
-                      return;
-                    }
-                    if (amount > availableBalance) {
-                      setSheetState(
-                        () => errorMessage =
-                            "Solde disponible insuffisant",
-                      );
-                      return;
-                    }
-
-                    final authorized =
-                        await LocalSecurityService.authorizeIfEnabled(
-                          context,
-                          title: 'Transferer vers la tontine',
-                          message:
-                              "Entrez votre PIN pour confirmer ce versement dans votre tontine.",
-                        );
-                    if (!context.mounted || !authorized) {
-                      return;
-                    }
-
-                    context.read<DashboardBloc>().add(
-                      MakeTontineDeposit(amount),
-                    );
-                    Navigator.pop(modalContext);
-                  },
-                  child: const Text("Confirmer le transfert"),
-                ),
+                    },
+                  ),
+                ],
               ),
-              ],
-            ),
-          );
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAllHistoryModal(
+    BuildContext context,
+    List<TontineHistoryEntry> history,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (modalCtx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.50,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (sheetContext, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSheetDragHandle(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.history_rounded,
+                              color: AppTheme.primaryColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Historique des opérations",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                              Text(
+                                "${history.length} opération${history.length > 1 ? 's' : ''}",
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(modalCtx),
+                        icon: const Icon(Icons.close_rounded),
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TontineHistoryList(history: history),
+                ],
+              ),
+            );
           },
         );
       },
@@ -805,6 +1057,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     String? errorMessage;
     bool isSubmitting = false;
     String selectedMethodCode = paymentMethods.first.code;
+    final String depositSyncId = const Uuid().v4();
     final remaining = (cycle.targetAmount - cycle.cumulativeAmount).clamp(
       0.0,
       double.infinity,
@@ -814,8 +1067,9 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
+        backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         builder: (modalContext) {
           return StatefulBuilder(
@@ -861,27 +1115,26 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   return;
                 }
 
-                final authorized =
-                    await LocalSecurityService.authorizeIfEnabled(
-                      context,
-                      title: selectedMethod.code == 'wallet'
-                          ? 'Transferer vers la tontine'
-                          : 'Payer avec le moyen choisi',
-                      message: selectedMethod.code == 'wallet'
-                          ? 'Entrez votre PIN pour confirmer ce versement dans votre tontine.'
-                          : selectedMethod.code == 'mtn_momo'
-                              ? 'Entrez votre PIN pour envoyer la demande MTN MoMo.'
-                              : selectedMethod.code == 'afrikmoney'
-                                  ? 'Entrez votre PIN pour ouvrir le paiement Afrikmoney.'
-                              : 'Entrez votre PIN pour lancer le paiement.',
-                );
+                bool authorized = true;
+                
+                // On ne demande le PIN que si l'argent sort du portefeuille interne (wallet).
+                // Pour les dépôts externes (Mobile Money), l'opérateur demandera déjà son propre PIN,
+                // donc on ne bloque pas l'UX avec un double PIN.
+                if (selectedMethod.code == 'wallet') {
+                  authorized = await LocalSecurityService.authorizeIfEnabled(
+                    context,
+                    title: 'Transferer vers la tontine',
+                    message: 'Entrez votre PIN pour confirmer ce versement dans votre tontine.',
+                  );
+                }
+
                 if (!context.mounted || !authorized) {
                   return;
                 }
 
                 if (selectedMethod.code == 'wallet') {
                   context.read<DashboardBloc>().add(
-                    MakeTontineDeposit(amount),
+                    MakeTontineDeposit(amount, depositSyncId),
                   );
                   if (modalContext.mounted) {
                     Navigator.pop(modalContext);
@@ -896,7 +1149,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
                 try {
                   if (selectedMethod.code == 'fedapay') {
-                    final session = await fedapayService.createDeposit(amount);
+                    final session = await fedapayService.createDeposit(amount, depositSyncId);
                     _pendingFedapayIntentId = session.id;
                     final paymentUrl = session.paymentUrl?.trim() ?? '';
                     final paymentUri = paymentUrl.isEmpty
@@ -957,7 +1210,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   }
 
                   if (selectedMethod.code == 'afrikmoney') {
-                    final session = await afrikmoneyService.createDeposit(amount);
+                    final session = await afrikmoneyService.createDeposit(amount, depositSyncId);
                     _pendingAfrikmoneyIntentId = session.id;
                     final paymentUrl = session.paymentUrl?.trim() ?? '';
                     final paymentUri = paymentUrl.isEmpty
@@ -1018,7 +1271,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   }
 
                   if (selectedMethod.code == 'mtn_momo') {
-                    final session = await mtnMomoService.createDeposit(amount);
+                    final session = await mtnMomoService.createDeposit(amount, depositSyncId);
                     _pendingMtnMomoIntentId = session.id;
                     _refreshOnResumeAfterMtnMomo = true;
 
@@ -1068,27 +1321,29 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   padding: EdgeInsets.only(
                     left: 24,
                     right: 24,
-                    top: 24,
+                    top: 14,
                     bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildSheetDragHandle(),
                       Text(
                         'Verser dans la tontine',
                         style: GoogleFonts.poppins(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.w700,
+                          color: AppTheme.primaryColor,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Choisissez le mode de paiement. Le montant doit etre un multiple de ${AppInputRules.financialAmountStep} et ne peut pas depasser le reste a verser du cycle.',
+                        'Choisissez le mode de paiement. Le montant doit être un multiple de ${AppInputRules.financialAmountStep} F et ne peut pas dépasser le reste à verser du cycle.',
                         style: GoogleFonts.inter(
                           color: AppTheme.textSecondaryColor,
                           fontSize: 13,
-                          height: 1.4,
+                          height: 1.45,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -1146,34 +1401,47 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                         },
                         decoration: InputDecoration(
                           labelText: selectedMethod.code == 'wallet'
-                              ? 'Montant a transferer'
-                              : 'Montant a payer',
+                              ? 'Montant à transférer'
+                              : 'Montant à payer',
                           suffixText: 'F CFA',
                           helperText: selectedMethod.code == 'wallet'
-                              ? 'Disponible : ${formatFCFA(availableBalance)} F - Reste : ${formatFCFA(remaining.toInt())} F'
-                              : 'Paiement externe - Reste a verser : ${formatFCFA(remaining.toInt())} F',
+                              ? 'Disponible : ${formatFCFA(availableBalance)} F • Reste : ${formatFCFA(remaining.toInt())} F'
+                              : 'Paiement externe • Reste à verser : ${formatFCFA(remaining.toInt())} F',
                         ),
                       ),
                       if (errorMessage != null) ...[
                         const SizedBox(height: 14),
                         _InlineSheetError(message: errorMessage!),
                       ],
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,
-                        height: 50,
+                        height: 52,
                         child: ElevatedButton(
                           onPressed: isSubmitting ? null : submitDeposit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
                           child: isSubmitting
                               ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
+                                  width: 20,
+                                  height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2.4,
                                     color: Colors.white,
                                   ),
                                 )
-                              : Text(_depositActionLabel(selectedMethod.code)),
+                              : Text(
+                                  _depositActionLabel(selectedMethod.code),
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -1232,67 +1500,197 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       double.infinity,
     );
 
+    bool isAccepted = false;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text("Arreter la tontine ?"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AmountLine(
-                label: "Cumul actuel",
-                value: "${formatFCFA(cycle.cumulativeAmount)} F",
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-              _AmountLine(
-                label: "Commission",
-                value: "${formatFCFA(cycle.commissionAmount)} F",
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.stop_circle_outlined,
+                      color: AppTheme.errorColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Arrêter la tontine ?",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              _AmountLine(
-                label: "Montant reverse",
-                value: "${formatFCFA(netAmount)} F",
-                isHighlighted: true,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Cette action interrompt immédiatement votre cycle de 31 jours. Conformément aux règles de la tontine, une mise est retenue en pénalité de rupture.",
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        color: AppTheme.textSecondaryColor,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          _AmountLine(
+                            label: "Cumul actuel cotisé",
+                            value: "${formatFCFA(cycle.cumulativeAmount)} F CFA",
+                          ),
+                          const SizedBox(height: 6),
+                          _AmountLine(
+                            label: "Pénalité retenue (1 mise)",
+                            value: "- ${formatFCFA(cycle.commissionAmount)} F CFA",
+                          ),
+                          Divider(
+                            height: 16,
+                            color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                          ),
+                          _AmountLine(
+                            label: "Net reversé sur solde",
+                            value: "${formatFCFA(netAmount)} F CFA",
+                            isHighlighted: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      onTap: () {
+                        setDialogState(() {
+                          isAccepted = !isAccepted;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: isAccepted,
+                                activeColor: AppTheme.errorColor,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    isAccepted = val ?? false;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "J'ai bien compris que cet arrêt est irréversible et j'accepte la retenue de ${formatFCFA(cycle.commissionAmount)} F.",
+                                style: GoogleFonts.inter(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textPrimaryColor,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Annuler"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final authorized = await LocalSecurityService.authorizeIfEnabled(
-                  context,
-                  title: 'Arreter la tontine',
-                  message:
-                      "Entrez votre PIN pour confirmer l'arret anticipe de cette tontine.",
-                );
-                if (!context.mounted || !authorized) {
-                  return;
-                }
-                context.read<DashboardBloc>().add(StopTontineEarly());
-                Navigator.pop(dialogContext);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.errorColor,
-              ),
-              child: const Text("Confirmer l'arret"),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(
+                    "Annuler",
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondaryColor,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isAccepted
+                      ? () async {
+                          final authorized =
+                              await LocalSecurityService.authorizeIfEnabled(
+                            context,
+                            title: 'Arrêter la tontine',
+                            message:
+                                "Entrez votre PIN pour confirmer l'arrêt anticipé de cette tontine.",
+                          );
+                          if (!context.mounted || !authorized) {
+                            return;
+                          }
+                          context.read<DashboardBloc>().add(StopTontineEarly());
+                          Navigator.pop(dialogContext);
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                    disabledBackgroundColor:
+                        AppTheme.errorColor.withValues(alpha: 0.35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    "Confirmer l'arrêt",
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  void _showSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Future<void> _showRestartTontineModal(BuildContext context) async {
+    final dashState = context.read<DashboardBloc>().state;
+    final kycStatus = dashState is DashboardLoaded
+        ? dashState.profile.kyc.status
+        : 'unverified';
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1301,8 +1699,9 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       backgroundColor: Colors.transparent,
       builder: (modalContext) {
         return ConfigureTontineStakeModal(
-          onSubmit: (amount) async {
-            context.read<DashboardBloc>().add(ConfigureTontineStake(amount));
+          kycStatus: kycStatus,
+          onSubmit: (amount, termsAccepted) async {
+            context.read<DashboardBloc>().add(ConfigureTontineStake(amount, termsAccepted: termsAccepted));
           },
         );
       },
@@ -1316,20 +1715,22 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (modalContext) {
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildSheetDragHandle(),
               Text(
-                "Tontines precedentes",
+                "Tontines précédentes",
                 style: GoogleFonts.poppins(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primaryColor,
                 ),
@@ -1338,10 +1739,13 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
               if (archives.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    "Aucune tontine precedente.",
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSecondaryColor,
+                  child: Center(
+                    child: Text(
+                      "Aucune tontine précédente.",
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondaryColor,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 )
@@ -1350,19 +1754,25 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: archives.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                    ),
                     itemBuilder: (context, index) {
                       final archive = archives[index];
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                        leading: CircleAvatar(
-                          backgroundColor: AppTheme.primaryColor.withOpacity(
-                            0.1,
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
                             Icons.history_rounded,
                             color: AppTheme.primaryColor,
+                            size: 20,
                           ),
                         ),
                         title: Text(
@@ -1370,16 +1780,20 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
+                            color: AppTheme.textPrimaryColor,
                           ),
                         ),
                         subtitle: Text(
-                          "Debut ${DateFormat('dd/MM/yyyy').format(archive.startDate)} - Fin ${DateFormat('dd/MM/yyyy').format(archive.endDate)}",
+                          "Début ${DateFormat('dd/MM/yyyy').format(archive.startDate)} • Fin ${DateFormat('dd/MM/yyyy').format(archive.endDate)}",
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: AppTheme.textSecondaryColor,
                           ),
                         ),
-                        trailing: const Icon(Icons.chevron_right_rounded),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppTheme.textSecondaryColor,
+                        ),
                         onTap: () {
                           Navigator.pop(modalContext);
                           _showArchiveSummary(context, archive);
@@ -1397,20 +1811,30 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
   void _showArchiveSummary(BuildContext context, TontineArchiveEntry archive) {
     final statusLabel = archive.status == TontineArchiveStatus.completed
-        ? "Cycle termine"
-        : "Arret anticipe";
+        ? "Cycle terminé"
+        : "Arrêt anticipé";
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(statusLabel),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Text(
+            statusLabel,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _AmountLine(
-                label: "Date de debut",
+                label: "Date de début",
                 value: DateFormat('dd/MM/yyyy').format(archive.startDate),
               ),
               _AmountLine(
@@ -1422,7 +1846,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 value: "${formatFCFA(archive.targetAmount)} F",
               ),
               _AmountLine(
-                label: "Total cumule",
+                label: "Total cumulé",
                 value: "${formatFCFA(archive.cumulativeAmount)} F",
               ),
               _AmountLine(
@@ -1430,7 +1854,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 value: "${formatFCFA(archive.commissionAmount)} F",
               ),
               _AmountLine(
-                label: "Montant reverse",
+                label: "Montant reversé",
                 value: "${formatFCFA(archive.netPayoutAmount)} F",
                 isHighlighted: true,
               ),
@@ -1439,7 +1863,13 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Fermer"),
+              child: Text(
+                "Fermer",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
             ),
           ],
         );
@@ -1450,8 +1880,16 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
 class _TontineHeroCard extends StatelessWidget {
   final TontineCycle? cycle;
+  final VoidCallback? onDepositTap;
+  final VoidCallback? onStopTap;
+  final VoidCallback? onCarnetTap;
 
-  const _TontineHeroCard({required this.cycle});
+  const _TontineHeroCard({
+    required this.cycle,
+    this.onDepositTap,
+    this.onStopTap,
+    this.onCarnetTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1476,7 +1914,7 @@ class _TontineHeroCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Reconfigurez une mise pour relancer un cycle depuis le dashboard.",
+              "Reconfigurez une mise pour relancer un cycle.",
               style: GoogleFonts.inter(
                 color: AppTheme.textSecondaryColor,
                 height: 1.4,
@@ -1487,103 +1925,333 @@ class _TontineHeroCard extends StatelessWidget {
       );
     }
 
+    final stake = cycle!.stakeAmount;
+    final totalDays = (stake > 0 ? (cycle!.targetAmount / stake).round() : 31).clamp(1, 62);
+    final paidDays = (stake > 0 ? (cycle!.cumulativeAmount / stake).floor() : 0).clamp(0, totalDays);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A237E), Color(0xFF26359C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.08),
         ),
-        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _statusLabel(cycle!.status),
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white70,
+          // En-tête : Montant à gauche + Boutons d'action compacts à droite (icônes uniquement)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "TOTAL COTISÉ",
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondaryColor,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          formatFCFA(cycle!.cumulativeAmount),
+                          style: GoogleFonts.poppins(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primaryColor,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "FCFA",
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Objectif final : ${formatFCFA(cycle!.targetAmount)} FCFA",
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Boutons d'action compacts : uniquement icônes pour économiser de la place
+              if (onDepositTap != null || onStopTap != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onDepositTap != null)
+                      Material(
+                        color: Colors.transparent,
+                        child: Tooltip(
+                          message: "Cotiser",
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              onDepositTap?.call();
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Ink(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.accentGradient,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.accentColor.withValues(alpha: 0.30),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.savings_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (onDepositTap != null && onStopTap != null)
+                      const SizedBox(width: 8),
+                    if (onStopTap != null)
+                      Material(
+                        color: Colors.transparent,
+                        child: Tooltip(
+                          message: "Arrêter le cycle",
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              onStopTap?.call();
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Ink(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: AppTheme.errorColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppTheme.errorColor.withValues(alpha: 0.28),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.stop_circle_outlined,
+                                color: AppTheme.errorColor,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: 0.09),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 12,
+                  color: AppTheme.accentDarkColor,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  "Épargne bloquée jusqu'à terme (31j)",
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            "${formatFCFA(cycle!.cumulativeAmount)} F",
-            style: GoogleFonts.poppins(
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "Objectif ${formatFCFA(cycle!.targetAmount)} F",
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white70),
-          ),
-          const SizedBox(height: 20),
+          
+          const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: cycle!.progress,
-              minHeight: 10,
-              backgroundColor: Colors.white.withOpacity(0.18),
+              minHeight: 8,
+              backgroundColor: const Color(0xFFF1F4F8),
               valueColor: const AlwaysStoppedAnimation<Color>(
-                AppTheme.secondaryColor,
+                AppTheme.accentColor,
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _HeroMetric(
-                  label: "Mise actuelle",
-                  value: "${formatFCFA(cycle!.stakeAmount)} F",
-                ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
               ),
-              Expanded(
-                child: _HeroMetric(
-                  label: "Progression",
-                  value: "${(cycle!.progress * 100).toInt()}%",
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _HeroMetric(
+                    label: "Mise / jour",
+                    value: "${formatFCFA(cycle!.stakeAmount)} F",
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _HeroMetric(
-                  label: "Net fin cycle",
-                  value: "${formatFCFA(cycle!.netPayoutAmount)} F",
+                Container(
+                  width: 1,
+                  height: 26,
+                  color: const Color(0xFFE2E8F0),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: _HeroMetric(
+                    label: "Progression",
+                    value: "${(cycle!.progress * 100).toInt()}%",
+                    highlightColor: AppTheme.accentDarkColor,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 26,
+                  color: const Color(0xFFE2E8F0),
+                ),
+                Expanded(
+                  child: _HeroMetric(
+                    label: "Net à terme",
+                    value: "${formatFCFA(cycle!.netPayoutAmount)} F",
+                  ),
+                ),
+              ],
+            ),
           ),
+
+          // Lien cliquable vers le carnet de pointage (ouvre la modale)
+          if (onCarnetTap != null) ...[
+            const SizedBox(height: 14),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onCarnetTap?.call();
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Ink(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.calendar_month_rounded,
+                          color: AppTheme.accentDarkColor,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "Carnet de pointage",
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        "$paidDays / $totalDays jours",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentDarkColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
-  }
-
-  String _statusLabel(TontineCycleStatus status) {
-    switch (status) {
-      case TontineCycleStatus.nonConfiguree:
-        return "Non configuree";
-      case TontineCycleStatus.active:
-        return "Cycle actif";
-      case TontineCycleStatus.enAttenteValidationFin:
-        return "En attente de confirmation";
-      case TontineCycleStatus.terminee:
-        return "Cycle termine";
-      case TontineCycleStatus.arretee:
-        return "Cycle arretee";
-    }
   }
 }
 
 class _HeroMetric extends StatelessWidget {
   final String label;
   final String value;
+  final Color? highlightColor;
 
-  const _HeroMetric({required this.label, required this.value});
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+    this.highlightColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1592,15 +2260,18 @@ class _HeroMetric extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(fontSize: 11, color: Colors.white70),
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: AppTheme.textSecondaryColor,
+          ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           value,
           style: GoogleFonts.poppins(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: highlightColor ?? AppTheme.textPrimaryColor,
           ),
         ),
       ],
@@ -1622,15 +2293,18 @@ class _TontineInfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.06),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppTheme.primaryColor.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -1650,7 +2324,8 @@ class _TontineInfoPanel extends StatelessWidget {
             description,
             style: GoogleFonts.inter(
               color: AppTheme.textSecondaryColor,
-              height: 1.4,
+              fontSize: 13,
+              height: 1.45,
             ),
           ),
           const SizedBox(height: 18),
@@ -1690,8 +2365,8 @@ class _AmountLine extends StatelessWidget {
             value,
             style: GoogleFonts.poppins(
               fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: isHighlighted ? AppTheme.secondaryColor : Colors.black87,
+              fontWeight: isHighlighted ? FontWeight.w800 : FontWeight.w600,
+              color: isHighlighted ? AppTheme.accentColor : AppTheme.textPrimaryColor,
             ),
           ),
         ],
@@ -1710,18 +2385,26 @@ class _PersonalTontineTab extends StatelessWidget {
     double availableBalance,
   )
   buildActionArea;
+  final VoidCallback? onDepositTap;
+  final VoidCallback? onStopTap;
+  final VoidCallback? onCarnetTap;
+  final VoidCallback? onSeeAllTap;
 
   const _PersonalTontineTab({
     required this.cycle,
     required this.availableBalance,
     required this.history,
     required this.buildActionArea,
+    this.onDepositTap,
+    this.onStopTap,
+    this.onCarnetTap,
+    this.onSeeAllTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasActiveCycle = cycle != null &&
-        cycle!.status != TontineCycleStatus.nonConfiguree;
+        cycle!.status == TontineCycleStatus.active;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -1729,30 +2412,81 @@ class _PersonalTontineTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hasActiveCycle) ...[
-            _TontineHeroCard(cycle: cycle),
-            const SizedBox(height: 20),
-          ],
-          buildActionArea(context, cycle, availableBalance),
-          const SizedBox(height: 24),
-          Text(
-            "Historique tontine",
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.primaryColor,
+            _TontineHeroCard(
+              cycle: cycle,
+              onDepositTap: onDepositTap,
+              onStopTap: onStopTap,
+              onCarnetTap: onCarnetTap,
             ),
+            const SizedBox(height: 24),
+          ] else ...[
+            buildActionArea(context, cycle, availableBalance),
+            const SizedBox(height: 24),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                "Historique",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              if (onSeeAllTap != null)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      onSeeAllTap?.call();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Voir tout",
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.accentDarkColor,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 11,
+                            color: AppTheme.accentDarkColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -1765,7 +2499,7 @@ class _PersonalTontineTab extends StatelessWidget {
 }
 
 class _GroupTontineTab extends StatelessWidget {
-  const _GroupTontineTab({super.key});
+  const _GroupTontineTab();
 
   @override
   Widget build(BuildContext context) {
@@ -1807,29 +2541,17 @@ class _AdhesionsTontineTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Invitations de groupe",
+            "Adhésions & Invitations",
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppTheme.primaryColor,
             ),
           ),
-          const SizedBox(height: 12),
-          PendingGroupInvitationsSection(
-            onCountChanged: onInvitationCountChanged,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            "Demandes envoyees",
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          PendingGroupRequestsSection(
-            onCountChanged: onRequestCountChanged,
+          const SizedBox(height: 14),
+          UnifiedAdhesionsSection(
+            onInvitationCountChanged: onInvitationCountChanged,
+            onRequestCountChanged: onRequestCountChanged,
           ),
         ],
       ),
@@ -1859,20 +2581,27 @@ class _CountTabLabel extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           if (count > 0) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Container(
-              constraints: const BoxConstraints(minWidth: 22),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor,
+                color: AppTheme.accentColor,
                 borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.accentDarkColor.withValues(alpha: 0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: Text(
                 '$count',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
               ),

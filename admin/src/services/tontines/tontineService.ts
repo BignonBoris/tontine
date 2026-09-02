@@ -13,6 +13,20 @@ export interface TontineCycleUpdatePayload {
   stakeAmount: number;
 }
 
+export interface TontineKycLimitItem {
+  id: string;
+  kycStatus: "unverified" | "pending_review" | "verified";
+  tierLevel: string;
+  label: string;
+  description?: string;
+  maxDailyStake: number;
+  maxCycleCumulative: number;
+  allowMultipleCycles: boolean;
+  enabled: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export const tontineService = {
   list(params: TontineListParams = {}) {
     return unwrapEnvelope<PaginatedResponse<TontineCycleItem>>(
@@ -35,6 +49,18 @@ export const tontineService = {
   closeCycle(cycleId: string) {
     return unwrapEnvelope<TontineCycleItem>(
       apiClient.post(`/admin/tontines/${cycleId}/close`)
+    );
+  },
+
+  getKycLimits() {
+    return unwrapEnvelope<{ items: TontineKycLimitItem[] }>(
+      apiClient.get("/admin/tontines/kyc-limits")
+    );
+  },
+
+  updateKycLimits(items: Partial<TontineKycLimitItem>[]) {
+    return unwrapEnvelope<{ items: TontineKycLimitItem[] }>(
+      apiClient.put("/admin/tontines/kyc-limits", { items })
     );
   },
 };

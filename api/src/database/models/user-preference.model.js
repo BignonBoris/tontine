@@ -43,6 +43,11 @@ const UserPreference = sequelize.define(
       type: DataTypes.STRING(128),
       allowNull: true,
     },
+    onboardingGoalsDone: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   { tableName: 'user_preferences' },
 );

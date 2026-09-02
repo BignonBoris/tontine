@@ -14,6 +14,15 @@ class AppTheme {
   static const Color accentDarkColor = Color(0xFF805808);
   static const Color backgroundColor = Color(0xFFF4F7FA);
   static const Color errorColor = Color(0xFFD32F2F);
+  // Tokens sémantiques d'état — HORS charte graphique (règle produit) :
+  // le vert n'appartient pas à la charte VizioBox ; il est réservé au
+  // marquage du succès d'une opération (snackbar de confirmation, etc.),
+  // comme le veut l'usage général des applications. Ne pas les utiliser
+  // comme couleurs de marque ou de décoration. Contraste vérifié WCAG 2.1 AA :
+  // blanc sur 2E7D32 = 5.13:1, B45309 sur teinte claire = 4.58:1.
+  static const Color successColor = Color(0xFF2E7D32);
+  static const Color warningColor = Color(0xFFB45309);
+  static const Color infoColor = Color(0xFF1565C0);
   static const Color borderColor = Color(0xFFD0D5DD);
   static const Color surfaceColor = Colors.white;
   static const Color textPrimaryColor = Color(0xFF111827);

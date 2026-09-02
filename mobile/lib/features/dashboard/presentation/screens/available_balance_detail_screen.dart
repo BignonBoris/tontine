@@ -18,6 +18,7 @@ import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_state.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/available_balance_history_list.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_action_button.dart';
 
 class AvailableBalanceDetailScreen extends StatelessWidget {

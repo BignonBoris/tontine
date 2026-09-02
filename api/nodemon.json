@@ -1,0 +1,11 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": [
+    ".wwebjs_auth/**",
+    ".wwebjs_cache/**",
+    "node_modules/**",
+    "scripts/**"
+  ],
+  "exec": "node app.js"
+}

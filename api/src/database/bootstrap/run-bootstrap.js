@@ -28,6 +28,10 @@ const { ensureAgentGroupAdvanceRecoveryCompatibility } = require('./agent-group-
 const {
   ensurePushDeviceTokenCompatibility,
 } = require('./push-device-token.bootstrap');
+const {
+  ensureGoalTemplateCompatibility,
+} = require('./goal-template.bootstrap');
+const { ensureKycCompatibility } = require('./kyc.bootstrap');
 const { models } = require('../models');
 
 async function runBootstrap(sequelize) {
@@ -51,6 +55,8 @@ async function runBootstrap(sequelize) {
   await ensureAgentGroupAdvanceCompatibility(sequelize);
   await ensureAgentGroupAdvanceRecoveryCompatibility(sequelize);
   await ensurePushDeviceTokenCompatibility(sequelize);
+  await ensureGoalTemplateCompatibility(sequelize);
+  await ensureKycCompatibility(sequelize);
 }
 
 module.exports = runBootstrap;

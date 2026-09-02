@@ -6,6 +6,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
+import 'package:mobile/features/auth/data/services/biometric_service.dart';
 import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 import 'package:mobile/features/auth/widgets/legal_terms_bottom_sheet.dart';
 
@@ -29,12 +30,45 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
   bool _isSubmitting = false;
   String? _errorMessage;
   String _normalizedPhone = '';
+  
+  bool _canUseBiometrics = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _isRegistrationMode = widget.isRegistration;
+    _checkBiometrics();
     _loadSuggestedPhoneNumber();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final canUse = await BiometricService.isBiometricAvailable();
+    final isEnabled = await BiometricService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _canUseBiometrics = canUse;
+        _isBiometricEnabled = isEnabled;
+      });
+    }
+  }
+
+  Future<void> _triggerBiometricAuth() async {
+    if (!_canUseBiometrics || !_isBiometricEnabled) return;
+    final savedPin = await BiometricService.getSavedPin();
+    if (savedPin == null || savedPin.isEmpty) return;
+
+    final authenticated = await BiometricService.authenticate();
+    if (authenticated && mounted) {
+      setState(() {
+        _pinController.text = savedPin;
+        _refreshValidation();
+      });
+      // Automatically submit if everything is valid
+      if (_isValid) {
+        _handleContinue(context);
+      }
+    }
   }
 
   @override
@@ -57,6 +91,10 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       _normalizedPhone = LocalAuthService.normalizePhone(suggestedPhone);
       _refreshValidation();
     });
+    
+    if (!_isRegistrationMode) {
+      _triggerBiometricAuth();
+    }
   }
 
   void _refreshValidation() {
@@ -260,11 +298,41 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                                       ),
                                       invalidNumberMessage: 'Numéro invalide',
                                       onChanged: (phone) {
+                                        var cleanNumber = phone.number.trim();
+                                        final cleanDial = phone.countryCode
+                                            .replaceAll('+', '')
+                                            .trim();
+                                        if (cleanNumber.startsWith('+$cleanDial')) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length + 1,
+                                          );
+                                        } else if (cleanNumber.startsWith(cleanDial) &&
+                                            cleanNumber.length > 8) {
+                                          cleanNumber = cleanNumber.substring(
+                                            cleanDial.length,
+                                          );
+                                        } else if (cleanNumber.startsWith('+')) {
+                                          cleanNumber = cleanNumber.substring(1);
+                                        }
+
+                                        if (cleanNumber != phone.number) {
+                                          _phoneController.value =
+                                              TextEditingValue(
+                                            text: cleanNumber,
+                                            selection: TextSelection.collapsed(
+                                              offset: cleanNumber.length,
+                                            ),
+                                          );
+                                        }
+
                                         final dialCode =
                                             phone.countryCode.startsWith('+')
                                                 ? phone.countryCode
                                                 : '+${phone.countryCode}';
-                                        final rawDigits = phone.number.trim();
+                                        final rawDigits = cleanNumber.replaceAll(
+                                          RegExp(r'\D'),
+                                          '',
+                                        );
                                         final fullPhone = '$dialCode$rawDigits';
                                         final normalizedPhone =
                                             LocalAuthService.normalizePhone(
@@ -318,6 +386,10 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                               _refreshValidation();
                             });
                           },
+                          customSuffixIcon: (_canUseBiometrics && _isBiometricEnabled) ? IconButton(
+                            icon: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryColor),
+                            onPressed: _triggerBiometricAuth,
+                          ) : null,
                         ),
                         const SizedBox(height: 6),
                         Align(
@@ -536,7 +608,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
-                            "Des frais de SMS peuvent s'appliquer",
+                            "Code de sécurité transmis par WhatsApp",
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.72),
@@ -583,17 +655,37 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                           onPressed: () => AuthHelpBottomSheet.show(context),
                           icon: Icon(
                             Icons.help_outline_rounded,
-                            size: 16,
-                            color: Colors.white.withValues(alpha: 0.80),
+                            size: 15,
+                            color: Colors.white.withValues(alpha: 0.75),
                           ),
                           label: Text(
                             "Besoin d'aide ?",
                             style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.80),
+                              fontSize: 12.5,
+                              color: Colors.white.withValues(alpha: 0.75),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 13,
+                              color: Colors.white.withValues(alpha: 0.60),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Conforme aux normes de sécurité financière BCEAO',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -661,7 +753,6 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
         'phoneNumber': result.phoneNumber,
         'normalizedPhoneNumber': _normalizedPhone,
         'isRegistration': _isRegistrationMode,
-        'demoOtpCode': result.otpCode,
         'pinCode': _isRegistrationMode || _pinController.text.trim().isEmpty
             ? null
             : _pinController.text.trim(),
@@ -686,6 +777,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     bool enableInteractiveSelection = true,
     bool enableSuggestions = true,
     bool autocorrect = true,
+    Widget? customSuffixIcon,
   }) {
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -728,13 +820,13 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppTheme.primaryColor, size: 20),
           prefixIconConstraints: const BoxConstraints(minWidth: 36),
-          suffixIcon: isValid
+          suffixIcon: customSuffixIcon ?? (isValid
               ? const Icon(
                   Icons.check_circle_rounded,
                   color: AppTheme.secondaryColor,
                   size: 20,
                 )
-              : null,
+              : null),
           hintText: hintText,
           hintStyle: GoogleFonts.poppins(
             color: AppTheme.textSecondaryColor,

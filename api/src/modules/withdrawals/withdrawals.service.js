@@ -1081,6 +1081,18 @@ async function markWithdrawalPaidByAdmin(
       );
     }
 
+    if (
+      Number(withdrawal.amount) >= env.makerCheckerThreshold &&
+      withdrawal.approvedByAdminUsername &&
+      requestContext.adminUsername &&
+      withdrawal.approvedByAdminUsername === requestContext.adminUsername
+    ) {
+      throw new AppError(
+        'Maker-Checker: Vous ne pouvez pas marquer ce retrait comme paye car vous etes l\'administrateur qui l\'a approuve.',
+        403,
+      );
+    }
+
     await persistWithdrawalPayment(
       withdrawal,
       payload,
