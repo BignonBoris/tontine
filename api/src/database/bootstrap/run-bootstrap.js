@@ -14,6 +14,9 @@ const {
   ensureTontineHistoryCompatibility,
 } = require('./tontine-history.bootstrap');
 const {
+  ensureProvisioningCompatibility,
+} = require('./provisioning.bootstrap');
+const {
   ensureTontinePaymentIntentCompatibility,
 } = require('./tontine-payment-intent.bootstrap');
 const { ensurePaymentMethodCompatibility } = require('./payment-method.bootstrap');
@@ -42,6 +45,7 @@ async function runBootstrap(sequelize) {
   await ensureWalletCompatibility(sequelize);
   await ensureAvailableBalanceHistoryCompatibility(sequelize);
   await ensureTontineHistoryCompatibility(sequelize);
+  await ensureProvisioningCompatibility(sequelize);
   await ensureTontinePaymentIntentCompatibility(sequelize);
   await ensurePaymentMethodCompatibility(sequelize, models);
   await ensureGoalCompatibility(sequelize);

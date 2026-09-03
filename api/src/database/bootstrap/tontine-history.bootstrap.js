@@ -31,6 +31,18 @@ async function ensureTontineHistoryCompatibility(sequelize) {
     );
   }
 
+  if (!columns.sync_id) {
+    try {
+      await queryInterface.addColumn('tontine_histories', 'sync_id', {
+        type: DataTypes.UUID,
+        allowNull: true,
+        unique: true,
+      });
+    } catch (err) {
+      console.warn('⚠️ Remarque ajout colonne sync_id sur tontine_histories :', err.message);
+    }
+  }
+
   if (!columns.payment_source) {
     await queryInterface.addColumn('tontine_histories', 'payment_source', {
       type: DataTypes.STRING(32),
@@ -57,6 +69,28 @@ async function ensureTontineHistoryCompatibility(sequelize) {
       type: DataTypes.UUID,
       allowNull: true,
     });
+  }
+
+  if (!columns.initiated_by_user_id) {
+    try {
+      await queryInterface.addColumn('tontine_histories', 'initiated_by_user_id', {
+        type: DataTypes.UUID,
+        allowNull: true,
+      });
+    } catch (err) {
+      console.warn('⚠️ Remarque ajout colonne initiated_by_user_id sur tontine_histories :', err.message);
+    }
+  }
+
+  if (!columns.initiator_type) {
+    try {
+      await queryInterface.addColumn('tontine_histories', 'initiator_type', {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+      });
+    } catch (err) {
+      console.warn('⚠️ Remarque ajout colonne initiator_type sur tontine_histories :', err.message);
+    }
   }
 }
 
