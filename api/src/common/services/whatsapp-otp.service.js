@@ -2,7 +2,9 @@ const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const fsp = require('node:fs/promises');
+const fs = require('node:fs');
 const path = require('node:path');
+const { execSync } = require('node:child_process');
 
 // Version WhatsApp Web stable compatible avec le remote cache wppconnect-team
 const DEFAULT_WHATSAPP_WEB_VERSION = '2.3000.1046618780-alpha';
@@ -21,6 +23,49 @@ class WhatsAppOtpService {
     this.qrCodeDataUrl = null;
     this.lastError = null;
     this.hasLoggedQr = false;
+  }
+
+  _resolveOrInstallChrome() {
+    // 1. Si une variable d'environnement explicite existe et pointe vers un binaire valide
+    if (
+      process.env.PUPPETEER_EXECUTABLE_PATH &&
+      fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)
+    ) {
+      return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    // 2. Vérifier si Chromium est déjà présent dans le cache Puppeteer
+    try {
+      const puppeteer = require('puppeteer');
+      const execPath = puppeteer.executablePath();
+      if (fs.existsSync(execPath)) {
+        return execPath;
+      }
+    } catch (err) {
+      console.warn('⚠️ Chrome non détecté dans le cache local :', err.message);
+    }
+
+    // 3. Téléchargement automatique de secours à chaud (utile si le build n'a pas persisté le cache)
+    console.log(
+      '🔄 Téléchargement automatique de Chromium en cours (npx puppeteer browsers install chrome)...',
+    );
+    try {
+      execSync('npx puppeteer browsers install chrome', {
+        stdio: 'inherit',
+        cwd: process.cwd(),
+        env: process.env,
+      });
+      const puppeteer = require('puppeteer');
+      const execPath = puppeteer.executablePath();
+      console.log('✅ Chromium prêt à l\'utilisation :', execPath);
+      return execPath;
+    } catch (installErr) {
+      console.error(
+        '❌ Impossible de télécharger Chromium automatiquement :',
+        installErr.message,
+      );
+      return undefined;
+    }
   }
 
   initialize() {
@@ -56,6 +101,9 @@ class WhatsAppOtpService {
         process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), '.cache', 'puppeteer');
       }
 
+      const chromeExecutablePath =
+        this._resolveOrInstallChrome() || process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+
       this.client = new Client({
         authStrategy: new LocalAuth({ clientId: 'tontine-session' }),
         webVersion,
@@ -66,7 +114,7 @@ class WhatsAppOtpService {
         },
         puppeteer: {
           headless: true,
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+          executablePath: chromeExecutablePath,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
