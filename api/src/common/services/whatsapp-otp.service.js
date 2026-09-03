@@ -51,6 +51,11 @@ class WhatsAppOtpService {
         } catch (_) {}
       }
 
+      // Configuration préventive du chemin de cache pour Render et environnements conteneurisés
+      if (!process.env.PUPPETEER_CACHE_DIR) {
+        process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), '.cache', 'puppeteer');
+      }
+
       this.client = new Client({
         authStrategy: new LocalAuth({ clientId: 'tontine-session' }),
         webVersion,
@@ -61,6 +66,7 @@ class WhatsAppOtpService {
         },
         puppeteer: {
           headless: true,
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -157,9 +163,14 @@ class WhatsAppOtpService {
       this.client.initialize().catch((err) => {
         const errorDetails = err?.stack || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
         console.warn('⚠️ Remarque WhatsApp Initialisation :', errorDetails);
+        this.status = 'error';
+        this.isReady = false;
         this.lastError = errorDetails;
       });
     } catch (error) {
+      this.status = 'error';
+      this.isReady = false;
+      this.lastError = error.message;
       console.warn('⚠️ Service WhatsApp OTP non démarré :', error.message);
     }
   }
