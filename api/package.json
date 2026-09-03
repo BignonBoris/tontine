@@ -4,6 +4,7 @@
   "description": "API MVP maTontine basee sur Express, Sequelize, MySQL et Swagger",
   "main": "app.js",
   "scripts": {
+    "postinstall": "npx puppeteer browsers install chrome",
     "render-build": "npm install && npx puppeteer browsers install chrome",
     "build": "npx puppeteer browsers install chrome",
     "start": "node app.js",
