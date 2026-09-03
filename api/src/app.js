@@ -15,6 +15,9 @@ const errorHandler = require('./common/middlewares/error-handler');
 
 const app = express();
 
+// Permet à express-rate-limit de lire correctement l'IP derrière un reverse-proxy (comme Render)
+app.set('trust proxy', 1);
+
 if (env.sentryDsn) {
   Sentry.init({
     dsn: env.sentryDsn,
