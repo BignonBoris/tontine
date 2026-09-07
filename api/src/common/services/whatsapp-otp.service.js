@@ -5,12 +5,10 @@ const fsp = require('node:fs/promises');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
+const env = require('../../config/env');
 
 // Version WhatsApp Web stable compatible avec le remote cache wppconnect-team
 const DEFAULT_WHATSAPP_WEB_VERSION = '2.3000.1046618780-alpha';
-const WHATSAPP_WEB_VERSION = process.env.WHATSAPP_WEB_VERSION || DEFAULT_WHATSAPP_WEB_VERSION;
-const MAX_INIT_ATTEMPTS = 3;
-const INIT_RETRY_DELAY_MS = 15000;
 
 class WhatsAppOtpService {
   constructor() {
@@ -18,15 +16,22 @@ class WhatsAppOtpService {
     this.isReady = false;
     this.initAttempts = 0;
     this.signalHandlersRegistered = false;
-    this.status = process.env.ENABLE_WHATSAPP_OTP === 'false' ? 'disabled' : 'disconnected';
+    this.status = 'disconnected';
     this.qrCode = null;
     this.qrCodeDataUrl = null;
     this.lastError = null;
     this.hasLoggedQr = false;
   }
 
+  get provider() {
+    return (process.env.WHATSAPP_PROVIDER || env.whatsapp?.provider || 'meta').toLowerCase();
+  }
+
+  get isEnabled() {
+    return process.env.ENABLE_WHATSAPP_OTP !== 'false' && env.whatsapp?.enabled !== false;
+  }
+
   _resolveOrInstallChrome() {
-    // 1. Si une variable d'environnement explicite existe et pointe vers un binaire valide
     if (
       process.env.PUPPETEER_EXECUTABLE_PATH &&
       fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)
@@ -34,7 +39,6 @@ class WhatsAppOtpService {
       return process.env.PUPPETEER_EXECUTABLE_PATH;
     }
 
-    // 2. Vérifier si Chromium est déjà présent dans le cache Puppeteer
     try {
       const puppeteer = require('puppeteer');
       const execPath = puppeteer.executablePath();
@@ -45,7 +49,6 @@ class WhatsAppOtpService {
       console.warn('⚠️ Chrome non détecté dans le cache local :', err.message);
     }
 
-    // 3. Téléchargement automatique de secours à chaud (utile si le build n'a pas persisté le cache)
     console.log(
       '🔄 Téléchargement automatique de Chromium en cours (npx puppeteer browsers install chrome)...',
     );
@@ -57,7 +60,7 @@ class WhatsAppOtpService {
       });
       const puppeteer = require('puppeteer');
       const execPath = puppeteer.executablePath();
-      console.log('✅ Chromium prêt à l\'utilisation :', execPath);
+      console.log("✅ Chromium prêt à l'utilisation :", execPath);
       return execPath;
     } catch (installErr) {
       console.error(
@@ -69,16 +72,54 @@ class WhatsAppOtpService {
   }
 
   initialize() {
-    if (process.env.ENABLE_WHATSAPP_OTP === 'false') {
+    if (!this.isEnabled) {
       console.log('ℹ️ WhatsApp OTP Service désactivé dans la configuration.');
       this.status = 'disabled';
+      this.isReady = false;
       this.qrCode = null;
       this.qrCodeDataUrl = null;
       return;
     }
 
+    const currentProvider = this.provider;
+    console.log(`🔄 Initialisation du service WhatsApp OTP (Provider: ${currentProvider.toUpperCase()})...`);
+
+    if (currentProvider === 'meta') {
+      this._initializeMetaCloudApi();
+    } else if (currentProvider === 'wwebjs') {
+      this._initializeWWebJS();
+    } else {
+      console.log('ℹ️ Provider WhatsApp configuré en mode fallback / dev console.');
+      this.status = 'ready';
+      this.isReady = true;
+      this.qrCode = null;
+      this.qrCodeDataUrl = null;
+    }
+  }
+
+  _initializeMetaCloudApi() {
+    const token = process.env.META_WHATSAPP_TOKEN || env.whatsapp?.metaToken;
+    const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID || env.whatsapp?.metaPhoneNumberId;
+
+    if (!token || !phoneNumberId) {
+      console.warn('⚠️ [Meta WhatsApp Cloud API] Configuration incomplète. META_WHATSAPP_TOKEN et META_WHATSAPP_PHONE_NUMBER_ID sont requis.');
+      this.status = 'error';
+      this.isReady = false;
+      this.lastError = "Identifiants Meta WhatsApp Cloud API manquants dans l'environnement";
+      return;
+    }
+
+    this.status = 'ready';
+    this.isReady = true;
+    this.lastError = null;
+    this.qrCode = null;
+    this.qrCodeDataUrl = null;
+    console.log(`✅ [Meta WhatsApp Cloud API] Service prêt à l'emploi ! (Phone Number ID: ${phoneNumberId})`);
+  }
+
+  _initializeWWebJS() {
     try {
-      console.log('🔄 Initialisation du service WhatsApp OTP (Open-Source)...');
+      console.log('🔄 Démarrage du client WhatsApp Web JS (Puppeteer)...');
       this.status = 'initializing';
       this.qrCode = null;
       this.qrCodeDataUrl = null;
@@ -87,7 +128,6 @@ class WhatsAppOtpService {
 
       const webVersion = process.env.WHATSAPP_WEB_VERSION || DEFAULT_WHATSAPP_WEB_VERSION;
 
-      // Nettoyage préventif des verrous Chromium (SingletonLock) lors des rechargements Nodemon
       const sessionDir = path.join(process.cwd(), '.wwebjs_auth', 'session-tontine-session');
       const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
       for (const file of lockFiles) {
@@ -96,7 +136,6 @@ class WhatsAppOtpService {
         } catch (_) {}
       }
 
-      // Configuration préventive du chemin de cache pour Render et environnements conteneurisés
       if (!process.env.PUPPETEER_CACHE_DIR) {
         process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), '.cache', 'puppeteer');
       }
@@ -152,18 +191,18 @@ class WhatsAppOtpService {
         this.status = 'ready';
         this.qrCode = null;
         this.qrCodeDataUrl = null;
-        console.log('✅ Service WhatsApp OTP prêt ! Les codes OTP seront envoyés en temps réel par WhatsApp.');
+        console.log('✅ Service WhatsApp Web JS prêt !');
       });
 
       this.client.on('authenticated', () => {
         this.status = 'ready';
         this.qrCode = null;
         this.qrCodeDataUrl = null;
-        console.log('🔐 Session WhatsApp authentifiée avec succès.');
+        console.log('🔐 Session WhatsApp Web JS authentifiée avec succès.');
       });
 
       this.client.on('auth_failure', (msg) => {
-        console.error('❌ Échec d\'authentification WhatsApp :', msg);
+        console.error("❌ Échec d'authentification WhatsApp Web JS :", msg);
         this.isReady = false;
         this.status = 'auth_failure';
         this.qrCode = null;
@@ -172,7 +211,7 @@ class WhatsAppOtpService {
       });
 
       this.client.on('disconnected', (reason) => {
-        console.warn('⚠️ WhatsApp déconnecté :', reason);
+        console.warn('⚠️ WhatsApp Web JS déconnecté :', reason);
         this.isReady = false;
         this.status = 'disconnected';
         this.qrCode = null;
@@ -180,7 +219,6 @@ class WhatsAppOtpService {
         this.lastError = typeof reason === 'object' ? JSON.stringify(reason) : String(reason);
       });
 
-      // Nettoyage propre du processus Puppeteer lors des redémarrages Nodemon ou arrêts
       if (!this.signalHandlersRegistered) {
         this.signalHandlersRegistered = true;
         const cleanup = async () => {
@@ -210,7 +248,7 @@ class WhatsAppOtpService {
 
       this.client.initialize().catch((err) => {
         const errorDetails = err?.stack || err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-        console.warn('⚠️ Remarque WhatsApp Initialisation :', errorDetails);
+        console.warn('⚠️ Remarque WhatsApp Web JS Initialisation :', errorDetails);
         this.status = 'error';
         this.isReady = false;
         this.lastError = errorDetails;
@@ -219,66 +257,203 @@ class WhatsAppOtpService {
       this.status = 'error';
       this.isReady = false;
       this.lastError = error.message;
-      console.warn('⚠️ Service WhatsApp OTP non démarré :', error.message);
+      console.warn('⚠️ Service WhatsApp Web JS non démarré :', error.message);
     }
   }
 
   async sendOtp(rawPhoneNumber, otpCode) {
-    if (!this.client || !this.isReady) {
+    if (!this.isEnabled) {
+      console.log(`ℹ️ [WhatsApp OTP Disabled] Code OTP pour ${rawPhoneNumber} : ${otpCode}`);
+      return { success: false, mode: 'disabled', message: 'WhatsApp OTP désactivé' };
+    }
+
+    const currentProvider = this.provider;
+
+    if (currentProvider === 'meta') {
+      return await this._sendViaMetaCloudApi(rawPhoneNumber, otpCode);
+    } else if (currentProvider === 'wwebjs') {
+      return await this._sendViaWWebJS(rawPhoneNumber, otpCode);
+    } else {
       console.log(`ℹ️ [WhatsApp OTP Fallback Mode Dev] Code OTP pour ${rawPhoneNumber} : ${otpCode}`);
-      return { success: false, mode: 'fallback', message: 'WhatsApp non connecté' };
+      return { success: true, mode: 'fallback', message: 'OTP affiché dans la console' };
+    }
+  }
+
+  async _sendViaMetaCloudApi(rawPhoneNumber, otpCode) {
+    const token = process.env.META_WHATSAPP_TOKEN || env.whatsapp?.metaToken;
+    const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID || env.whatsapp?.metaPhoneNumberId;
+    const version = process.env.META_WHATSAPP_GRAPH_VERSION || env.whatsapp?.metaGraphVersion || 'v21.0';
+    const templateName = process.env.META_WHATSAPP_TEMPLATE_NAME || env.whatsapp?.metaTemplateName || '';
+    const templateLang = process.env.META_WHATSAPP_TEMPLATE_LANG || env.whatsapp?.metaTemplateLang || 'fr';
+
+    if (!token || !phoneNumberId) {
+      console.error('❌ [Meta WhatsApp Cloud API Error] Token ou Phone Number ID manquant.');
+      return { success: false, mode: 'error', error: 'Identifiants Meta Cloud API non configurés' };
+    }
+
+    let cleanDigits = String(rawPhoneNumber || '').replace(/\D/g, '');
+
+    // Formatage auto numéro international (Bénin 229 si 8 ou 10 chiffres transmis)
+    if (cleanDigits.length === 8 || cleanDigits.length === 10) {
+      cleanDigits = `229${cleanDigits}`;
+    } else if (cleanDigits.startsWith('00')) {
+      cleanDigits = cleanDigits.substring(2);
+    }
+
+    const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`;
+
+    let payload;
+    if (templateName) {
+      payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanDigits,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: String(otpCode) },
+              ],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [
+                { type: 'text', text: String(otpCode) },
+              ],
+            },
+          ],
+        },
+      };
+    } else {
+      const messageText = `📱 *VizioBox Tontine*\n\nVotre code de vérification est : *${otpCode}*\n\nValable pendant 5 minutes. Ne le partagez avec personne.`;
+      payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanDigits,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: messageText,
+        },
+      };
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMsg =
+          responseData?.error?.message ||
+          responseData?.error?.details ||
+          response.statusText;
+        console.error(
+          `❌ [Meta WhatsApp API Error] HTTP ${response.status}: ${errorMsg}`,
+          responseData,
+        );
+        return {
+          success: false,
+          mode: 'meta_error',
+          error: errorMsg,
+          details: responseData,
+        };
+      }
+
+      const messageId = responseData?.messages?.[0]?.id || 'unknown';
+      console.log(
+        `✅ [Meta WhatsApp OTP] Code ${otpCode} envoyé avec succès au +${cleanDigits} (Message ID: ${messageId})`,
+      );
+      return { success: true, mode: 'meta_cloud_api', messageId };
+    } catch (error) {
+      console.error(
+        `❌ [Meta WhatsApp Network Error] Impossible d'envoyer au +${cleanDigits}:`,
+        error.message,
+      );
+      return { success: false, mode: 'error', error: error.message };
+    }
+  }
+
+  async _sendViaWWebJS(rawPhoneNumber, otpCode) {
+    if (!this.client || !this.isReady) {
+      console.log(`ℹ️ [WhatsApp Web JS non connecté] Code OTP pour ${rawPhoneNumber} : ${otpCode}`);
+      return { success: false, mode: 'fallback', message: 'WhatsApp Web JS non connecté' };
     }
 
     try {
       let cleanDigits = String(rawPhoneNumber || '').replace(/\D/g, '');
 
-      // Auto-prepend country code 229 (Bénin) if national 8-digit or 10-digit number is passed
       if (cleanDigits.length === 8 || cleanDigits.length === 10) {
         cleanDigits = `229${cleanDigits}`;
       } else if (cleanDigits.startsWith('00')) {
         cleanDigits = cleanDigits.substring(2);
       }
 
-      // 1. Résolution de l'identifiant WhatsApp officiel (LID)
       let numberDetails = await this.client.getNumberId(cleanDigits);
 
-      // 2. Gestion de la transition 8 chiffres vers 10 chiffres au Bénin (+22901... vers +229...)
       if (!numberDetails && cleanDigits.startsWith('22901') && cleanDigits.length === 13) {
         const legacyDigits = `229${cleanDigits.substring(5)}`;
         numberDetails = await this.client.getNumberId(legacyDigits);
       }
 
-      // 3. Fallback générique si le numéro n'est pas encore identifié par l'API
       const targetJid = numberDetails ? numberDetails._serialized : `${cleanDigits}@c.us`;
-
       const messageText = `📱 *VizioBox Tontine*\n\nVotre code de vérification est : *${otpCode}*\n\nValable pendant 5 minutes. Ne le partagez avec personne.`;
 
       await this.client.sendMessage(targetJid, messageText);
-      console.log(`✅ [WhatsApp OTP] Code ${otpCode} envoyé avec succès par WhatsApp à ${targetJid}`);
-      return { success: true, mode: 'whatsapp' };
+      console.log(`✅ [WhatsApp Web JS] Code ${otpCode} envoyé avec succès à ${targetJid}`);
+      return { success: true, mode: 'wwebjs' };
     } catch (error) {
-      console.error(`❌ [WhatsApp OTP Error] Impossible d'envoyer le message au ${rawPhoneNumber} :`, error.message);
+      console.error(`❌ [WhatsApp Web JS Error] Impossible d'envoyer le message au ${rawPhoneNumber} :`, error.message);
       return { success: false, mode: 'error', error: error.message };
     }
   }
 
   getStatus() {
-    const isConfigDisabled = process.env.ENABLE_WHATSAPP_OTP === 'false';
-    const effectiveStatus =
-      isConfigDisabled && this.status === 'disconnected' ? 'disabled' : this.status;
+    const currentProvider = this.provider;
+    const isConfigDisabled = !this.isEnabled;
+    const effectiveStatus = isConfigDisabled ? 'disabled' : this.status;
+
+    const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID || env.whatsapp?.metaPhoneNumberId || '';
+    const maskedPhoneNumberId = phoneNumberId
+      ? `${phoneNumberId.substring(0, 4)}...${phoneNumberId.substring(Math.max(0, phoneNumberId.length - 4))}`
+      : '';
+
     return {
       status: effectiveStatus,
+      provider: currentProvider,
       isReady: this.isReady,
-      qrCode: this.qrCode,
-      qrCodeDataUrl: this.qrCodeDataUrl,
-      lastError: this.lastError,
       enabled: !isConfigDisabled,
+      metaConfig: {
+        phoneNumberIdConfigured: Boolean(phoneNumberId),
+        phoneNumberIdMasked: maskedPhoneNumberId,
+        templateName: process.env.META_WHATSAPP_TEMPLATE_NAME || env.whatsapp?.metaTemplateName || null,
+        graphVersion: process.env.META_WHATSAPP_GRAPH_VERSION || env.whatsapp?.metaGraphVersion || 'v21.0',
+      },
+      qrCode: currentProvider === 'wwebjs' ? this.qrCode : null,
+      qrCodeDataUrl: currentProvider === 'wwebjs' ? this.qrCodeDataUrl : null,
+      lastError: this.lastError,
     };
   }
 
   async reinitialize(options = {}) {
-    const forceNewSession =
-      typeof options === 'boolean' ? options : options.forceNewSession === true;
+    const providerParam = typeof options === 'object' && options.provider ? options.provider : null;
+    if (providerParam) {
+      process.env.WHATSAPP_PROVIDER = providerParam;
+    }
+
     const enable =
       typeof options === 'object' && options.enable !== undefined ? options.enable : true;
 
@@ -287,7 +462,7 @@ class WhatsAppOtpService {
     }
 
     console.log(
-      `🔄 Demande de réinitialisation du service WhatsApp (forceNewSession=${forceNewSession}, enable=${enable})...`,
+      `🔄 Demande de réinitialisation du service WhatsApp (provider=${this.provider}, enable=${enable})...`,
     );
     this.isReady = false;
     this.status = 'initializing';
@@ -299,19 +474,9 @@ class WhatsAppOtpService {
       try {
         await this.client.destroy();
       } catch (err) {
-        console.warn('⚠️ Erreur lors de la destruction du client WhatsApp précédent :', err.message);
+        console.warn('⚠️ Erreur lors de la destruction du client WhatsApp Web JS précédent :', err.message);
       }
       this.client = null;
-    }
-
-    if (forceNewSession) {
-      const sessionPath = path.join(process.cwd(), '.wwebjs_auth/session-tontine-session');
-      try {
-        await fsp.rm(sessionPath, { recursive: true, force: true });
-        console.log('🧹 Session WhatsApp locale supprimée avec succès.');
-      } catch (err) {
-        console.warn('⚠️ Erreur lors de la suppression de la session WhatsApp locale :', err.message);
-      }
     }
 
     this.initialize();

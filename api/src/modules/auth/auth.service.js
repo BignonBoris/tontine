@@ -270,7 +270,8 @@ async function createFreshOtp({
     },
   );
 
-  const code = generateOtpCode();
+  const otpEnabled = env.otpEnabled;
+  const code = otpEnabled ? generateOtpCode() : '1234';
   const otp = await models.AuthOtp.create(
     {
       phoneNumber: normalizedPhone,
@@ -299,17 +300,20 @@ async function createFreshOtp({
     transaction,
   });
 
-  // Envoi asynchrone par WhatsApp si connecté
-  whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
-    console.warn('[WhatsApp OTP Error]', err.message);
-  });
+  if (otpEnabled) {
+    // Envoi asynchrone par WhatsApp si connecté
+    whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
+      console.warn('[WhatsApp OTP Error]', err.message);
+    });
+  }
 
   return {
+    requires_otp: otpEnabled,
     otpId: otp.id,
     phoneNumber: displayPhone(normalizedPhone),
     normalizedPhoneNumber: normalizedPhone,
     expiresAt: otp.expiresAt,
-    ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
+    ...(process.env.NODE_ENV !== 'production' || !otpEnabled ? { debugOtpCode: code } : {}),
   };
 }
 
@@ -483,7 +487,8 @@ async function resendOtp(payload, context) {
       );
     }
 
-    const code = generateOtpCode();
+    const otpEnabled = env.otpEnabled;
+    const code = otpEnabled ? generateOtpCode() : '1234';
     await otp.update(
       {
         code,
@@ -509,17 +514,20 @@ async function resendOtp(payload, context) {
       transaction,
     });
 
-    // Envoi asynchrone par WhatsApp du nouveau code généré
-    whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
-      console.warn('[WhatsApp OTP Resend Error]', err.message);
-    });
+    if (otpEnabled) {
+      // Envoi asynchrone par WhatsApp du nouveau code généré
+      whatsAppOtpService.sendOtp(normalizedPhone, code).catch((err) => {
+        console.warn('[WhatsApp OTP Resend Error]', err.message);
+      });
+    }
 
     return {
+      requires_otp: otpEnabled,
       otpId: otp.id,
       phoneNumber: displayPhone(normalizedPhone),
       normalizedPhoneNumber: normalizedPhone,
       expiresAt: otp.expiresAt,
-      ...(process.env.NODE_ENV !== 'production' ? { debugOtpCode: code } : {}),
+      ...(process.env.NODE_ENV !== 'production' || !otpEnabled ? { debugOtpCode: code } : {}),
     };
   });
 }
@@ -531,7 +539,8 @@ async function verifyOtp(
   const { normalizedPhone } = validateAndNormalizePhone(phoneNumber);
   const normalizedCode = String(code || '').replace(/\D/g, '').trim();
   const authContext = buildAuthContext(context);
-  if (!/^\d{4}$/.test(normalizedCode)) {
+  const otpEnabled = env.otpEnabled;
+  if (otpEnabled && !/^\d{4}$/.test(normalizedCode)) {
     throw new AppError('Le code OTP doit contenir 4 chiffres.', 422);
   }
 
@@ -581,7 +590,7 @@ async function verifyOtp(
     throw new AppError('Ce code de sécurité a expiré. Veuillez en demander un nouveau.', 422);
   }
 
-  if (otp.code !== normalizedCode) {
+  if (otpEnabled && otp.code !== normalizedCode) {
     const nextAttemptCount = Number(otp.attemptCount) + 1;
     const updates = { attemptCount: nextAttemptCount };
     let status = 'failed';

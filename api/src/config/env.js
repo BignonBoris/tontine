@@ -23,6 +23,7 @@ const env = {
   otpResendCooldownSeconds: Number(
     process.env.OTP_RESEND_COOLDOWN_SECONDS || 120,
   ),
+  otpEnabled: process.env.ENABLE_OTP !== 'false',
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
   fcmServerKey: process.env.FCM_SERVER_KEY || '',
@@ -59,6 +60,15 @@ const env = {
   mtnMomoMsisdnCountryCode: process.env.MTN_MOMO_MSISDN_COUNTRY_CODE || '',
   sentryDsn: process.env.SENTRY_DSN || '',
   makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
+  whatsapp: {
+    provider: (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase(),
+    enabled: process.env.ENABLE_WHATSAPP_OTP !== 'false',
+    metaToken: process.env.META_WHATSAPP_TOKEN || '',
+    metaPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || '',
+    metaGraphVersion: process.env.META_WHATSAPP_GRAPH_VERSION || 'v21.0',
+    metaTemplateName: process.env.META_WHATSAPP_TEMPLATE_NAME || '',
+    metaTemplateLang: process.env.META_WHATSAPP_TEMPLATE_LANG || 'fr',
+  },
   database: {
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),
