@@ -15,6 +15,7 @@ class LocalAuthResult {
   final String? phoneNumber;
   final bool? isRegistration;
   final String? otpCode;
+  final bool requiresOtp;
 
   const LocalAuthResult({
     required this.isSuccess,
@@ -22,6 +23,7 @@ class LocalAuthResult {
     this.phoneNumber,
     this.isRegistration,
     this.otpCode,
+    this.requiresOtp = true,
   });
 }
 
@@ -124,7 +126,7 @@ class LocalAuthService {
         message: 'Code genere avec succes.',
         phoneNumber: data['phoneNumber'] as String?,
         isRegistration: isRegistration,
-        otpCode: data['debugOtpCode'] as String?,
+        otpCode: data['debugOtpCode'] as String?, requiresOtp: data['requires_otp'] as bool? ?? true,
       );
     } on ApiException catch (error) {
       return LocalAuthResult(isSuccess: false, message: error.message);
@@ -205,7 +207,7 @@ class LocalAuthService {
         message: 'Nouveau code genere.',
         phoneNumber: data['phoneNumber'] as String?,
         isRegistration: isRegistration,
-        otpCode: data['debugOtpCode'] as String?,
+        otpCode: data['debugOtpCode'] as String?, requiresOtp: data['requires_otp'] as bool? ?? true,
       );
     } on ApiException catch (error) {
       return LocalAuthResult(isSuccess: false, message: error.message);

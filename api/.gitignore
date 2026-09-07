@@ -17,3 +17,8 @@ node_modules/hasown/CHANGELOG.md
 node_modules/hasown/index.d.ts
 node_modules/hasown/package.json
 package-lock.json
+
+# Puppeteer cache and WhatsApp session
+.cache/
+.wwebjs_auth/
+.wwebjs_cache/
