@@ -33,41 +33,40 @@ async function generateMigration() {
   let migrationCode = `'use strict';\n\nmodule.exports = {\n  up: async (queryInterface, Sequelize) => {\n`;
 
   for (const tableName of missingTables) {
-    // Find the model by tableName
     const model = Object.values(models).find(m => m.tableName === tableName);
-    if (!model) {
-      console.log('Model not found for table:', tableName);
-      continue;
-    }
+    if (!model) continue;
 
     const attributes = model.getAttributes();
     migrationCode += `    await queryInterface.createTable('${tableName}', {\n`;
 
     for (const [key, attr] of Object.entries(attributes)) {
       migrationCode += `      ${attr.field || key}: {\n`;
-      migrationCode += `        type: Sequelize.${attr.type.key}${attr.type.options ? '(' + JSON.stringify(attr.type.options).replace(/^\{|\}$/g, '') + ')' : ''},\n`;
+      
+      let typeStr = 'Sequelize.' + attr.type.key;
+      if (attr.type.key === 'STRING' && attr.type._length) {
+        typeStr = 'Sequelize.STRING(' + attr.type._length + ')';
+      } else if (attr.type.key === 'ENUM' && attr.type.values) {
+        const values = attr.type.values.map(v => "'" + v + "'").join(', ');
+        typeStr = 'Sequelize.ENUM(' + values + ')';
+      } else if (attr.type.key === 'DECIMAL' && attr.type._precision && attr.type._scale) {
+        typeStr = 'Sequelize.DECIMAL(' + attr.type._precision + ', ' + attr.type._scale + ')';
+      }
+
+      migrationCode += `        type: ${typeStr},\n`;
       if (attr.primaryKey) migrationCode += `        primaryKey: true,\n`;
       if (attr.autoIncrement) migrationCode += `        autoIncrement: true,\n`;
       if (attr.allowNull === false) migrationCode += `        allowNull: false,\n`;
       if (attr.defaultValue !== undefined) {
         if (typeof attr.defaultValue === 'string') {
           migrationCode += `        defaultValue: '${attr.defaultValue}',\n`;
-        } else {
+        } else if (typeof attr.defaultValue === 'number' || typeof attr.defaultValue === 'boolean') {
           migrationCode += `        defaultValue: ${attr.defaultValue},\n`;
+        } else if (attr.defaultValue && attr.defaultValue.constructor && attr.defaultValue.constructor.name === 'NOW') {
+           // Skip default value functions
         }
       }
       if (attr.unique) migrationCode += `        unique: true,\n`;
       
-      // Handle ENUMs specifically if needed (simplifying for script)
-      if (attr.type.key === 'ENUM') {
-          const values = attr.type.values.map(v => `'${v}'`).join(', ');
-          migrationCode = migrationCode.replace(`Sequelize.ENUM()`, `Sequelize.ENUM(${values})`);
-      }
-      // Handle string length
-      if (attr.type.key === 'STRING' && attr.type._length) {
-          migrationCode = migrationCode.replace(`Sequelize.STRING`, `Sequelize.STRING(${attr.type._length})`);
-      }
-
       migrationCode += `      },\n`;
     }
     migrationCode += `    });\n\n`;
