@@ -6,23 +6,22 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       agent_profile_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       type: {
-        type: Sequelize.ENUM("values":["topUp","clientDeposit","clientWithdrawal","adjustment"]),
+        type: Sequelize.ENUM('topUp', 'clientDeposit', 'clientWithdrawal', 'adjustment'),
         allowNull: false,
       },
       reference: {
-        type: Sequelize.STRING(128)(100)(255)(120)(32)(32)(32)(255)(160)(32)(32)(255)(255)(64)(255)(160)(160)(64)(120)(80)(255)(160)(64)(64)(160)(64)(160)(160)(8)(32)(255)(64)(32)(128)(64)(120)(160)(128)(32)(255)(255)(160)(160)(64)(32)(32)(255)(32)(64)(32)(128)(64)(255)(160)(64)("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
         unique: true,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       is_credit: {
@@ -30,43 +29,42 @@ module.exports = {
         allowNull: false,
       },
       balance_before: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       balance_after: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       label: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       note: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       related_entity_type: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
       },
       related_entity_id: {
-        type: Sequelize.STRING("length":128),
+        type: Sequelize.STRING(128),
       },
       initiated_by_user_id: {
         type: Sequelize.UUID,
       },
       initiator_type: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       occurred_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -75,7 +73,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       advance_id: {
         type: Sequelize.UUID,
@@ -102,25 +99,24 @@ module.exports = {
         allowNull: false,
       },
       reference: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
         unique: true,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       recovered_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -129,7 +125,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       group_id: {
         type: Sequelize.UUID,
@@ -153,11 +148,11 @@ module.exports = {
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       penalty_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
@@ -167,32 +162,31 @@ module.exports = {
         defaultValue: false,
       },
       recovered_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       status: {
-        type: Sequelize.ENUM("values":["outstanding","partially_recovered","recovered","escalated"]),
+        type: Sequelize.ENUM('outstanding', 'partially_recovered', 'recovered', 'escalated'),
         allowNull: false,
         defaultValue: 'outstanding',
       },
       advanced_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       recovered_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       last_recovered_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -201,7 +195,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       group_id: {
         type: Sequelize.UUID,
@@ -216,27 +209,27 @@ module.exports = {
         allowNull: false,
       },
       turn_number: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       due_date: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM("values":["pending","paid","cancelled"]),
+        type: Sequelize.ENUM('pending', 'paid', 'cancelled'),
         allowNull: false,
         defaultValue: 'pending',
       },
       payment_source: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       paid_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       paid_by_agent_profile_id: {
         type: Sequelize.UUID,
@@ -245,11 +238,11 @@ module.exports = {
         type: Sequelize.UUID,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -258,7 +251,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       group_id: {
         type: Sequelize.UUID,
@@ -269,23 +261,22 @@ module.exports = {
         allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM("values":["requested","invited","active","declined","rejected","removed"]),
+        type: Sequelize.ENUM('requested', 'invited', 'active', 'declined', 'rejected', 'removed'),
         allowNull: false,
         defaultValue: 'invited',
       },
       joined_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       turn_position: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
       },
       removed_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       removal_reason: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       added_by_user_id: {
         type: Sequelize.UUID,
@@ -294,11 +285,11 @@ module.exports = {
         type: Sequelize.UUID,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -307,7 +298,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       group_id: {
         type: Sequelize.UUID,
@@ -318,27 +308,27 @@ module.exports = {
         allowNull: false,
       },
       turn_number: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       due_date: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       status: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
         defaultValue: 'collecting',
       },
       payout_method: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       payout_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       paid_by_agent_profile_id: {
         type: Sequelize.UUID,
@@ -347,11 +337,11 @@ module.exports = {
         type: Sequelize.UUID,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -360,10 +350,9 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       reference: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
         unique: true,
       },
@@ -372,71 +361,71 @@ module.exports = {
         allowNull: false,
       },
       name: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       normalized_name: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       description: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       participant_count: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       member_count: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 0,
       },
       turn_interval_value: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       turn_interval_unit: {
-        type: Sequelize.ENUM("values":["day","week","month"]),
+        type: Sequelize.ENUM('day', 'week', 'month'),
         allowNull: false,
       },
       contribution_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       commission_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       planned_start_date: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       launch_status: {
-        type: Sequelize.ENUM("values":["collecting","ready","started","launch_cancelled"]),
+        type: Sequelize.ENUM('collecting', 'ready', 'started', 'launch_cancelled'),
         allowNull: false,
         defaultValue: 'collecting',
       },
       started_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       launch_cancelled_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       launch_cancellation_reason: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       status: {
-        type: Sequelize.ENUM("values":["active","suspended"]),
+        type: Sequelize.ENUM('active', 'suspended'),
         allowNull: false,
         defaultValue: 'active',
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -445,7 +434,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
@@ -453,20 +441,20 @@ module.exports = {
         unique: true,
       },
       agent_code: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
         unique: true,
       },
       pin_hash: {
-        type: Sequelize.STRING("length":128),
+        type: Sequelize.STRING(128),
         allowNull: false,
       },
       full_name: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       agent_balance: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
@@ -476,11 +464,11 @@ module.exports = {
         defaultValue: true,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -489,42 +477,41 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
       },
       action: {
-        type: Sequelize.STRING("length":120),
+        type: Sequelize.STRING(120),
         allowNull: false,
       },
       entity_type: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
       },
       entity_id: {
-        type: Sequelize.STRING("length":128),
+        type: Sequelize.STRING(128),
       },
       status: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
         defaultValue: 'success',
       },
       ip_address: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
       },
       user_agent: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       metadata: {
         type: Sequelize.JSON,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -533,51 +520,49 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       phone_number: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
       },
       purpose: {
-        type: Sequelize.ENUM("values":["register","login"]),
+        type: Sequelize.ENUM('register', 'login'),
         allowNull: false,
       },
       code: {
-        type: Sequelize.STRING("length":8),
+        type: Sequelize.STRING(8),
         allowNull: false,
       },
       attempt_count: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 0,
       },
       resend_count: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 0,
       },
       last_sent_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       blocked_until: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       expires_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       consumed_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -586,22 +571,21 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       type: {
-        type: Sequelize.ENUM("values":["tontinePayout","tontineEarlyStop","tontineBonus","withdrawalRequested","withdrawalReleased","withdrawalPaid","goalFunding","tontineFunding","tontineFundingReversal","groupContribution"]),
+        type: Sequelize.ENUM('tontinePayout', 'tontineEarlyStop', 'tontineBonus', 'withdrawalRequested', 'withdrawalReleased', 'withdrawalPaid', 'goalFunding', 'tontineFunding', 'tontineFundingReversal', 'groupContribution'),
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       label: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       is_credit: {
@@ -612,16 +596,15 @@ module.exports = {
         type: Sequelize.UUID,
       },
       occurred_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -630,18 +613,17 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       goal_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       title: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       is_deposit: {
@@ -649,16 +631,15 @@ module.exports = {
         allowNull: false,
       },
       occurred_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -667,42 +648,41 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       linked_offer_id: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
       },
       quantity: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 1,
       },
       unit_price: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
       },
       title: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       target_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       current_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       icon_code_point: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       color_value: {
-        type: Sequelize.BIGINT(),
+        type: Sequelize.BIGINT,
         allowNull: false,
       },
       is_priority: {
@@ -711,25 +691,24 @@ module.exports = {
         defaultValue: false,
       },
       status: {
-        type: Sequelize.ENUM("values":["active","closed"]),
+        type: Sequelize.ENUM('active', 'closed'),
         allowNull: false,
         defaultValue: 'active',
       },
       start_date: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       end_date: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -738,55 +717,54 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       offer_id: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
 
     await queryInterface.createTable('market_offers', {
       id: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         primaryKey: true,
       },
       title: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       description: {
-        type: Sequelize.TEXT(),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
       description_html: {
-        type: Sequelize.TEXT(),
+        type: Sequelize.TEXT,
       },
       image_url: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
         allowNull: false,
       },
       category: {
-        type: Sequelize.STRING("length":80),
+        type: Sequelize.STRING(80),
         allowNull: false,
       },
       price: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
       },
       brand: {
-        type: Sequelize.STRING("length":120),
+        type: Sequelize.STRING(120),
       },
       is_active: {
         type: Sequelize.BOOLEAN,
@@ -794,11 +772,11 @@ module.exports = {
         defaultValue: true,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -807,52 +785,50 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       offer_id: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
       },
       title: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       quantity: {
-        type: Sequelize.INTEGER(),
+        type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 1,
       },
       unit_price: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM("values":["pending","confirmed","ready","completed","cancelled"]),
+        type: Sequelize.ENUM('pending', 'confirmed', 'ready', 'completed', 'cancelled'),
         allowNull: false,
         defaultValue: 'pending',
       },
       ordered_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       updated_status_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -861,23 +837,22 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       type: {
-        type: Sequelize.ENUM("values":["deposit","cycle","goal","marketplace","system"]),
+        type: Sequelize.ENUM('deposit', 'cycle', 'goal', 'marketplace', 'system'),
         allowNull: false,
         defaultValue: 'system',
       },
       title: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       message: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
         allowNull: false,
       },
       is_read: {
@@ -886,16 +861,15 @@ module.exports = {
         defaultValue: false,
       },
       created_at_client: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -904,14 +878,13 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       sync_id: {
         type: Sequelize.UUID,
         unique: true,
       },
       reference: {
-        type: Sequelize.STRING("length":64),
+        type: Sequelize.STRING(64),
         allowNull: false,
         unique: true,
       },
@@ -927,49 +900,49 @@ module.exports = {
         type: Sequelize.UUID,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       source: {
-        type: Sequelize.ENUM("values":["agent","mobile_money"]),
+        type: Sequelize.ENUM('agent', 'mobile_money'),
         allowNull: false,
         defaultValue: 'agent',
       },
       status: {
-        type: Sequelize.ENUM("values":["initiated","pending_validation","validated","rejected","cancelled"]),
+        type: Sequelize.ENUM('initiated', 'pending_validation', 'validated', 'rejected', 'cancelled'),
         allowNull: false,
         defaultValue: 'validated',
       },
       notes: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       validated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       validated_by_user_id: {
         type: Sequelize.UUID,
       },
       reversed_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       reversed_by_user_id: {
         type: Sequelize.UUID,
       },
       reversal_reason: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       initiated_by_user_id: {
         type: Sequelize.UUID,
       },
       initiator_type: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -978,54 +951,53 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       stake_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       target_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       cumulative_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       commission_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       net_payout_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM("values":["completed","stoppedEarly"]),
+        type: Sequelize.ENUM('completed', 'stoppedEarly'),
         allowNull: false,
       },
       started_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       expected_end_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       ended_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -1034,44 +1006,42 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
         allowNull: false,
       },
       stake_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       cumulative_amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       status: {
-        type: Sequelize.ENUM("values":["nonConfiguree","active","enAttenteValidationFin","terminee","arretee"]),
+        type: Sequelize.ENUM('nonConfiguree', 'active', 'enAttenteValidationFin', 'terminee', 'arretee'),
         allowNull: false,
         defaultValue: 'nonConfiguree',
       },
       started_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       expected_end_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       ended_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -1080,7 +1050,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       sync_id: {
         type: Sequelize.UUID,
@@ -1094,11 +1063,11 @@ module.exports = {
         type: Sequelize.UUID,
       },
       type: {
-        type: Sequelize.ENUM("values":["configuration","deposit","depositReversal","cycleCompleted","payoutConfirmed","earlyStop","restarted"]),
+        type: Sequelize.ENUM('configuration', 'deposit', 'depositReversal', 'cycleCompleted', 'payoutConfirmed', 'earlyStop', 'restarted'),
         allowNull: false,
       },
       payment_source: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       linked_provisioning_id: {
         type: Sequelize.UUID,
@@ -1110,33 +1079,32 @@ module.exports = {
         type: Sequelize.UUID,
       },
       amount: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
       },
       label: {
-        type: Sequelize.STRING("length":160),
+        type: Sequelize.STRING(160),
         allowNull: false,
       },
       note: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       initiated_by_user_id: {
         type: Sequelize.UUID,
       },
       initiator_type: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
       },
       occurred_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: NOW,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -1145,32 +1113,31 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       kyc_status: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
         unique: true,
       },
       tier_level: {
-        type: Sequelize.STRING("length":32),
+        type: Sequelize.STRING(32),
         allowNull: false,
         defaultValue: 'tier_0',
       },
       label: {
-        type: Sequelize.STRING("length":120),
+        type: Sequelize.STRING(120),
         allowNull: false,
       },
       description: {
-        type: Sequelize.STRING("length":255),
+        type: Sequelize.STRING(255),
       },
       max_daily_stake: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 2000,
       },
       max_cycle_cumulative: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 62000,
       },
@@ -1185,14 +1152,14 @@ module.exports = {
         defaultValue: true,
       },
       updated_by: {
-        type: Sequelize.STRING("length":100),
+        type: Sequelize.STRING(100),
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -1201,7 +1168,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
@@ -1234,7 +1200,7 @@ module.exports = {
         defaultValue: false,
       },
       pin_code: {
-        type: Sequelize.STRING("length":128),
+        type: Sequelize.STRING(128),
       },
       onboarding_goals_done: {
         type: Sequelize.BOOLEAN,
@@ -1242,11 +1208,11 @@ module.exports = {
         defaultValue: false,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
@@ -1255,7 +1221,6 @@ module.exports = {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
-        defaultValue: UUIDV4,
       },
       user_id: {
         type: Sequelize.UUID,
@@ -1263,26 +1228,26 @@ module.exports = {
         unique: true,
       },
       available_balance: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       reserved_withdrawal_balance: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       tontine_balance: {
-        type: Sequelize.DECIMAL("precision":18,"scale":2),
+        type: Sequelize.DECIMAL(18, 2),
         allowNull: false,
         defaultValue: 0,
       },
       created_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
       updated_at: {
-        type: Sequelize.DATE(),
+        type: Sequelize.DATE,
         allowNull: false,
       },
     });
