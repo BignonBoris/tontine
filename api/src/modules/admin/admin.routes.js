@@ -38,14 +38,18 @@ router.post('/tontines/:cycleId/close', asyncHandler(controller.closeTontineCycl
 router.patch('/clients/:userId/status', asyncHandler(controller.updateClientStatus));
 router.get('/agents', asyncHandler(controller.agents));
 router.patch('/agents/:agentId/status', asyncHandler(controller.updateAgentStatus));
+router.put('/agents/:agentId/profile', asyncHandler(controller.updateAgentProfile));
 router.post('/agents/:agentId/top-up', asyncHandler(controller.topUpAgentCash));
 router.get('/agents/:agentId/cash-history', asyncHandler(controller.agentCashHistory));
+router.post('/agents/:agentId/reset-device', asyncHandler(controller.resetAgentDevice));
+router.post('/agents/:agentId/kill-switch', asyncHandler(controller.triggerAgentKillSwitch));
 router.post(
   '/provisionings/:provisioningId/reverse',
   asyncHandler(controller.reverseProvisioning),
 );
 router.get('/withdrawals', asyncHandler(controller.withdrawals));
 router.get('/withdrawals/:withdrawalId', asyncHandler(controller.withdrawalDetail));
+router.get('/audit-logs/export', asyncHandler(controller.exportAuditLogs));
 router.get('/audit-logs', asyncHandler(controller.auditLogs));
 router.get('/whatsapp/status', asyncHandler(controller.getWhatsAppStatus));
 router.post('/whatsapp/refresh', asyncHandler(controller.refreshWhatsApp));

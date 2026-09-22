@@ -28,7 +28,7 @@ function signAgentToken(user) {
   );
 }
 
-async function loginAgent({ phoneNumber, pin }, context = {}) {
+async function loginAgent({ phoneNumber, pin, deviceId }, context = {}) {
   const normalizedPhone = normalizePhone(phoneNumber);
   if (normalizedPhone.length !== 10) {
     throw new AppError('Le numero agent est invalide.', 422);
@@ -72,6 +72,43 @@ async function loginAgent({ phoneNumber, pin }, context = {}) {
     throw new AppError('Numero ou PIN agent incorrect.', 401);
   }
 
+  // --- Sécurité et Liaison d'appareil ---
+  const securitySettingsItem = await models.SystemSetting.findByPk('AGENT_SECURITY_SETTINGS');
+  const settings = securitySettingsItem ? securitySettingsItem.value : {};
+  const strictDeviceBinding = settings.agentStrictDeviceBinding ?? true;
+  const otpDeviceBypass = settings.agentOtpDeviceBypass ?? false;
+  const autoLockTimeoutMinutes = settings.agentAutoLockTimeoutMinutes ?? 2;
+
+  if (deviceId) {
+    if (!user.agentProfile.deviceId) {
+      await user.agentProfile.update({ deviceId });
+    } else if (user.agentProfile.deviceId !== deviceId && process.env.NODE_ENV !== 'development') {
+      // Tentative de connexion sur un nouvel appareil
+      if (strictDeviceBinding && !otpDeviceBypass) {
+        await writeAuditLog({
+          userId: user.id,
+          action: 'agent.login_failed',
+          entityType: 'agent',
+          entityId: user.agentProfile.id,
+          status: 'failed',
+          metadata: { reason: 'unauthorized_device', deviceId },
+        });
+        throw new AppError("Cet appareil n'est pas autorise pour ce compte agent.", 403);
+      } else if (otpDeviceBypass) {
+        // Todo: implementer l'envoi d'OTP
+        // return { requiresOtp: true, message: 'Un code de verification a ete envoye.' };
+        // Pour l'instant on retourne une erreur 403 demandant de valider
+        throw new AppError("Appareil inconnu. La validation par OTP sera bientot disponible. Veuillez contacter l'admin.", 403);
+      }
+    }
+  }
+
+  // Si on est connecté avec succès, on réinitialise le kill switch
+  if (user.agentProfile.forceLogout) {
+    await user.agentProfile.update({ forceLogout: false });
+  }
+  // --------------------------------------
+
   await user.update({ lastLoginAt: new Date() });
   await writeAuditLog({
     userId: user.id,
@@ -93,7 +130,11 @@ async function loginAgent({ phoneNumber, pin }, context = {}) {
       fullName: user.agentProfile.fullName,
       agentCode: user.agentProfile.agentCode,
       agentBalance: Number(user.agentProfile.agentBalance || 0),
+      maxFloatLimit: Number(user.agentProfile.maxFloatLimit || 500000),
     },
+    security: {
+      autoLockTimeoutMinutes,
+    }
   };
 }
 

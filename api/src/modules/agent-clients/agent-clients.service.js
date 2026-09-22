@@ -1,4 +1,7 @@
 const { Op } = require('sequelize');
+const crypto = require('node:crypto');
+const fsp = require('node:fs/promises');
+const path = require('node:path');
 const AppError = require('../../common/errors/app-error');
 const {
   FINANCIAL_AMOUNT_STEP,
@@ -53,18 +56,22 @@ async function buildClientSummary(client) {
   });
 }
 
-async function searchClients(query) {
-  const search = normalizePhone(String(query || ''));
-  if (search.length !== 10) {
-    return [];
-  }
+async function searchClients(query, type = 'phone') {
+  const search = String(query || '').trim();
   const where = {
     isActive: true,
     accountType: { [Op.ne]: 'Agent' },
     '$agentProfile.id$': null,
   };
 
-  where.phoneNumber = search;
+  if (type === 'name') {
+    if (search.length < 2) return [];
+    where.displayName = { [Op.like]: `%${search}%` };
+  } else {
+    const digits = search.replace(/\D/g, '');
+    if (digits.length !== 10) return [];
+    where.phoneNumber = digits;
+  }
 
   const clients = await models.User.findAll({
     where,
@@ -335,10 +342,140 @@ async function startClientTontine(agentProfile, clientId, payload, requestContex
   return buildClientSummary(client);
 }
 
+const PRIVATE_KYC_ROOT = path.join(__dirname, '../../private-storage/kyc');
+const DOCUMENT_TYPES = new Set(['cni', 'passport', 'residence_permit']);
+
+async function uploadClientKyc(agentProfile, clientId, payload, files, requestContext = {}) {
+  if (!files || !files.front || !files.selfie) {
+    throw new AppError('Les documents requis (recto, selfie) sont manquants.', 400);
+  }
+
+  const documentType = payload.documentType;
+  const countryCode = payload.countryCode || 'BJ';
+  const documentNumber = payload.documentNumber;
+
+  if (!DOCUMENT_TYPES.has(documentType)) {
+    throw new AppError('Type de document invalide.', 422);
+  }
+
+  const client = await models.User.findOne({
+    where: {
+      id: clientId,
+      createdByAgentProfileId: agentProfile.id,
+      isActive: true,
+      accountType: { [Op.ne]: 'Agent' },
+    },
+  });
+
+  if (!client) {
+    throw new AppError('Client introuvable.', 404);
+  }
+
+  const [kycCase] = await models.KycCase.findOrCreate({
+    where: { userId: client.id },
+    defaults: { userId: client.id, status: 'unverified', level: 'basic' },
+  });
+
+  if (kycCase.status === 'pending_review') {
+    throw new AppError('Ce client a deja un dossier KYC en cours de verification.', 409);
+  }
+
+  await fsp.mkdir(PRIVATE_KYC_ROOT, { recursive: true });
+
+  const saveFile = async (fileBuffer, originalName, mimeType, docTypeParam) => {
+    if (!fileBuffer) return null;
+    const fileId = crypto.randomUUID();
+    const ext = mimeType === 'image/png' ? '.png' : mimeType === 'application/pdf' ? '.pdf' : '.jpg';
+    const storageKey = `${fileId}${ext}`;
+    const absolutePath = path.join(PRIVATE_KYC_ROOT, storageKey);
+    
+    await fsp.writeFile(absolutePath, fileBuffer);
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+    return {
+      storageKey,
+      metadata: { contentType: mimeType, size: fileBuffer.length, sha256: hash },
+      documentType: docTypeParam
+    };
+  };
+
+  const docsToSave = [];
+  docsToSave.push(await saveFile(files.front[0].buffer, files.front[0].originalname, files.front[0].mimetype, documentType));
+  if (files.back && files.back[0]) {
+    docsToSave.push(await saveFile(files.back[0].buffer, files.back[0].originalname, files.back[0].mimetype, documentType + '_back'));
+  }
+  docsToSave.push(await saveFile(files.selfie[0].buffer, files.selfie[0].originalname, files.selfie[0].mimetype, 'selfie'));
+
+  await sequelize.transaction(async (transaction) => {
+    for (const doc of docsToSave) {
+      if (!doc) continue;
+      await models.KycDocument.create({
+        kycCaseId: kycCase.id,
+        documentType: doc.documentType,
+        countryCode,
+        documentNumber: documentNumber || 'UNKNOWN',
+        storageKey: doc.storageKey,
+        metadata: doc.metadata
+      }, { transaction });
+    }
+
+    kycCase.status = 'pending_review';
+    kycCase.submittedAt = new Date();
+    await kycCase.save({ transaction });
+
+    await writeAuditLog({
+      userId: agentProfile.userId,
+      action: 'agent.client_kyc_submitted',
+      entityType: 'kycCase',
+      entityId: kycCase.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      transaction,
+    });
+  });
+
+  return { success: true, status: 'pending_review' };
+}
+
+async function updatePhone(agentProfile, clientId, payload, requestContext = {}) {
+  const rawPhoneNumber = String(payload.phoneNumber ?? '').trim();
+  if (!rawPhoneNumber) throw new AppError('Le numero de telephone est requis.', 422);
+  const phoneNumber = normalizePhone(rawPhoneNumber);
+  if (phoneNumber.length !== 10) throw new AppError('Le numero du client est invalide.', 422);
+
+  const client = await models.User.findOne({
+    where: { id: clientId, createdByAgentProfileId: agentProfile.id }
+  });
+  if (!client) throw new AppError('Client introuvable.', 404);
+
+  const existingUser = await models.User.findOne({ where: { phoneNumber } });
+  if (existingUser && existingUser.id !== client.id) {
+    throw new AppError('Un client existe deja avec ce numero.', 409);
+  }
+
+  const oldPhone = client.phoneNumber;
+  client.phoneNumber = phoneNumber;
+  await client.save();
+
+  await writeAuditLog({
+    userId: agentProfile.userId,
+    action: 'agent.client_phone_updated',
+    entityType: 'client',
+    entityId: client.id,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: { oldPhone, newPhone: phoneNumber },
+  });
+
+  return _formatClientDetail(client);
+}
+
 module.exports = {
   searchClients,
   listMyClients,
   getMyClientDetail,
   createClient,
   startClientTontine,
+  uploadClientKyc,
+  updatePhone,
 };
