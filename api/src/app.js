@@ -1,22 +1,6 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const Sentry = require('@sentry/node');
 const { nodeProfilingIntegration } = require('@sentry/profiling-node');
-
 const env = require('./config/env');
-const { mountSwagger } = require('./config/swagger');
-const landingRouter = require('./landing/landing.routes');
-const apiV1Router = require('./routes/v1');
-const notFound = require('./common/middlewares/not-found');
-const errorHandler = require('./common/middlewares/error-handler');
-
-const app = express();
-
-// Permet à express-rate-limit de lire correctement l'IP derrière un reverse-proxy (comme Render)
-app.set('trust proxy', 1);
 
 if (env.sentryDsn) {
   Sentry.init({
@@ -28,6 +12,23 @@ if (env.sentryDsn) {
     profilesSampleRate: 1.0,
   });
 }
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+const { mountSwagger } = require('./config/swagger');
+const landingRouter = require('./landing/landing.routes');
+const apiV1Router = require('./routes/v1');
+const notFound = require('./common/middlewares/not-found');
+const errorHandler = require('./common/middlewares/error-handler');
+
+const app = express();
+
+// Permet à express-rate-limit de lire correctement l'IP derrière un reverse-proxy (comme Render)
+app.set('trust proxy', 1);
 
 app.use(helmet());
 

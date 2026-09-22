@@ -226,6 +226,15 @@ async function updateAgentStatus(req, res) {
   return ok(res, data, 'Statut agent mis a jour.');
 }
 
+async function updateAgentProfile(req, res) {
+  const data = await service.updateAgentProfile(req.params.agentId, req.body, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Profil agent mis a jour.');
+}
+
 async function topUpAgentCash(req, res) {
   const data = await service.topUpAgentCash(req.params.agentId, req.body, {
     ipAddress: req.ip || null,
@@ -273,6 +282,14 @@ async function auditLogs(req, res) {
   return ok(res, data, 'Audit charge.');
 }
 
+async function exportAuditLogs(req, res) {
+  const csv = await service.exportAuditLogsCsv(req.query);
+  const filename = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send('\uFEFF' + csv); // BOM UTF-8 pour Excel
+}
+
 async function getWhatsAppStatus(req, res) {
   const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
   return ok(res, whatsAppOtpService.getStatus(), 'Statut WhatsApp recupere.');
@@ -306,16 +323,26 @@ async function updateTontineKycLimits(req, res) {
 
 async function getSystemSettings(req, res) {
   const data = await service.getSystemSettings();
-  return ok(res, data, 'Parametres charges.');
+  return ok(res, data, 'Parametres systeme charges avec succes.');
 }
 
 async function updateSystemSetting(req, res) {
   const data = await service.updateSystemSetting(
     req.params.key,
     req.body,
-    getRequestContext(req)
+    getRequestContext(req),
   );
-  return ok(res, data, 'Parametre mis a jour.');
+  return ok(res, data, 'Parametre systeme mis a jour avec succes.');
+}
+
+async function resetAgentDevice(req, res) {
+  const data = await service.resetAgentDevice(req.params.agentId, getRequestContext(req));
+  return ok(res, data, 'Appareil agent reinitialise avec succes.');
+}
+
+async function triggerAgentKillSwitch(req, res) {
+  const data = await service.triggerAgentKillSwitch(req.params.agentId, getRequestContext(req));
+  return ok(res, data, 'Kill switch active avec succes.');
 }
 
 module.exports = {
@@ -325,6 +352,8 @@ module.exports = {
   refreshWhatsApp,
   getSystemSettings,
   updateSystemSetting,
+  resetAgentDevice,
+  triggerAgentKillSwitch,
   overview,
   marketplaceOverview,
   marketplaceOrders,
@@ -353,6 +382,7 @@ module.exports = {
   recovery,
   agents,
   updateAgentStatus,
+  updateAgentProfile,
   topUpAgentCash,
   agentCashHistory,
   reverseProvisioning,
@@ -360,4 +390,5 @@ module.exports = {
   withdrawalDetail,
   anomalies,
   auditLogs,
+  exportAuditLogs,
 };

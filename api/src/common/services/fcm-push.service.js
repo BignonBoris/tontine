@@ -1,4 +1,5 @@
 const admin = require('../../config/firebase');
+const { getMessaging } = require('firebase-admin/messaging');
 const { models } = require('../../database/models');
 
 function toText(value, fallback = '') {
@@ -70,7 +71,7 @@ async function sendPushNotificationToUser(notification) {
   const payload = buildPushPayload(notification, registrationIds);
 
   try {
-    const response = await admin.messaging().sendEachForMulticast(payload);
+    const response = await getMessaging().sendEachForMulticast(payload);
     
     if (response.failureCount > 0) {
       const invalidTokens = [];

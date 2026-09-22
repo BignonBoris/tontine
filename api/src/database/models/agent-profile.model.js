@@ -40,6 +40,26 @@ const AgentProfile = sequelize.define(
       allowNull: false,
       defaultValue: true,
     },
+    maxFloatLimit: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: false,
+      defaultValue: 500000,
+      field: 'max_float_limit',
+      validate: {
+        min: 0,
+      },
+    },
+    deviceId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'device_id',
+    },
+    forceLogout: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'force_logout',
+    },
   },
   {
     tableName: 'agent_profiles',

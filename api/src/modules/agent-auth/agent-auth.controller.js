@@ -3,7 +3,11 @@ const { getRequestContext } = require('../../common/utils/request-context');
 const service = require('./agent-auth.service');
 
 async function login(req, res) {
-  const data = await service.loginAgent(req.body, getRequestContext(req));
+  const { phoneNumber, pin, deviceId } = req.body;
+  const data = await service.loginAgent(
+    { phoneNumber, pin, deviceId },
+    getRequestContext(req),
+  );
   return ok(res, data, 'Connexion agent reussie.');
 }
 

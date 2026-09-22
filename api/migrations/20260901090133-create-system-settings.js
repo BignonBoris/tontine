@@ -17,11 +17,11 @@ module.exports = {
         type: Sequelize.STRING(255),
         allowNull: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
       },
@@ -33,8 +33,8 @@ module.exports = {
         key: 'GOAL_EARLY_CLOSURE_PENALTY_PERCENT',
         value: JSON.stringify(5.0),
         description: 'Pourcentage de pénalité appliqué lors de la clôture anticipée d\'un coffre',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       }
     ]);
   },

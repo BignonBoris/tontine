@@ -1795,6 +1795,49 @@ async function updateAgentStatus(agentId, payload) {
   };
 }
 
+async function updateAgentProfile(agentId, payload, requestContext = {}) {
+  const agent = await models.AgentProfile.findByPk(agentId, {
+    include: [{ model: models.User, as: 'user', required: true }],
+  });
+
+  if (!agent) {
+    throw new AppError('Agent introuvable.', 404);
+  }
+
+  if (payload.maxFloatLimit !== undefined) {
+    const limit = Number(payload.maxFloatLimit);
+    if (isNaN(limit) || limit < 0) {
+      throw new AppError('Le plafond de caisse doit être un nombre positif.', 422);
+    }
+    
+    const previousLimit = agent.maxFloatLimit;
+    await agent.update({ maxFloatLimit: limit });
+
+    await writeAuditLog({
+      userId: null,
+      action: 'admin.agent_limit_updated',
+      entityType: 'agentProfile',
+      entityId: agent.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        adminUsername: requestContext.adminUsername || null,
+        changes: {
+          maxFloatLimit: {
+            before: previousLimit,
+            after: limit,
+          },
+        },
+      },
+    });
+  }
+
+  return {
+    id: agent.id,
+    maxFloatLimit: agent.maxFloatLimit,
+  };
+}
+
 async function topUpAgentCash(agentId, payload, requestContext = {}) {
   const agent = await models.AgentProfile.findByPk(agentId, {
     include: [{ model: models.User, as: 'user', required: true }],
@@ -3197,27 +3240,33 @@ async function listAuditLogs(query = {}) {
   const { page, pageSize, offset, limit } = parsePagination(query);
   const search = String(query.search || '').trim();
   const action = String(query.action || '').trim();
+  const status = String(query.status || '').trim();
+  const dateFrom = query.dateFrom ? new Date(query.dateFrom) : null;
+  const dateTo = query.dateTo ? new Date(query.dateTo) : null;
 
   const whereClause = {};
+
   if (action) {
-    whereClause.action = {
-      [Op.like]: `%${action}%`,
-    };
+    whereClause.action = { [Op.like]: `%${action}%` };
+  }
+  if (status) {
+    whereClause.status = status;
+  }
+  if (dateFrom || dateTo) {
+    whereClause.createdAt = {};
+    if (dateFrom) whereClause.createdAt[Op.gte] = dateFrom;
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      whereClause.createdAt[Op.lte] = end;
+    }
   }
   if (search) {
     whereClause[Op.or] = [
-      where(fn('LOWER', col('AuditLog.action')), {
-        [Op.like]: `%${search.toLowerCase()}%`,
-      }),
-      where(fn('LOWER', col('AuditLog.entity_type')), {
-        [Op.like]: `%${search.toLowerCase()}%`,
-      }),
-      where(fn('LOWER', col('user.display_name')), {
-        [Op.like]: `%${search.toLowerCase()}%`,
-      }),
-      where(fn('LOWER', col('user.phone_number')), {
-        [Op.like]: `%${search.toLowerCase()}%`,
-      }),
+      where(fn('LOWER', col('AuditLog.action')), { [Op.like]: `%${search.toLowerCase()}%` }),
+      where(fn('LOWER', col('AuditLog.entity_type')), { [Op.like]: `%${search.toLowerCase()}%` }),
+      where(fn('LOWER', col('user.display_name')), { [Op.like]: `%${search.toLowerCase()}%` }),
+      where(fn('LOWER', col('user.phone_number')), { [Op.like]: `%${search.toLowerCase()}%` }),
     ];
   }
 
@@ -3229,29 +3278,47 @@ async function listAuditLogs(query = {}) {
     limit,
   });
 
+  const mapEntry = (entry) => ({
+    id: entry.id,
+    action: entry.action,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    status: entry.status,
+    ipAddress: entry.ipAddress,
+    userAgent: entry.userAgent,
+    metadata: entry.metadata,
+    createdAt: entry.createdAt,
+    user: entry.user
+      ? { id: entry.user.id, displayName: entry.user.displayName, phoneNumber: entry.user.phoneNumber }
+      : null,
+  });
+
   return {
-    items: result.rows.map((entry) => ({
-      id: entry.id,
-      action: entry.action,
-      entityType: entry.entityType,
-      entityId: entry.entityId,
-      status: entry.status,
-      ipAddress: entry.ipAddress,
-      createdAt: entry.createdAt,
-      user: entry.user
-        ? {
-            id: entry.user.id,
-            displayName: entry.user.displayName,
-            phoneNumber: entry.user.phoneNumber,
-          }
-        : null,
-    })),
-    pagination: {
-      page,
-      pageSize,
-      total: result.count,
-    },
+    items: result.rows.map(mapEntry),
+    pagination: { page, pageSize, total: result.count },
   };
+}
+
+/**
+ * Exporte les logs d'audit au format CSV (max 5000 lignes).
+ */
+async function exportAuditLogsCsv(query = {}) {
+  const { items } = await listAuditLogs({ ...query, page: 1, pageSize: 5000 });
+
+  const header = ['Date', 'Action', 'Entite', 'ID Entite', 'Statut', 'Utilisateur', 'Telephone', 'IP'];
+  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = items.map((log) => [
+    escape(new Date(log.createdAt).toISOString()),
+    escape(log.action),
+    escape(log.entityType),
+    escape(log.entityId),
+    escape(log.status),
+    escape(log.user?.displayName ?? 'Système'),
+    escape(log.user?.phoneNumber ?? ''),
+    escape(log.ipAddress ?? ''),
+  ].join(','));
+
+  return [header.join(','), ...rows].join('\n');
 }
 
 async function getSystemSettings() {
@@ -3318,6 +3385,7 @@ module.exports = {
   updateClientStatus,
   listAgents,
   updateAgentStatus,
+  updateAgentProfile,
   topUpAgentCash,
   getAgentCashHistory,
   reverseProvisioningForAdmin,
@@ -3325,6 +3393,7 @@ module.exports = {
   getWithdrawalDetail,
   getOperationalAnomalies,
   listAuditLogs,
+  exportAuditLogsCsv,
   getSystemSettings,
   updateSystemSetting,
 };
