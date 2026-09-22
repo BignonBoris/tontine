@@ -105,6 +105,26 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
   const notes = payload?.notes ? String(payload.notes).trim() : null;
   const syncId = payload?.syncId ? String(payload.syncId).trim() : null;
 
+  // ── Offline security metadata ─────────────────────────────────────────────
+  const offlineHash = payload?.offlineHash ? String(payload.offlineHash).trim() : null;
+  const previousHash = payload?.previousHash ? String(payload.previousHash).trim() : null;
+  const secureTimestamp = payload?.secureTimestamp ? new Date(payload.secureTimestamp) : null;
+
+  // Warn if the offline timestamp is suspiciously old (> 48h) or in the future
+  if (secureTimestamp && !isNaN(secureTimestamp.getTime())) {
+    const now = new Date();
+    const diffMs = Math.abs(now - secureTimestamp);
+    const diffHours = diffMs / (1000 * 60 * 60);
+    if (diffHours > 48 || secureTimestamp > now) {
+      console.warn(
+        `[OFFLINE_SECURITY] Suspicious secureTimestamp for agent ${agentProfile.id}: ` +
+        `secureTimestamp=${secureTimestamp.toISOString()}, now=${now.toISOString()}, ` +
+        `diffHours=${diffHours.toFixed(2)}`
+      );
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   await validateProvisioningRequest(clientUserId, amount);
 
   if (Number(agentProfile.agentBalance || 0) < amount) {
@@ -179,9 +199,23 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
         reference: created.reference,
         agentBalanceBefore: cashChange.balanceBefore,
         agentBalanceAfter: cashChange.balanceAfter,
+        // Offline security fields (present only for agent offline transactions)
+        offlineHash: offlineHash || undefined,
+        previousHash: previousHash || undefined,
+        secureTimestamp: secureTimestamp ? secureTimestamp.toISOString() : undefined,
       },
       transaction,
     });
+
+    await models.Notification.create(
+      {
+        userId: client.id,
+        type: 'deposit',
+        title: 'Depot Tontine Reussi',
+        message: `Votre depot de ${amount} F a ete valide par l'agent ${agentProfile.fullName}.`,
+      },
+      { transaction },
+    );
 
     return { created, agentBalanceAfter: cashChange.balanceAfter, client };
   });

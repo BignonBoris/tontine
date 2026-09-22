@@ -14,6 +14,10 @@ async function authenticateAgent(req, res, next) {
     return next(new AppError('Compte agent invalide ou inactif.', 403));
   }
 
+  if (agentProfile.forceLogout) {
+    return next(new AppError('KILL_SWITCH_ACTIVATED', 401));
+  }
+
   req.agentProfile = agentProfile;
   return next();
 }
