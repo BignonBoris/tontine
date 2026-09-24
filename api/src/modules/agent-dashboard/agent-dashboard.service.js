@@ -45,7 +45,7 @@ async function getOverview(agentProfileId) {
       models.Provisioning.findOne({
         where: { agentProfileId },
         order: [['createdAt', 'DESC']],
-        include: [{ model: models.User, as: 'client', attributes: ['firstName', 'lastName'] }],
+        include: [{ model: models.User, as: 'client', attributes: ['displayName', 'firstName', 'lastName'] }],
       }),
     ]);
 
@@ -62,9 +62,10 @@ async function getOverview(agentProfileId) {
       status: lastOperation.status,
       createdAt: lastOperation.createdAt,
       clientName: lastOperation.client ? 
+          (lastOperation.client.displayName ||
           [lastOperation.client.firstName, lastOperation.client.lastName]
               .filter(Boolean)
-              .join(' ') || 'Client inconnu' 
+              .join(' ') || 'Client inconnu')
           : 'Client inconnu',
     } : null,
   };
