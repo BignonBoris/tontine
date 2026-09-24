@@ -1,4 +1,3 @@
-const { models } = require('../../database/models');
 
 async function writeAuditLog({
   userId = null,
@@ -11,6 +10,7 @@ async function writeAuditLog({
   metadata = null,
   transaction = null,
 }) {
+  const { models } = require('../../database/models');
   return models.AuditLog.create({
     userId,
     action,

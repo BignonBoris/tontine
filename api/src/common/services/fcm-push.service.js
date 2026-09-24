@@ -1,6 +1,5 @@
 const admin = require('../../config/firebase');
 const { getMessaging } = require('firebase-admin/messaging');
-const { models } = require('../../database/models');
 
 function toText(value, fallback = '') {
   if (value === null || value === undefined) {
