@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
 const crypto = require('node:crypto');
 const fsp = require('node:fs/promises');
@@ -11,8 +12,8 @@ const { models, sequelize } = require('../../database/models');
 const {
   displayPhone,
   normalizePhone,
-  normalizeDisplayName,
-  isValidDisplayName,
+  normalizePersonalName,
+  isValidPersonalName,
 } = require('../auth/auth.service');
 const {
   configureStake,
@@ -161,20 +162,30 @@ async function getMyClientDetail(agentProfileId, clientId) {
 }
 
 async function createClient(agentProfile, payload, requestContext = {}) {
-  const displayName = normalizeDisplayName(payload.displayName);
+  const firstName = normalizePersonalName(payload.firstName);
+  const lastName = normalizePersonalName(payload.lastName);
+  const displayName = `${firstName} ${lastName}`.trim();
+  
   const rawPhoneNumber = String(payload.phoneNumber ?? '').trim();
   const address = String(payload.address || '').trim();
   const stakeAmount = Number(payload.stakeAmount);
   const initialDeposit = payload.initialDeposit == null
     ? 0
     : Number(payload.initialDeposit);
+  const pinCode = payload.pinCode ? String(payload.pinCode).trim() : null;
 
-  if (!isValidDisplayName(displayName)) {
-    throw new AppError('Le nom du client est requis.', 422);
+  if (!isValidPersonalName(lastName)) {
+    throw new AppError('Le nom de famille du client est requis et doit etre valide.', 422);
+  }
+  if (!isValidPersonalName(firstName)) {
+    throw new AppError('Le prenom du client est requis et doit etre valide.', 422);
   }
   const phoneNumber = rawPhoneNumber ? normalizePhone(rawPhoneNumber) : null;
   if (rawPhoneNumber && phoneNumber.length !== 10) {
     throw new AppError('Le numero du client est invalide.', 422);
+  }
+  if (!pinCode || pinCode.length !== 4 || !/^\d{4}$/.test(pinCode)) {
+    throw new AppError('Un code PIN a 4 chiffres est requis.', 422);
   }
   if (!address || address.length < 3) {
     throw new AppError("L'adresse du client est requise.", 422);
@@ -203,11 +214,15 @@ async function createClient(agentProfile, payload, requestContext = {}) {
     }
   }
 
+  const hashedPin = await bcrypt.hash(pinCode, 10);
+
   const client = await sequelize.transaction(async (transaction) => {
     const createdClient = await models.User.create(
       {
         phoneNumber,
         displayName,
+        firstName,
+        lastName,
         address,
         accountType: 'Personnel',
         isActive: true,
@@ -217,7 +232,11 @@ async function createClient(agentProfile, payload, requestContext = {}) {
     );
 
     await models.UserPreference.create(
-      { userId: createdClient.id },
+      { 
+        userId: createdClient.id,
+        pinEnabled: true,
+        pinCode: hashedPin
+      },
       { transaction },
     );
     await models.Wallet.create({ userId: createdClient.id }, { transaction });
