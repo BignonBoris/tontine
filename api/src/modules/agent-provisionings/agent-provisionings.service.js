@@ -159,11 +159,12 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
     await depositToCycle(client.id, amount, 'external', {
       ...requestContext,
       transaction,
-      initiatedByUserId: agentProfile.userId,
+      initiatedByUserId: agentProfile.userId ?? null,
       initiatorType: 'agent',
       provisioningId: created.id,
       syncId,
     });
+
 
     const cashChange = await applyAgentBalanceChange(
       agentProfile.id,

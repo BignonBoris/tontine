@@ -13,6 +13,7 @@ const AgentProfile = sequelize.define(
       type: DataTypes.UUID,
       allowNull: false,
       unique: true,
+      field: 'user_id',
     },
     agentCode: {
       type: DataTypes.STRING(32),

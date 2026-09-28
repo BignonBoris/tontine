@@ -148,10 +148,16 @@ async function appendCycleHistory(
 
 function resolveActorForUser(userId, requestContext = {}) {
   const initiatorType = requestContext.initiatorType || 'client';
+  // Use ?? (nullish coalescing) so that an explicit null is preserved.
+  // Also sanitize to never produce undefined, which Sequelize rejects in WHERE clauses.
+  const resolvedId =
+    requestContext.initiatedByUserId != null
+      ? requestContext.initiatedByUserId
+      : initiatorType === 'client'
+        ? userId
+        : null;
   return {
-    initiatedByUserId:
-      requestContext.initiatedByUserId ||
-      (initiatorType === 'client' ? userId : null),
+    initiatedByUserId: resolvedId ?? null,
     initiatorType,
   };
 }
@@ -469,9 +475,9 @@ async function depositToCycle(
     const recentDuplicate = await models.TontineHistory.findOne({
       where: {
         userId,
-        type: 'versement',
+        type: 'deposit',
         amount,
-        initiatedByUserId: actorForCheck.initiatorId,
+        initiatedByUserId: actorForCheck.initiatedByUserId,
         occurredAt: {
           [Op.gte]: new Date(Date.now() - timeWindowMs),
         }
