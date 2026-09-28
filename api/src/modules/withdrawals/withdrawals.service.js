@@ -55,7 +55,7 @@ function computeConfirmationCodeExpiresAt() {
 function isConfirmationCodeExpired(withdrawal) {
   return Boolean(
     withdrawal.confirmationCodeExpiresAt &&
-      new Date(withdrawal.confirmationCodeExpiresAt) < new Date(),
+    new Date(withdrawal.confirmationCodeExpiresAt) < new Date(),
   );
 }
 
@@ -185,10 +185,10 @@ function serializeWithdrawal(withdrawal, extras = {}) {
       !isAgentCashWithdrawal(withdrawal) && withdrawal.status === 'requested',
     payingAgent: withdrawal.payingAgent
       ? {
-          id: withdrawal.payingAgent.id,
-          agentCode: withdrawal.payingAgent.agentCode,
-          fullName: withdrawal.payingAgent.fullName,
-        }
+        id: withdrawal.payingAgent.id,
+        agentCode: withdrawal.payingAgent.agentCode,
+        fullName: withdrawal.payingAgent.fullName,
+      }
       : null,
     ...extras,
   };
@@ -573,10 +573,10 @@ async function findPendingWithdrawalByReference(reference) {
   return serializeWithdrawal(withdrawal, {
     client: withdrawal.user
       ? {
-          id: withdrawal.user.id,
-          displayName: withdrawal.user.displayName,
-          phoneNumber: displayPhone(withdrawal.user.phoneNumber),
-        }
+        id: withdrawal.user.id,
+        displayName: withdrawal.user.displayName,
+        phoneNumber: displayPhone(withdrawal.user.phoneNumber),
+      }
       : null,
   });
 }
@@ -1106,6 +1106,96 @@ async function markWithdrawalPaidByAdmin(
   return serializeWithdrawal(result);
 }
 
+/**
+ * [AGENT DIRECT] Étape 1 : Valider le client et le montant sans créer de retrait.
+ * Retourne les informations du client et le solde disponible.
+ */
+async function previewDirectWithdrawal(agentProfile, payload = {}) {
+  const query = String(payload?.clientQuery || '').trim();
+  const amount = Number(payload?.amount);
+
+  if (!query) {
+    throw new AppError('Identifiant ou telephone du client requis.', 422);
+  }
+  if (!amount || amount <= 0 || amount % FINANCIAL_AMOUNT_STEP !== 0) {
+    throw new AppError(
+      `Le montant doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+
+  // Chercher le client par téléphone ou par ID, dans le portefeuille de l'agent
+  const { Op } = require('sequelize');
+  const normalizedPhone = query.replace(/\D/g, '');
+  const client = await models.User.findOne({
+    where: {
+      [Op.and]: [
+        {
+          [Op.or]: [
+            { id: query },
+            ...(normalizedPhone.length >= 8 ? [{ phoneNumber: normalizedPhone }] : []),
+          ],
+        },
+        { isActive: true },
+        { createdByAgentProfileId: agentProfile.id },
+      ],
+    },
+    include: [{ model: models.Wallet, as: 'wallet', required: false }],
+  });
+
+  if (!client) {
+    throw new AppError(
+      'Client introuvable dans votre portefeuille. Verifiez l\'identifiant ou le telephone.',
+      404,
+    );
+  }
+
+  const availableBalance = Number(client.wallet?.availableBalance || 0);
+  if (availableBalance < amount) {
+    throw new AppError(
+      `Solde insuffisant. Ce client dispose de ${availableBalance.toLocaleString('fr-FR')} F.`,
+      422,
+    );
+  }
+
+  return {
+    clientId: client.id,
+    clientDisplayName: client.displayName,
+    clientPhoneNumber: displayPhone(client.phoneNumber),
+    availableBalance,
+    amount,
+  };
+}
+
+/**
+ * [AGENT DIRECT] Crée un retrait pour un client de l'agent et retourne le retrait + code OTP.
+ * L'agent paie ensuite via POST /agent/withdrawals/:id/pay avec le code que le client lui communique.
+ */
+async function createDirectWithdrawal(agentProfile, payload = {}, requestContext = {}) {
+  const clientUserId = String(payload?.clientId || '').trim();
+  const amount = Number(payload?.amount);
+
+  if (!clientUserId) throw new AppError('Client requis.', 422);
+  if (!amount || amount <= 0 || amount % FINANCIAL_AMOUNT_STEP !== 0) {
+    throw new AppError(
+      `Le montant doit etre un multiple positif de ${FINANCIAL_AMOUNT_STEP}.`,
+      422,
+    );
+  }
+
+  // Déléguer au createWithdrawal existant avec contexte agent
+  return createWithdrawal(
+    clientUserId,
+    { amount, channel: AGENT_CASH_CHANNEL },
+    {
+      ...requestContext,
+      initiatedByUserId: agentProfile.userId ?? null,
+      initiatorType: 'agent',
+    },
+  );
+}
+
+
 module.exports = {
   listClientWithdrawals,
   createWithdrawal,
@@ -1116,4 +1206,6 @@ module.exports = {
   approveWithdrawalByAdmin,
   rejectWithdrawalByAdmin,
   markWithdrawalPaidByAdmin,
+  previewDirectWithdrawal,
+  createDirectWithdrawal,
 };
