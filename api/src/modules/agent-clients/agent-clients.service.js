@@ -23,6 +23,7 @@ const {
 const {
   createAgentFundingOperation,
 } = require('../agent-provisionings/agent-provisionings.service');
+const { closeTontineCycle } = require('../admin/admin.service');
 
 function serializeClientBase(client, extras = {}) {
   return {
@@ -361,6 +362,72 @@ async function startClientTontine(agentProfile, clientId, payload, requestContex
   return buildClientSummary(client);
 }
 
+async function closeClientTontine(agentProfile, clientId, payload, requestContext = {}) {
+  const pinCode = payload.pinCode ? String(payload.pinCode).trim() : null;
+
+  if (!pinCode || pinCode.length !== 4 || !/^\d{4}$/.test(pinCode)) {
+    throw new AppError('Un code PIN a 4 chiffres est requis.', 422);
+  }
+
+  const client = await models.User.findOne({
+    where: {
+      id: clientId,
+      isActive: true,
+      accountType: { [Op.ne]: 'Agent' },
+      createdByAgentProfileId: agentProfile.id,
+    },
+    include: [{ model: models.UserPreference, as: 'preference' }]
+  });
+
+  if (!client) {
+    throw new AppError('Client introuvable dans votre portefeuille.', 404);
+  }
+
+  if (!client.preference || !client.preference.pinEnabled || !client.preference.pinCode) {
+    throw new AppError("Le client n'a pas de code PIN configure.", 422);
+  }
+
+  const pinMatches = await bcrypt.compare(pinCode, client.preference.pinCode);
+  if (!pinMatches) {
+    throw new AppError('Code PIN incorrect. Cloture refusee.', 401);
+  }
+
+  // Find active tontine cycle
+  const activeCycle = await models.TontineCycle.findOne({
+    where: {
+      userId: client.id,
+      status: 'active',
+    },
+  });
+
+  if (!activeCycle) {
+    throw new AppError("Le client n'a aucune tontine active a cloturer.", 422);
+  }
+
+  const actorContext = {
+    ...requestContext,
+    initiatedByUserId: agentProfile.userId,
+    initiatorType: 'agent',
+  };
+
+  // Close the cycle
+  await closeTontineCycle(activeCycle.id, actorContext);
+
+  await writeAuditLog({
+    userId: agentProfile.userId,
+    action: 'agent.client_tontine_closed',
+    entityType: 'client',
+    entityId: client.id,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      tontineCycleId: activeCycle.id,
+    },
+  });
+
+  return getMyClientDetail(agentProfile.id, client.id);
+}
+
 const PRIVATE_KYC_ROOT = path.join(__dirname, '../../private-storage/kyc');
 const DOCUMENT_TYPES = new Set(['cni', 'passport', 'residence_permit']);
 
@@ -495,6 +562,7 @@ module.exports = {
   getMyClientDetail,
   createClient,
   startClientTontine,
+  closeClientTontine,
   uploadClientKyc,
   updatePhone,
 };
