@@ -25,6 +25,12 @@ router.post(
   asyncHandler(controller.startTontine),
 );
 router.post(
+  '/:clientId/close-tontine',
+  authenticate,
+  authenticateAgent,
+  asyncHandler(controller.closeTontine),
+);
+router.post(
   '/:clientId/kyc',
   authenticate,
   authenticateAgent,

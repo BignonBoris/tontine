@@ -64,4 +64,14 @@ async function updatePhone(req, res) {
   return ok(res, data, 'Numero de telephone mis a jour.');
 }
 
-module.exports = { search, listMine, detailMine, create, startTontine, uploadKyc, updatePhone };
+async function closeTontine(req, res) {
+  const data = await service.closeClientTontine(
+    req.agentProfile,
+    req.params.clientId,
+    req.body,
+    getRequestContext(req),
+  );
+  return ok(res, data, 'Tontine cloturee avec succes.');
+}
+
+module.exports = { search, listMine, detailMine, create, startTontine, closeTontine, uploadKyc, updatePhone };
