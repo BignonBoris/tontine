@@ -40,6 +40,8 @@ const KycDecision = require('./kyc-decision.model');
 const TontineKycLimit = require('./tontine-kyc-limit.model');
 const IdempotencyKey = require('./idempotency-key.model');
 const SystemSetting = require('./system-setting.model');
+const DeviceApprovalRequest = require('../../modules/device-approval/device-approval.model');
+const DeviceSession = require('../../modules/device-approval/device-session.model');
 
 User.hasOne(UserPreference, { foreignKey: 'userId', as: 'preferences' });
 UserPreference.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -425,6 +427,8 @@ const models = {
   KycDecision,
   TontineKycLimit,
   IdempotencyKey,
+  DeviceApprovalRequest,
+  DeviceSession,
   SystemSetting,
 };
 
