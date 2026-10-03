@@ -8,6 +8,7 @@ const AppError = require('../../common/errors/app-error');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
 const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
 const { models, sequelize } = require('../../database/models');
+const deviceApprovalService = require('../device-approval/device-approval.service');
 
 function validateAndNormalizePhone(phoneNumber, defaultCountry = 'BJ') {
   const rawStr = String(phoneNumber || '').trim();
@@ -160,8 +161,8 @@ function isValidPinCode(pinCode) {
   return /^\d{4}$/.test(String(pinCode || '').trim());
 }
 
-function signToken(user) {
-  return jwt.sign({ sub: user.id, phoneNumber: user.phoneNumber }, env.jwtSecret, {
+function signToken(user, sessionId = null) {
+  return jwt.sign({ sub: user.id, phoneNumber: user.phoneNumber, ...(sessionId ? { sessionId } : {}) }, env.jwtSecret, {
     expiresIn: env.jwtExpiresIn,
   });
 }
@@ -533,7 +534,7 @@ async function resendOtp(payload, context) {
 }
 
 async function verifyOtp(
-  { phoneNumber, code, firstName, lastName, birthDate, pinCode },
+  { phoneNumber, code, firstName, lastName, birthDate, pinCode, deviceId },
   context,
 ) {
   const { normalizedPhone } = validateAndNormalizePhone(phoneNumber);
@@ -685,6 +686,47 @@ async function verifyOtp(
       transaction,
     });
 
+    let sessionId = null;
+    if (env.deviceApprovalEnabled) {
+      const normalizedDeviceId = String(deviceId || '').trim();
+      if (!normalizedDeviceId) {
+        throw new AppError('Identifiant appareil obligatoire.', 422);
+      }
+      const activeSession = await models.DeviceSession.findOne({
+        where: { userId: user.id, status: 'active' },
+        order: [['lastSeenAt', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const approvedRequest = await models.DeviceApprovalRequest.findOne({
+        where: { userId: user.id, requestingDeviceId: normalizedDeviceId, status: 'approved' },
+        order: [['createdAt', 'DESC']],
+        transaction,
+      });
+      if (activeSession && activeSession.deviceId !== normalizedDeviceId && !approvedRequest) {
+        const request = await deviceApprovalService.createRequest({
+          userId: user.id,
+          requestingDeviceId: normalizedDeviceId,
+          currentSessionId: activeSession.id,
+          transaction,
+        });
+        return { requiresDeviceApproval: true, approvalRequestId: request.id, expiresAt: request.expiresAt };
+      }
+      if (approvedRequest) {
+        await approvedRequest.update({ status: 'expired', respondedAt: new Date() }, { transaction });
+      }
+      if (activeSession) {
+        await activeSession.update({ status: 'revoked', revokedAt: new Date() }, { transaction });
+      }
+      const session = await models.DeviceSession.create({
+        userId: user.id,
+        deviceId: normalizedDeviceId,
+        status: 'active',
+        lastSeenAt: new Date(),
+      }, { transaction });
+      sessionId = session.id;
+    }
+
     if (
       preferences &&
       !preferences.pinCode &&
@@ -730,7 +772,7 @@ async function verifyOtp(
     });
 
     return {
-      token: signToken(user),
+      token: signToken(user, sessionId),
       user: {
         id: user.id,
         phoneNumber: displayPhone(user.phoneNumber),

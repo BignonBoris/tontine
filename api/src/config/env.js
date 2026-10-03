@@ -24,6 +24,12 @@ const env = {
     process.env.OTP_RESEND_COOLDOWN_SECONDS || 120,
   ),
   otpEnabled: process.env.ENABLE_OTP !== 'false',
+  deviceApprovalEnabled: process.env.ENABLE_DEVICE_APPROVAL === 'true',
+  deviceApprovalTtlSeconds: Number(process.env.DEVICE_APPROVAL_TTL_SECONDS || 120),
+  deviceApprovalEnabled: process.env.ENABLE_DEVICE_APPROVAL === 'true',
+  deviceApprovalTtlSeconds: Number(
+    process.env.DEVICE_APPROVAL_TTL_SECONDS || 120,
+  ),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   sequelizeSync: process.env.SEQUELIZE_SYNC === 'true',
   fcmServerKey: process.env.FCM_SERVER_KEY || '',
