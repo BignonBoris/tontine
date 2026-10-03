@@ -28,10 +28,12 @@ const goalTemplatesAdminRoutes = require('../../modules/goal-templates/goal-temp
 const kycRoutes = require('../../modules/kyc/kyc.routes');
 const kycAdminRoutes = require('../../modules/kyc/kyc.admin.routes');
 const adminReconciliationRoutes = require('../../modules/admin/admin-reconciliation.routes');
+const deviceApprovalRoutes = require('../../modules/device-approval/device-approval.routes');
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
+router.use('/auth/device-approval', deviceApprovalRoutes);
 router.use('/admin/auth', adminAuthRoutes);
 router.use('/admin', adminRoutes);
 router.use('/admin', adminReconciliationRoutes);

@@ -17,6 +17,25 @@ async function authenticate(req, res, next) {
     if (!user || !user.isActive) {
       throw new AppError('Utilisateur invalide ou inactif.', 401);
     }
+    if (env.deviceApprovalEnabled) {
+      if (!payload.sessionId) {
+        throw new AppError('Session appareil invalide.', 401);
+      }
+      const session = await models.DeviceSession.findOne({
+        where: {
+          id: payload.sessionId,
+          userId: user.id,
+          status: 'active',
+        },
+      });
+      if (!session) {
+        throw new AppError(
+          'Cette session a ete remplacee par une connexion autorisee sur un autre appareil.',
+          401,
+        );
+      }
+      await session.update({ lastSeenAt: new Date() });
+    }
     req.auth = {
       userId: user.id,
       phoneNumber: user.phoneNumber,
