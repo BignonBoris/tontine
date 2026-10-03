@@ -1,5 +1,6 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/utils/input_rules.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
@@ -35,7 +36,8 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return AnimatedBottomSheet(
+      child: Padding(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
@@ -53,14 +55,21 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Center(
-                  child: SizedBox(width: 44, child: Divider(thickness: 4)),
-                ),
-                const SizedBox(height: 12),
-                const SectionTitle(
-                  title: 'Demarrer une tontine',
-                  subtitle:
-                      'Definissez la mise du client et ajoutez un premier depot si necessaire.',
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(
+                      child: SectionTitle(
+                        title: 'Demarrer une tontine',
+                        subtitle:
+                            'Definissez la mise du client et ajoutez un premier depot si necessaire.',
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _isSubmitting ? null : () => AnimatedBottomSheet.closeOf(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 AgentClientListTile(client: widget.client),
@@ -119,6 +128,7 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -177,7 +187,7 @@ class _AgentStartTontineSheetState extends State<AgentStartTontineSheet> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(client);
+      AnimatedBottomSheet.closeOf(context, client);
     } on ApiException catch (error) {
       _showError(error.message);
       if (mounted) {

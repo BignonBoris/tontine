@@ -56,17 +56,10 @@ class AgentGroupListTile extends StatelessWidget {
                   icon: Icons.payments_outlined,
                   label: '${group.contributionAmount.toStringAsFixed(0)} F',
                 ),
-                _MetricItem(
-                  icon: Icons.percent_rounded,
-                  label: group.commissionAmount > 0
-                      ? formatFcfa(group.commissionAmount)
-                      : 'Aucune',
-                ),
               ],
             ),
             const SizedBox(height: 8),
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.event_rounded,
@@ -82,6 +75,13 @@ class AgentGroupListTile extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const Spacer(),
+                _MetricItem(
+                  icon: Icons.percent_rounded,
+                  label: group.commissionAmount > 0
+                      ? formatFcfa(group.commissionAmount)
+                      : 'Aucune',
+                ),
               ],
             ),
             if ((group.description ?? '').trim().isNotEmpty) ...[
@@ -92,6 +92,7 @@ class AgentGroupListTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ],
+
           ],
         ),
         trailing: trailing,

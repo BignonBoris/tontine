@@ -15,6 +15,7 @@ import 'package:mobile/features/auth/screens/auth_choice_screen.dart';
 import 'package:mobile/features/auth/screens/auth_identification_screen.dart';
 import 'package:mobile/features/auth/screens/auth_otp_screen.dart';
 import 'package:mobile/features/auth/screens/auth_pin_setup_screen.dart';
+import 'package:mobile/features/auth/screens/device_approval_pending_screen.dart';
 import 'package:mobile/features/dashboard/data/services/dashboard_cache_service.dart';
 import 'package:mobile/features/dashboard/data/services/notification_service.dart';
 import 'package:mobile/features/dashboard/domain/entities/tontine_goal.dart';
@@ -59,11 +60,10 @@ void main() async {
         options.dsn = sentryDsn;
         options.tracesSampleRate = 1.0;
       },
-      appRunner: () => runApp(const MaTontineApp()),
     );
-  } else {
-    runApp(const MaTontineApp());
   }
+  
+  runApp(const MaTontineApp());
 }
 
 class MaTontineApp extends StatelessWidget {
@@ -107,6 +107,10 @@ class MaTontineApp extends StatelessWidget {
             const AuthIdentificationScreen(isRegistration: true),
         '/auth_otp': (context) => const AuthOtpScreen(),
         '/auth_pin_setup': (context) => const AuthPinSetupScreen(),
+        '/device-approval-pending': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return DeviceApprovalPendingScreen(requestId: args?['requestId'] as String? ?? '');
+        },
         '/onboarding_goals': (context) =>
             const OnboardingGoalsSelectionScreen(),
         '/unlock': (context) => const AppUnlockScreen(),

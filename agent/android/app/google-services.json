@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:952255180950:android:7257806e7669d8c57292b7",
         "android_client_info": {
-          "package_name": "com.viziobox.client"
+          "package_name": "com.viziobox.agent"
         }
       },
       "oauth_client": [],

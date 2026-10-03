@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/security/local_security_service.dart';
+import 'package:mobile/core/network/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
@@ -1362,7 +1363,16 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                         children: paymentMethods
                             .map(
                               (method) => ChoiceChip(
-                                label: Text(method.label),
+                                label: Text(
+                                  method.code == 'fedapay'
+                                      ? 'Mobile money'
+                                      : method.label,
+                                  style: TextStyle(
+                                    color: selectedMethod.code == method.code
+                                        ? Colors.white
+                                        : null,
+                                  ),
+                                ),
                                 selected: selectedMethod.code == method.code,
                                 onSelected: (selected) {
                                   if (!selected) {
@@ -1495,6 +1505,9 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
   }
 
   void _showEarlyStopDialog(BuildContext context, TontineCycle cycle) {
+    // Capture the bloc before opening the dialog. The dialog builder uses a
+    // separate route context and may not inherit the DashboardBloc provider.
+    final dashboardBloc = context.read<DashboardBloc>();
     final netAmount = (cycle.cumulativeAmount - cycle.commissionAmount).clamp(
       0.0,
       double.infinity,
@@ -1656,8 +1669,32 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                           if (!context.mounted || !authorized) {
                             return;
                           }
-                          context.read<DashboardBloc>().add(StopTontineEarly());
-                          Navigator.pop(dialogContext);
+                          try {
+                            await dashboardBloc.stopTontineEarlyAndWait();
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
+                          } on ApiException catch (error) {
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                SnackBar(
+                                  content: Text(error.message),
+                                  backgroundColor: AppTheme.errorColor,
+                                ),
+                              );
+                            }
+                          } catch (_) {
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "La clôture de la tontine a échoué. Réessayez.",
+                                  ),
+                                  backgroundColor: AppTheme.errorColor,
+                                ),
+                              );
+                            }
+                          }
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
@@ -1700,9 +1737,12 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       builder: (modalContext) {
         return ConfigureTontineStakeModal(
           kycStatus: kycStatus,
-          onSubmit: (amount, termsAccepted) async {
-            context.read<DashboardBloc>().add(ConfigureTontineStake(amount, termsAccepted: termsAccepted));
-          },
+          onSubmit: (amount, termsAccepted) => context
+              .read<DashboardBloc>()
+              .configureTontineStakeAndWait(
+                amount,
+                termsAccepted: termsAccepted,
+              ),
         );
       },
     );

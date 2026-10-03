@@ -64,6 +64,11 @@ const MainRoutes = [
         component: () => import("../views/platform/AuditView.vue"),
       },
       {
+        name: "Anomalies",
+        path: "/anomalies",
+        component: () => import("../views/platform/AnomaliesView.vue"),
+      },
+      {
         path: '/supervision/commissions',
         name: 'Commissions',
         component: () => import('../views/modules/commissions.vue'),

@@ -85,10 +85,11 @@ class _ConfigureTontineStakeModalState
             ),
             child: Form(
               key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -124,129 +125,22 @@ class _ConfigureTontineStakeModalState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Choisissez votre mise tontine journalière (multiple de ${AppInputRules.financialAmountStep} F). Elle sera active pour les 31 jours du cycle.",
+                    "Choisissez votre mise tontine journalière. Elle sera active pour les 31 jours du cycle.",
                     style: GoogleFonts.inter(
                       fontSize: 13.5,
                       color: AppTheme.textSecondaryColor,
                       height: 1.45,
                     ),
                   ),
-
-                  // KYC Limit Indicator Card
-                  Container(
-                    margin: const EdgeInsets.only(top: 14),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isVerified
-                          ? const Color(0xFFF0FDF4)
-                          : const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isVerified
-                            ? const Color(0xFFBBF7D0)
-                            : const Color(0xFFFDE68A),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              isVerified
-                                  ? Icons.verified_user_rounded
-                                  : Icons.shield_outlined,
-                              color: isVerified
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFFD97706),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                isVerified
-                                    ? "Identité certifiée • Plafond : ${formatFCFA(effectiveLimit)} F / jour"
-                                    : "Plafond KYC actuel : ${formatFCFA(effectiveLimit)} F CFA / jour",
-                                style: GoogleFonts.inter(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: isVerified
-                                      ? const Color(0xFF166534)
-                                      : const Color(0xFF92400E),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!isVerified) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            "Réglementation SFD : les mises sont limitées pour les comptes non vérifiés.",
-                            style: GoogleFonts.inter(
-                              fontSize: 11.5,
-                              color: const Color(0xFFB45309),
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => KycSubmissionScreen(
-                                    currentStatus: KycSummary(
-                                      status: widget.kycStatus ?? 'unverified',
-                                      level: 'basic',
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "Augmenter mes plafonds (Vérification KYC)",
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.primaryColor,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 13,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _amountController,
                     keyboardType: TextInputType.number,
                     inputFormatters: AppInputRules.amountFormatters,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: "Mise par cycle",
                       hintText: "Ex: 1 000",
                       suffixText: "F CFA",
-                      helperText: "Max autorisé : ${formatFCFA(effectiveLimit)} F CFA",
-                      helperStyle: GoogleFonts.inter(
-                        fontSize: 11.5,
-                        color: AppTheme.textSecondaryColor,
-                      ),
                     ),
                     validator: (value) {
                       final amount = double.tryParse(value ?? '');
@@ -262,6 +156,39 @@ class _ConfigureTontineStakeModalState
                       return null;
                     },
                   ),
+                  const SizedBox(height: 6),
+                  if (!isVerified)
+                    InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => KycSubmissionScreen(
+                              currentStatus: KycSummary(
+                                status: widget.kycStatus ?? 'unverified',
+                                level: 'basic',
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "Max autorisé : ${formatFCFA(effectiveLimit)} F CFA • Augmenter mon plafond",
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      "Max autorisé : ${formatFCFA(effectiveLimit)} F CFA",
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
                   const SizedBox(height: 18),
                   Container(
                     width: double.infinity,
@@ -334,6 +261,7 @@ class _ConfigureTontineStakeModalState
                     ),
                   ),
                 ],
+              ),
               ),
             ),
           ),

@@ -18,6 +18,7 @@ import 'package:mobile/features/dashboard/presentation/screens/marketplace_scree
 import 'package:mobile/features/dashboard/presentation/screens/profile_screen.dart';
 import 'package:mobile/features/dashboard/presentation/screens/tontine_detail_screen.dart';
 import 'package:mobile/features/security/presentation/screens/app_unlock_screen.dart';
+import 'package:mobile/features/auth/data/services/device_approval_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final bool skipOnboarding;
@@ -38,6 +39,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   bool _unlockRouteOpen = false;
 
   StreamSubscription? _realtimeSubscription;
+  Timer? _deviceApprovalTimer;
+  bool _deviceApprovalDialogOpen = false;
+  final DeviceApprovalService _deviceApprovalService = DeviceApprovalService();
 
   @override
   void initState() {
@@ -49,7 +53,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingInvitationIfNeeded();
+      _pollDeviceApprovalRequests();
     });
+    _deviceApprovalTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _pollDeviceApprovalRequests(),
+    );
 
     _realtimeSubscription = RealtimeNotificationService.instance.stream.listen((event) {
       if (event.eventName == 'notification.created') {
@@ -82,6 +91,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _realtimeSubscription?.cancel();
+    _deviceApprovalTimer?.cancel();
     super.dispose();
   }
 
@@ -159,6 +169,53 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _pollDeviceApprovalRequests() async {
+    if (!mounted || _deviceApprovalDialogOpen) return;
+    try {
+      final requests = await _deviceApprovalService.pending();
+      if (!mounted || requests.isEmpty || _deviceApprovalDialogOpen) return;
+      final request = Map<String, dynamic>.from(requests.first as Map);
+      final requestId = request['id']?.toString() ?? '';
+      if (requestId.isEmpty) return;
+      _deviceApprovalDialogOpen = true;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Nouvelle connexion détectée'),
+          content: const Text(
+            'Une tentative de connexion à votre compte est en cours depuis un autre appareil. Voulez-vous l’autoriser ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                try {
+                  await _deviceApprovalService.reject(requestId);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                } catch (_) {}
+              },
+              child: const Text('Refuser'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  await _deviceApprovalService.approve(requestId);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                } catch (_) {}
+              },
+              child: const Text('Autoriser'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      // Feature désactivée ou service momentanément indisponible : ne pas
+      // perturber la navigation normale de l'utilisateur.
+    } finally {
+      _deviceApprovalDialogOpen = false;
+    }
   }
 
   @override

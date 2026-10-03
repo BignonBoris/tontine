@@ -2,9 +2,9 @@ import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/storage/agent_navigation_storage.dart';
 import 'package:agent/features/clients/presentation/screens/clients_screen.dart';
 import 'package:agent/features/groups/presentation/screens/groups_screen.dart';
-import 'package:agent/features/history/presentation/screens/history_screen.dart';
+import 'package:agent/features/profile/presentation/screens/profile_screen.dart';
 import 'package:agent/features/home/presentation/screens/agent_home_screen.dart';
-import 'package:agent/features/provisioning/presentation/screens/provisioning_screen.dart';
+import 'package:agent/features/provisioning/presentation/screens/operations_shell_screen.dart';
 import 'package:flutter/material.dart';
 
 class AgentMainShell extends StatefulWidget {
@@ -16,6 +16,13 @@ class AgentMainShell extends StatefulWidget {
 
 class _AgentMainShellState extends State<AgentMainShell> {
   int _currentIndex = 0;
+
+  void _goToOperationsTab() {
+    setState(() {
+      _currentIndex = 2; // Operations shell is index 2
+    });
+    AgentNavigationStorage.saveLastTabIndex(2);
+  }
 
   @override
   void initState() {
@@ -46,13 +53,13 @@ class _AgentMainShellState extends State<AgentMainShell> {
     final screens = <Widget>[
       AgentHomeScreen(
         onOpenClients: () => _goToTab(1),
-        onOpenProvisioning: () => _goToTab(2),
-        onOpenHistory: () => _goToTab(4),
+        onOpenProvisioning: _goToOperationsTab,
+        onOpenHistory: _goToOperationsTab,
       ),
       const ClientsScreen(),
-      const ProvisioningScreen(),
+      const OperationsShellScreen(),
       const GroupsScreen(),
-      const HistoryScreen(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
@@ -78,15 +85,15 @@ class _AgentMainShellState extends State<AgentMainShell> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.add_card_rounded),
-            label: 'Operations',
+            label: 'Opérations',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.groups_2_outlined),
             label: 'Groupes',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined),
-            label: 'Historique',
+            icon: Icon(Icons.person_rounded),
+            label: 'Mon Compte',
           ),
         ],
       ),

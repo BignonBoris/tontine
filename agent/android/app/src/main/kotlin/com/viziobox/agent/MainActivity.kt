@@ -1,4 +1,4 @@
-package com.example.agent
+package com.viziobox.agent
 
 import io.flutter.embedding.android.FlutterActivity
 

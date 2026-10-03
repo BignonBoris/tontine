@@ -73,7 +73,48 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
           return Scaffold(
             appBar: AppBar(
-              title: Text(group?.name ?? 'Detail groupe'),
+              title: group == null
+                  ? const Text('Detail groupe')
+                  : GestureDetector(
+                      onTap: group.isStarted ? null : () {
+                        _showInlineEditSheet(
+                          title: 'Nom du groupe',
+                          initialValue: group.name,
+                          keyboardType: TextInputType.text,
+                          onSave: (val) async {
+                            await _service.updateGroup(
+                              groupId: group.id,
+                              name: val,
+                              participantCount: group.participantCount,
+                              turnIntervalValue: group.turnIntervalValue,
+                              turnIntervalUnit: group.turnIntervalUnit,
+                              contributionAmount: group.contributionAmount,
+                              commissionAmount: group.commissionAmount,
+                              plannedStartDate: group.plannedStartDate?.toIso8601String() ?? '',
+                              description: group.description,
+                            );
+                          },
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              group.name,
+                              style: TextStyle(
+                                decoration: group.isStarted ? null : TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dashed,
+                              ),
+                            ),
+                          ),
+                          if (!group.isStarted) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.edit_outlined, size: 16),
+                          ],
+                        ],
+                      ),
+                    ),
               actions: group == null
                   ? null
                   : _buildHeaderActions(
@@ -104,6 +145,115 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       );
   }
 
+  Future<void> _showInlineEditSheet({
+    required String title,
+    required String initialValue,
+    required TextInputType keyboardType,
+    required Future<void> Function(String) onSave,
+  }) async {
+    final controller = TextEditingController(text: initialValue);
+    final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final viewInsets = MediaQuery.of(context).viewInsets;
+            return SafeArea(
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: viewInsets.bottom),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: controller,
+                          keyboardType: keyboardType,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Ce champ est requis.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    if (!formKey.currentState!.validate()) return;
+                                    setState(() => isSubmitting = true);
+                                    try {
+                                      await onSave(controller.text.trim());
+                                      if (!context.mounted) return;
+                                      Navigator.of(context).pop();
+                                      _reload();
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Erreur: $e')),
+                                      );
+                                    } finally {
+                                      if (context.mounted) {
+                                        setState(() => isSubmitting = false);
+                                      }
+                                    }
+                                  },
+                            child: isSubmitting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text('Enregistrer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildLoadedView(
     BuildContext context,
     _GroupDetailViewModel data, {
@@ -131,6 +281,28 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     _GroupMetricItem(
                       icon: Icons.group_outlined,
                       label: '${group.memberCount}/${group.participantCount}',
+                      onTap: group.isStarted ? null : () {
+                        _showInlineEditSheet(
+                          title: 'Nombre de participants cible',
+                          initialValue: group.participantCount.toString(),
+                          keyboardType: TextInputType.number,
+                          onSave: (val) async {
+                            final count = int.parse(val);
+                            if (count < group.memberCount) throw Exception('Impossible d\'avoir moins de participants cibles que le nombre actuel de membres.');
+                            await _service.updateGroup(
+                              groupId: group.id,
+                              name: group.name,
+                              participantCount: count,
+                              turnIntervalValue: group.turnIntervalValue,
+                              turnIntervalUnit: group.turnIntervalUnit,
+                              contributionAmount: group.contributionAmount,
+                              commissionAmount: group.commissionAmount,
+                              plannedStartDate: group.plannedStartDate?.toIso8601String() ?? '',
+                              description: group.description,
+                            );
+                          },
+                        );
+                      },
                     ),
                     _GroupMetricItem(
                       icon: Icons.event_repeat_rounded,
@@ -140,12 +312,54 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     _GroupMetricItem(
                       icon: Icons.payments_outlined,
                       label: '${group.contributionAmount.toStringAsFixed(0)} F',
+                      onTap: group.isStarted ? null : () {
+                        _showInlineEditSheet(
+                          title: 'Montant par personne et par tour',
+                          initialValue: group.contributionAmount.toStringAsFixed(0),
+                          keyboardType: TextInputType.number,
+                          onSave: (val) async {
+                            final amount = double.parse(val);
+                            await _service.updateGroup(
+                              groupId: group.id,
+                              name: group.name,
+                              participantCount: group.participantCount,
+                              turnIntervalValue: group.turnIntervalValue,
+                              turnIntervalUnit: group.turnIntervalUnit,
+                              contributionAmount: amount,
+                              commissionAmount: group.commissionAmount,
+                              plannedStartDate: group.plannedStartDate?.toIso8601String() ?? '',
+                              description: group.description,
+                            );
+                          },
+                        );
+                      },
                     ),
                     _GroupMetricItem(
                       icon: Icons.percent_rounded,
                       label: group.commissionAmount > 0
                           ? formatFcfa(group.commissionAmount)
                           : 'Aucune',
+                      onTap: group.isStarted ? null : () {
+                        _showInlineEditSheet(
+                          title: 'Commission totale par tour',
+                          initialValue: group.commissionAmount.toStringAsFixed(0),
+                          keyboardType: TextInputType.number,
+                          onSave: (val) async {
+                            final amount = double.parse(val);
+                            await _service.updateGroup(
+                              groupId: group.id,
+                              name: group.name,
+                              participantCount: group.participantCount,
+                              turnIntervalValue: group.turnIntervalValue,
+                              turnIntervalUnit: group.turnIntervalUnit,
+                              contributionAmount: group.contributionAmount,
+                              commissionAmount: amount,
+                              plannedStartDate: group.plannedStartDate?.toIso8601String() ?? '',
+                              description: group.description,
+                            );
+                          },
+                        );
+                      },
                     ),
                     _GroupMetricItem(
                       icon: Icons.event_rounded,
@@ -179,7 +393,38 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 if ((group.description ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text(group.description!),
+                  InkWell(
+                    onTap: group.isStarted ? null : () {
+                      _showInlineEditSheet(
+                        title: 'Description',
+                        initialValue: group.description ?? '',
+                        keyboardType: TextInputType.multiline,
+                        onSave: (val) async {
+                          await _service.updateGroup(
+                            groupId: group.id,
+                            name: group.name,
+                            participantCount: group.participantCount,
+                            turnIntervalValue: group.turnIntervalValue,
+                            turnIntervalUnit: group.turnIntervalUnit,
+                            contributionAmount: group.contributionAmount,
+                            commissionAmount: group.commissionAmount,
+                            plannedStartDate: group.plannedStartDate?.toIso8601String() ?? '',
+                            description: val.isEmpty ? null : val,
+                          );
+                        },
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        group.description!,
+                        style: TextStyle(
+                          decoration: group.isStarted ? null : TextDecoration.underline,
+                          decorationStyle: TextDecorationStyle.dashed,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -453,6 +698,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           onPressed: () => _openCandidateSearch(group),
           icon: const Icon(Icons.person_add_alt_1_rounded),
           tooltip: 'Ajouter un participant',
+        ),
+      if (!group.isStarted)
+        IconButton(
+          onPressed: () => _openEditSheet(group),
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: 'Modifier globalement',
         ),
       PopupMenuButton<String>(
         tooltip: 'Actions du groupe',
@@ -1626,11 +1877,13 @@ class _GroupMetricItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color? color;
+  final VoidCallback? onTap;
 
   const _GroupMetricItem({
     required this.icon,
     required this.label,
     this.color,
+    this.onTap,
   });
 
   @override
@@ -1638,7 +1891,7 @@ class _GroupMetricItem extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final resolvedColor = color ?? scheme.onSurfaceVariant;
 
-    return Row(
+    Widget child = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: resolvedColor),
@@ -1649,10 +1902,25 @@ class _GroupMetricItem extends StatelessWidget {
             fontSize: 12,
             color: resolvedColor,
             fontWeight: FontWeight.w500,
+            decoration: onTap != null ? TextDecoration.underline : null,
+            decorationStyle: TextDecorationStyle.dashed,
           ),
         ),
       ],
     );
+
+    if (onTap != null) {
+      child = InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: child,
+        ),
+      );
+    }
+
+    return child;
   }
 }
 

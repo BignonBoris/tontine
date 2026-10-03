@@ -1,5 +1,6 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/utils/input_rules.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
@@ -38,7 +39,8 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return AnimatedBottomSheet(
+      child: Padding(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
@@ -56,10 +58,6 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Center(
-                  child: SizedBox(width: 44, child: Divider(thickness: 4)),
-                ),
-                const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -72,7 +70,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
                     IconButton(
                       onPressed: _isSubmitting
                           ? null
-                          : () => Navigator.of(context).pop(),
+                          : () => AnimatedBottomSheet.closeOf(context),
                       icon: const Icon(Icons.close_rounded),
                       tooltip: 'Fermer',
                     ),
@@ -224,6 +222,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -293,7 +292,7 @@ class _AgentClientFormSheetState extends State<AgentClientFormSheet> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(client);
+      AnimatedBottomSheet.closeOf(context, client);
     } on ApiException catch (error) {
       _showError(error.message);
       if (mounted) {

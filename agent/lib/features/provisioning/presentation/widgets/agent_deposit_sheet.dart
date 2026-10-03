@@ -1,6 +1,8 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/utils/input_rules.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
+import 'package:agent/features/cash/data/services/offline_sync_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_list_tile.dart';
 import 'package:agent/features/provisioning/data/services/agent_provisioning_service.dart';
@@ -35,35 +37,50 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    
+    return AnimatedBottomSheet(
+      child: Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        left: 20,
+        right: 20,
         top: 24,
+        bottom: bottomInset > 0 ? bottomInset + 20 : 20,
       ),
       child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.transparent,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
           child: Form(
             key: _formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Center(
-                  child: SizedBox(
-                    width: 44,
-                    child: Divider(thickness: 4),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const SectionTitle(
-                  title: 'Nouveau depot',
-                  subtitle:
-                      "Le depot sera debite de votre caisse puis credite sur la tontine active du client.",
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(
+                      child: SectionTitle(
+                        title: 'Nouveau depot',
+                        subtitle:
+                            "Le depot sera debite de votre caisse puis credite sur la tontine active du client.",
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => AnimatedBottomSheet.closeOf(context, 'BACK'),
+                      icon: const Icon(Icons.close_rounded),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 AgentClientListTile(
@@ -132,6 +149,7 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -163,14 +181,25 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(true);
+      AnimatedBottomSheet.closeOf(context, true);
+    } on ClockTamperingException catch (e) {
+      // The device clock has been manipulated — refuse the transaction.
+      _showError(e.message);
+      if (mounted) setState(() => _isSubmitting = false);
+    } on ChainIntegrityException {
+      // The local transaction chain has been tampered with.
+      _showError(
+        'Anomalie de sécurité détectée : la file de transactions hors ligne a été modifiée. '
+        'Contactez votre superviseur immédiatement.',
+      );
+      if (mounted) setState(() => _isSubmitting = false);
     } on ApiException catch (error) {
       _showError(error.message);
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
     } catch (_) {
-      _showError("Le depot n'a pas pu etre enregistre.");
+      _showError("Le dépôt n'a pas pu être enregistré.");
       if (mounted) {
         setState(() => _isSubmitting = false);
       }

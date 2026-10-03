@@ -38,6 +38,13 @@ const topUpSuccess = ref("");
 const cashHistoryError = ref("");
 const isCashHistoryLoading = ref(false);
 const cashHistoryData = ref<AgentCashHistoryResponse | null>(null);
+const profileDialogOpen = ref(false);
+const profileAgentId = ref<string | null>(null);
+const profileError = ref("");
+const profileSuccess = ref("");
+const profileForm = reactive({
+  maxFloatLimit: 500000,
+});
 const topUpForm = reactive({
   amount: "",
   reason: "",
@@ -89,6 +96,32 @@ async function toggleAgentStatus(agentId: string, isActive: boolean) {
   }
 }
 
+async function resetDevice(agentId: string) {
+  if (!window.confirm("Êtes-vous sûr de vouloir réinitialiser l'appareil de cet agent ? Il devra se reconnecter sur un nouvel appareil.")) return;
+  mutationAgentId.value = agentId;
+  try {
+    const result = await agentService.resetDevice(agentId);
+    window.alert(result.message);
+  } catch (error) {
+    window.alert(getErrorMessage(error, "Réinitialisation impossible."));
+  } finally {
+    mutationAgentId.value = null;
+  }
+}
+
+async function killSwitch(agentId: string) {
+  if (!window.confirm("DANGER : Voulez-vous vraiment forcer la déconnexion de cet agent (Kill Switch) ?")) return;
+  mutationAgentId.value = agentId;
+  try {
+    const result = await agentService.killSwitch(agentId);
+    window.alert(result.message);
+  } catch (error) {
+    window.alert(getErrorMessage(error, "Opération impossible."));
+  } finally {
+    mutationAgentId.value = null;
+  }
+}
+
 function openTopUpDialog(agentId: string) {
   topUpAgentId.value = agentId;
   topUpForm.amount = "";
@@ -102,6 +135,50 @@ function closeTopUpDialog() {
   topUpAgentId.value = null;
   topUpError.value = "";
 }
+
+const selectedProfileAgent = computed(() => agents.value.find((agent) => agent.id === profileAgentId.value) || null);
+
+function openProfileDialog(agentId: string) {
+  const agent = agents.value.find((a) => a.id === agentId);
+  if (agent) {
+    profileAgentId.value = agentId;
+    profileForm.maxFloatLimit = agent.maxFloatLimit ?? 500000;
+    profileError.value = "";
+    profileSuccess.value = "";
+    profileDialogOpen.value = true;
+  }
+}
+
+function closeProfileDialog() {
+  profileDialogOpen.value = false;
+  profileAgentId.value = null;
+  profileError.value = "";
+}
+
+async function submitProfile() {
+  if (!selectedProfileAgent.value) {
+    profileError.value = "Agent introuvable.";
+    return;
+  }
+  const maxFloatLimit = Number(profileForm.maxFloatLimit);
+  if (isNaN(maxFloatLimit) || maxFloatLimit < 0) {
+    profileError.value = "Le plafond doit etre positif.";
+    return;
+  }
+  mutationAgentId.value = selectedProfileAgent.value.id;
+  profileError.value = "";
+  try {
+    await agentService.updateProfile(selectedProfileAgent.value.id, { maxFloatLimit });
+    profileSuccess.value = "Plafond mis à jour avec succès.";
+    await fetchAgents(currentPage.value);
+    closeProfileDialog();
+  } catch (error) {
+    profileError.value = getErrorMessage(error, "Mise à jour du profil impossible.");
+  } finally {
+    mutationAgentId.value = null;
+  }
+}
+
 
 async function loadCashHistory(page = cashHistoryPage.value) {
   if (!cashHistoryAgentId.value) {
@@ -258,6 +335,7 @@ onMounted(fetchAgents);
               <th class="px-3 py-3 text-left">Agent</th>
               <th class="px-3 py-3 text-left">Code</th>
               <th class="px-3 py-3 text-left">Caisse</th>
+              <th class="px-3 py-3 text-left">Plafond</th>
               <th class="px-3 py-3 text-left">Clients crees</th>
               <th class="px-3 py-3 text-left">Statut</th>
               <th class="px-3 py-3 text-left">Creation</th>
@@ -272,6 +350,7 @@ onMounted(fetchAgents);
               </td>
               <td class="px-3 py-3">{{ agent.agentCode }}</td>
               <td class="px-3 py-3">{{ formatCurrency(agent.agentBalance) }} F</td>
+              <td class="px-3 py-3">{{ agent.maxFloatLimit ? formatCurrency(agent.maxFloatLimit) : "500 000" }} F</td>
               <td class="px-3 py-3">{{ agent.createdClientsCount }}</td>
               <td class="px-3 py-3">
                 <span
@@ -293,6 +372,13 @@ onMounted(fetchAgents);
                     <span v-else>{{ agent.isActive ? "Suspendre" : "Reactiver" }}</span>
                   </button>
                   <button
+                    class="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="mutationAgentId === agent.id"
+                    @click="openProfileDialog(agent.id)"
+                  >
+                    Modifier Plafond
+                  </button>
+                  <button
                     class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="mutationAgentId === agent.id || !agent.isActive"
                     @click="openTopUpDialog(agent.id)"
@@ -304,6 +390,20 @@ onMounted(fetchAgents);
                     @click="openCashHistoryDialog(agent.id)"
                   >
                     Voir caisse
+                  </button>
+                  <button
+                    class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="mutationAgentId === agent.id"
+                    @click="resetDevice(agent.id)"
+                  >
+                    Reset Appareil
+                  </button>
+                  <button
+                    class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="mutationAgentId === agent.id"
+                    @click="killSwitch(agent.id)"
+                  >
+                    Kill Switch
                   </button>
                 </div>
               </td>
@@ -406,6 +506,61 @@ onMounted(fetchAgents);
         >
           <span v-if="mutationAgentId === topUpAgentId">Traitement...</span>
           <span v-else>Valider l'approvisionnement</span>
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="profileDialogOpen" @update:open="profileDialogOpen = $event">
+    <DialogContent class="sm:max-w-[420px]">
+      <DialogHeader>
+        <DialogTitle>Modifier le Plafond de Caisse</DialogTitle>
+        <DialogDescription>
+          <span v-if="selectedProfileAgent">
+            {{ selectedProfileAgent.fullName }} - {{ selectedProfileAgent.agentCode }}
+          </span>
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4">
+        <div v-if="profileError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ profileError }}
+        </div>
+        <div v-if="profileSuccess" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {{ profileSuccess }}
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Nouveau Plafond (FCFA)</label>
+          <input
+            v-model="profileForm.maxFloatLimit"
+            type="number"
+            min="0"
+            step="1000"
+            placeholder="Ex: 500000"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+          <p class="text-xs text-muted-foreground">
+            L'agent ne pourra plus encaisser si sa caisse atteint ce montant.
+          </p>
+        </div>
+      </div>
+
+      <DialogFooter class="gap-2">
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="mutationAgentId === profileAgentId"
+          @click="closeProfileDialog"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primaryemphasis disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="mutationAgentId === profileAgentId"
+          @click="submitProfile"
+        >
+          <span v-if="mutationAgentId === profileAgentId">Traitement...</span>
+          <span v-else>Sauvegarder</span>
         </button>
       </DialogFooter>
     </DialogContent>

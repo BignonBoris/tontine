@@ -1,5 +1,6 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group_member.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +32,8 @@ class _AgentGroupCandidateSearchSheetState
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Container(
+      child: AnimatedBottomSheet(
+        child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -49,7 +51,7 @@ class _AgentGroupCandidateSearchSheetState
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => AnimatedBottomSheet.closeOf(context),
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
@@ -137,10 +139,10 @@ class _AgentGroupCandidateSearchSheetState
                             overflow: TextOverflow.ellipsis,
                           ),
                           trailing: TextButton(
-                            onPressed: () => Navigator.of(context).pop(candidate),
+                            onPressed: () => AnimatedBottomSheet.closeOf(context, candidate),
                             child: const Text('Choisir'),
                           ),
-                          onTap: () => Navigator.of(context).pop(candidate),
+                          onTap: () => AnimatedBottomSheet.closeOf(context, candidate),
                         ),
                       );
                     },
@@ -151,6 +153,7 @@ class _AgentGroupCandidateSearchSheetState
           ],
         ),
       ),
+    ),
     );
   }
 
