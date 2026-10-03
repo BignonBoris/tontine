@@ -1,4 +1,4 @@
-const { User } = require('../../database/models');
+const { models } = require('../../database/models');
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../../config/database');
 
@@ -6,7 +6,7 @@ const sequelize = require('../../config/database');
  * Adjust the user's score and ensure it stays within 0 and 100
  */
 async function _adjustScore(userId, points, transaction) {
-  const user = await User.findByPk(userId, { transaction });
+  const user = await models.User.findByPk(userId, { transaction });
   if (!user) return;
 
   let newScore = user.punctualityScore + points;
