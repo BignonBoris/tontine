@@ -15,6 +15,7 @@ const {
   postDepositCommissions,
   reverseCommissionCredits,
 } = require('../commission/commission.service');
+const scoringService = require('./scoring.service');
 
 function ensureStakeMultiple(stakeAmount) {
   if (
