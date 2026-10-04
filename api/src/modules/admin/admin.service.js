@@ -1774,6 +1774,102 @@ async function listAgents(query = {}) {
   };
 }
 
+async function createAgent(payload, requestContext = {}) {
+  const { hashAgentPin } = require('../agent-auth/agent-auth.service');
+  const { normalizePhone } = require('../auth/auth.service');
+
+  const rawPhoneNumber = String(payload.phoneNumber ?? '').trim();
+  const fullName = String(payload.fullName || '').trim();
+  const agentCode = String(payload.agentCode || '').trim();
+  const pin = String(payload.pin || '').trim();
+  const maxFloatLimit = Number(payload.maxFloatLimit || 500000);
+
+  if (!fullName) {
+    throw new AppError('Le nom de l\'agent est requis.', 422);
+  }
+  if (!agentCode) {
+    throw new AppError('Le code agent est requis.', 422);
+  }
+  if (!pin || pin.length < 4) {
+    throw new AppError('Un PIN d\'au moins 4 chiffres est requis.', 422);
+  }
+  const phoneNumber = rawPhoneNumber ? normalizePhone(rawPhoneNumber) : null;
+  if (rawPhoneNumber && phoneNumber.length !== 10) {
+    throw new AppError('Le numero de l\'agent est invalide.', 422);
+  }
+
+  if (phoneNumber) {
+    const existingUser = await models.User.findOne({ where: { phoneNumber } });
+    if (existingUser) {
+      throw new AppError('Un utilisateur existe deja avec ce numero.', 409);
+    }
+  }
+
+  const existingProfile = await models.AgentProfile.findOne({ where: { agentCode } });
+  if (existingProfile) {
+    throw new AppError('Un agent existe deja avec ce code.', 409);
+  }
+
+  const agentInfo = await sequelize.transaction(async (transaction) => {
+    const createdUser = await models.User.create(
+      {
+        phoneNumber,
+        displayName: fullName,
+        accountType: 'Agent',
+        isActive: true,
+      },
+      { transaction },
+    );
+
+    await models.UserPreference.create(
+      { userId: createdUser.id },
+      { transaction },
+    );
+
+    await models.Wallet.create(
+      { userId: createdUser.id },
+      { transaction },
+    );
+
+    const pinHash = await hashAgentPin(pin);
+
+    const createdAgentProfile = await models.AgentProfile.create(
+      {
+        userId: createdUser.id,
+        agentCode,
+        pinHash,
+        fullName,
+        maxFloatLimit,
+        isActive: true,
+      },
+      { transaction },
+    );
+
+    return { user: createdUser, agentProfile: createdAgentProfile };
+  });
+
+  await logAudit({
+    action: 'admin.agent_created',
+    entityType: 'agent',
+    entityId: agentInfo.agentProfile.id,
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    metadata: {
+      adminUsername: requestContext.adminUsername || null,
+      agentCode,
+      phoneNumber,
+    },
+  });
+
+  return {
+    id: agentInfo.agentProfile.id,
+    agentCode: agentInfo.agentProfile.agentCode,
+    fullName: agentInfo.agentProfile.fullName,
+    isActive: agentInfo.agentProfile.isActive,
+    createdAt: agentInfo.agentProfile.createdAt,
+  };
+}
+
 async function updateAgentStatus(agentId, payload) {
   const agent = await models.AgentProfile.findByPk(agentId, {
     include: [{ model: models.User, as: 'user', required: true }],
@@ -3384,6 +3480,7 @@ module.exports = {
   getClientDetail,
   updateClientStatus,
   listAgents,
+  createAgent,
   updateAgentStatus,
   updateAgentProfile,
   topUpAgentCash,
