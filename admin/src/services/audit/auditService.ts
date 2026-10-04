@@ -36,13 +36,6 @@ export const auditService = {
 
   /** Charge les anomalies opérationnelles. */
   getAnomalies() {
-    return unwrapEnvelope<{
-      multipleDeviceLogins: unknown[];
-      suspiciousProvisionings: unknown[];
-      expiredRequestedWithdrawals: unknown[];
-      walletReservationMismatches: unknown[];
-      inactiveAgentsWithCash: unknown[];
-      overdueActiveCycles: unknown[];
-    }>(apiClient.get("/admin/anomalies"));
+    return unwrapEnvelope<any>(apiClient.get("/admin/anomalies"));
   },
 };
