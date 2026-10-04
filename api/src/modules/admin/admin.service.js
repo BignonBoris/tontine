@@ -1798,44 +1798,68 @@ async function createAgent(payload, requestContext = {}) {
     throw new AppError('Le numero de l\'agent est invalide.', 422);
   }
 
-  if (phoneNumber) {
-    const existingUser = await models.User.findOne({ where: { phoneNumber } });
-    if (existingUser) {
-      throw new AppError('Un utilisateur existe deja avec ce numero.', 409);
-    }
-  }
-
+  // Vérifier si le code agent est déjà utilisé
   const existingProfile = await models.AgentProfile.findOne({ where: { agentCode } });
   if (existingProfile) {
     throw new AppError('Un agent existe deja avec ce code.', 409);
   }
 
+  // Chercher un utilisateur existant avec ce numéro
+  let existingUser = null;
+  if (phoneNumber) {
+    existingUser = await models.User.findOne({
+      where: { phoneNumber },
+      include: [{ model: models.AgentProfile, as: 'agentProfile', required: false }],
+    });
+
+    if (existingUser) {
+      // Si cet utilisateur est déjà un agent → erreur
+      if (existingUser.agentProfile) {
+        throw new AppError('Cet utilisateur est deja enregistre comme agent.', 409);
+      }
+      // Sinon (client existant), on va lui créer un profil agent
+    }
+  }
+
   const agentInfo = await sequelize.transaction(async (transaction) => {
-    const createdUser = await models.User.create(
-      {
-        phoneNumber,
-        displayName: fullName,
-        accountType: 'Agent',
-        isActive: true,
-      },
-      { transaction },
-    );
+    let targetUser = existingUser;
 
-    await models.UserPreference.create(
-      { userId: createdUser.id },
-      { transaction },
-    );
+    if (!targetUser) {
+      // Créer un nouvel utilisateur
+      targetUser = await models.User.create(
+        {
+          phoneNumber,
+          displayName: fullName,
+          accountType: 'Agent',
+          isActive: true,
+        },
+        { transaction },
+      );
 
-    await models.Wallet.create(
-      { userId: createdUser.id },
-      { transaction },
-    );
+      await models.UserPreference.findOrCreate({
+        where: { userId: targetUser.id },
+        defaults: { userId: targetUser.id },
+        transaction,
+      });
+
+      await models.Wallet.findOrCreate({
+        where: { userId: targetUser.id },
+        defaults: { userId: targetUser.id },
+        transaction,
+      });
+    } else {
+      // Mettre à jour le compte client existant pour qu'il devienne agent
+      await targetUser.update(
+        { accountType: 'Agent', displayName: fullName },
+        { transaction },
+      );
+    }
 
     const pinHash = await hashAgentPin(pin);
 
     const createdAgentProfile = await models.AgentProfile.create(
       {
-        userId: createdUser.id,
+        userId: targetUser.id,
         agentCode,
         pinHash,
         fullName,
@@ -1845,7 +1869,7 @@ async function createAgent(payload, requestContext = {}) {
       { transaction },
     );
 
-    return { user: createdUser, agentProfile: createdAgentProfile };
+    return { user: targetUser, agentProfile: createdAgentProfile };
   });
 
   await logAudit({
@@ -1858,6 +1882,7 @@ async function createAgent(payload, requestContext = {}) {
       adminUsername: requestContext.adminUsername || null,
       agentCode,
       phoneNumber,
+      upgradedFromClient: !!existingUser,
     },
   });
 
