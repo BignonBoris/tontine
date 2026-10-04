@@ -221,6 +221,15 @@ async function agents(req, res) {
   return ok(res, data, 'Agents charges.');
 }
 
+async function createAgent(req, res) {
+  const data = await service.createAgent(req.body, {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    adminUsername: req.admin?.username || null,
+  });
+  return ok(res, data, 'Agent cree avec succes.', 201);
+}
+
 async function updateAgentStatus(req, res) {
   const data = await service.updateAgentStatus(req.params.agentId, req.body);
   return ok(res, data, 'Statut agent mis a jour.');
@@ -381,6 +390,7 @@ module.exports = {
   updateClientStatus,
   recovery,
   agents,
+  createAgent,
   updateAgentStatus,
   updateAgentProfile,
   topUpAgentCash,
