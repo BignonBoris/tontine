@@ -17,21 +17,56 @@ class AgentProvisioningListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final createdAt = provisioning.createdAt ?? provisioning.validatedAt;
-    return SoftSectionCard(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AgentAppTheme.borderColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AgentAppTheme.primaryColor.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: AgentAppTheme.secondaryColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
-              Icons.add_card_rounded,
-              color: AgentAppTheme.secondaryColor,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  createdAt != null ? DateFormat('dd MMM', 'fr_FR').format(createdAt) : '-',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AgentAppTheme.secondaryColor,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  createdAt != null ? DateFormat('HH:mm', 'fr_FR').format(createdAt) : '-',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AgentAppTheme.secondaryColor.withValues(alpha: 0.7),
+                    height: 1.1,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 14),
@@ -76,16 +111,6 @@ class AgentProvisioningListTile extends StatelessWidget {
                     color: AgentAppTheme.primaryColor,
                   ),
                 ),
-                if (createdAt != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('dd MMM yyyy - HH:mm', 'fr_FR').format(createdAt),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AgentAppTheme.textSecondaryColor,
-                    ),
-                  ),
-                ],
                 if (provisioning.notes != null &&
                     provisioning.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 6),

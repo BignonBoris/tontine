@@ -1,4 +1,6 @@
+import 'package:agent/core/security/privacy_provider.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
+import 'package:agent/core/utils/mask_utils.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:flutter/material.dart';
@@ -53,14 +55,21 @@ class AgentClientListTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    client.phoneNumber,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AgentAppTheme.textSecondaryColor,
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final isPrivate = PrivacyProvider.of(context).isPrivate;
+                      return Text(
+                        isPrivate
+                            ? MaskUtils.maskPhoneNumber(client.phoneNumber)
+                            : client.phoneNumber,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AgentAppTheme.textSecondaryColor,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   Text(

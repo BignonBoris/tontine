@@ -2,6 +2,7 @@ import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/features/auth/data/services/agent_auth_service.dart';
+import 'package:agent/core/security/biometric_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -206,6 +207,32 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                                           ),
                                         )
                                       : const Text('Se connecter'),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final success = await BiometricService.authenticate();
+                                    if (success) {
+                                      final creds = await _authService.getSavedCredentials();
+                                      if (creds != null) {
+                                        _phoneController.text = creds['phone']!;
+                                        _pinController.text = creds['pin']!;
+                                        _submit(context);
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Aucun compte pré-enregistré. Veuillez vous connecter manuellement la première fois.')),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: const Icon(Icons.fingerprint, size: 24),
+                                  label: const Text('Empreinte digitale'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
                                 ),
                               ),
                             ],

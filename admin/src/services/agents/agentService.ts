@@ -32,6 +32,12 @@ export const agentService = {
     );
   },
 
+  updateProfile(agentId: string, payload: { maxFloatLimit?: number }) {
+    return unwrapEnvelope<{ id: string; maxFloatLimit: number }>(
+      apiClient.put(`/admin/agents/${agentId}/profile`, payload)
+    );
+  },
+
   topUp(agentId: string, payload: AgentTopUpPayload) {
     return unwrapEnvelope<AgentTopUpResult>(
       apiClient.post(`/admin/agents/${agentId}/top-up`, payload)
@@ -41,6 +47,18 @@ export const agentService = {
   getCashHistory(agentId: string, params: AgentCashHistoryParams = {}) {
     return unwrapEnvelope<AgentCashHistoryResponse>(
       apiClient.get(`/admin/agents/${agentId}/cash-history`, { params })
+    );
+  },
+
+  resetDevice(agentId: string) {
+    return unwrapEnvelope<{ message: string }>(
+      apiClient.post(`/admin/agents/${agentId}/reset-device`)
+    );
+  },
+
+  killSwitch(agentId: string) {
+    return unwrapEnvelope<{ message: string }>(
+      apiClient.post(`/admin/agents/${agentId}/kill-switch`)
     );
   },
 };

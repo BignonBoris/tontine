@@ -1,10 +1,12 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/clients/data/services/agent_client_service.dart';
 import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_start_tontine_sheet.dart';
+import 'package:agent/features/clients/presentation/widgets/agent_close_tontine_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -39,7 +41,8 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimatedBottomSheet(
+      child: Material(
       color: Colors.white,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       child: SafeArea(
@@ -77,19 +80,44 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(
-                    child: SizedBox(width: 44, child: Divider(thickness: 4)),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    client.displayName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          client.displayName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => AnimatedBottomSheet.closeOf(context),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
-                  Text(client.phoneNumber),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          client.phoneNumber.isEmpty ? 'Aucun numéro' : client.phoneNumber,
+                          style: TextStyle(
+                            color: client.phoneNumber.isEmpty ? Colors.grey : null,
+                            fontStyle: client.phoneNumber.isEmpty ? FontStyle.italic : FontStyle.normal,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        onPressed: () => _updatePhone(client),
+                        tooltip: 'Modifier le numéro',
+                      ),
+                    ],
+                  ),
                   if ((client.address ?? '').trim().isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(client.address!),
@@ -177,6 +205,18 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
                       onPressed: () => _openStartTontine(client),
                       child: const Text('Demarrer une tontine'),
                     ),
+                  ] else ...[
+                    const SizedBox(height: 18),
+                    ElevatedButton.icon(
+                      onPressed: () => _openCloseTontine(client),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFF8E1),
+                        foregroundColor: const Color(0xFFF57C00),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Clôturer la tontine'),
+                    ),
                   ],
                 ],
               ),
@@ -184,6 +224,7 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
           },
         ),
       ),
+    ),
     );
   }
 
@@ -198,12 +239,82 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
     if (!mounted || result == null) {
       return;
     }
+
     _reload();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(content: Text('Tontine demarree avec succes.')),
       );
+  }
+
+  Future<void> _openCloseTontine(AgentClient client) async {
+    final result = await showModalBottomSheet<AgentClient>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AgentCloseTontineSheet(client: client),
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    _reload();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Tontine clôturée avec succès.')),
+      );
+  }
+
+  Future<void> _updatePhone(AgentClient client) async {
+    final controller = TextEditingController(text: client.phoneNumber);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Numéro de téléphone'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              hintText: 'Nouveau numéro',
+              helperText: 'Requis pour l\'app client',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty && mounted) {
+      try {
+        await _service.updatePhone(
+          clientId: client.id,
+          phoneNumber: result,
+        );
+        _reload();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e is ApiException ? e.message : 'Impossible de modifier le numéro'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   String _formatDate(DateTime? date, {required String fallback}) {

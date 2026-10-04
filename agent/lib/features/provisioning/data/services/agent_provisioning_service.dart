@@ -22,6 +22,10 @@ class AgentProvisioningService {
     required String clientUserId,
     required double amount,
     String? notes,
+    // Offline security fields — sent to backend for audit trail
+    String? offlineHash,
+    String? previousHash,
+    DateTime? secureTimestamp,
   }) async {
     final data = await _apiClient.post(
       '/agent/provisionings',
@@ -29,6 +33,9 @@ class AgentProvisioningService {
         'clientUserId': clientUserId,
         'amount': amount,
         'notes': notes,
+        'offlineHash': offlineHash,
+        'previousHash': previousHash,
+        'secureTimestamp': secureTimestamp?.toUtc().toIso8601String(),
       },
     ) as Map<dynamic, dynamic>;
     return AgentProvisioning.fromMap(Map<dynamic, dynamic>.from(data));

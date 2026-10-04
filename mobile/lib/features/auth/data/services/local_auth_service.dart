@@ -16,6 +16,8 @@ class LocalAuthResult {
   final bool? isRegistration;
   final String? otpCode;
   final bool requiresOtp;
+  final bool requiresDeviceApproval;
+  final String? approvalRequestId;
 
   const LocalAuthResult({
     required this.isSuccess,
@@ -24,6 +26,8 @@ class LocalAuthResult {
     this.isRegistration,
     this.otpCode,
     this.requiresOtp = true,
+    this.requiresDeviceApproval = false,
+    this.approvalRequestId,
   });
 }
 
@@ -143,6 +147,7 @@ class LocalAuthService {
   }) async {
     try {
       final normalizedPhone = normalizePhone(rawPhoneNumber);
+      final deviceId = await SessionStorage.getOrCreateDeviceId();
       _logAuthApiCall('/auth/verify-otp');
       final data = await _apiClient.post(
         '/auth/verify-otp',
@@ -150,6 +155,7 @@ class LocalAuthService {
         body: {
           'phoneNumber': normalizedPhone,
           'code': otpCode,
+          'deviceId': deviceId,
           if (pinCode != null && pinCode.trim().isNotEmpty)
             'pinCode': pinCode.trim(),
           if (firstName != null && firstName.trim().isNotEmpty)
@@ -161,6 +167,15 @@ class LocalAuthService {
         },
       ) as Map<String, dynamic>;
       _logAuthApiResponse('/auth/verify-otp', data);
+
+      if (data['requiresDeviceApproval'] == true) {
+        return LocalAuthResult(
+          isSuccess: false,
+          message: 'Une autorisation est requise sur votre appareil déjà connecté.',
+          requiresDeviceApproval: true,
+          approvalRequestId: data['approvalRequestId'] as String?,
+        );
+      }
 
       final token = data['token'] as String?;
       if (token == null || token.isEmpty) {

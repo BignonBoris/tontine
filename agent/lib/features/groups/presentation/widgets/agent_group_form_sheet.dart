@@ -1,14 +1,15 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
+import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
 import 'package:flutter/material.dart';
 
 class AgentGroupFormSheet extends StatefulWidget {
-  final AgentGroup? initialGroup;
+  final AgentGroup initialGroup;
 
-  const AgentGroupFormSheet({super.key, this.initialGroup});
+  const AgentGroupFormSheet({super.key, required this.initialGroup});
 
   @override
   State<AgentGroupFormSheet> createState() => _AgentGroupFormSheetState();
@@ -29,35 +30,29 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
   bool _submitting = false;
   String? _errorMessage;
 
-  bool get _isEditing => widget.initialGroup != null;
-
   @override
   void initState() {
     super.initState();
     final initialGroup = widget.initialGroup;
-    _nameController = TextEditingController(text: initialGroup?.name ?? '');
+    _nameController = TextEditingController(text: initialGroup.name);
     _descriptionController = TextEditingController(
-      text: initialGroup?.description ?? '',
+      text: initialGroup.description ?? '',
     );
     _participantCountController = TextEditingController(
-      text: initialGroup != null ? initialGroup.participantCount.toString() : '2',
+      text: initialGroup.participantCount.toString(),
     );
     _turnIntervalValueController = TextEditingController(
-      text: initialGroup != null ? initialGroup.turnIntervalValue.toString() : '1',
+      text: initialGroup.turnIntervalValue.toString(),
     );
-      _contributionAmountController = TextEditingController(
-        text: initialGroup != null
-            ? initialGroup.contributionAmount.toStringAsFixed(0)
-            : AgentInputRules.financialAmountStep.toString(),
-      );
+    _contributionAmountController = TextEditingController(
+      text: initialGroup.contributionAmount.toStringAsFixed(0),
+    );
     _commissionAmountController = TextEditingController(
-      text: initialGroup != null
-          ? initialGroup.commissionAmount.toStringAsFixed(0)
-          : '50',
+      text: initialGroup.commissionAmount.toStringAsFixed(0),
     );
-    _turnIntervalUnit = initialGroup?.turnIntervalUnit ?? 'month';
+    _turnIntervalUnit = initialGroup.turnIntervalUnit;
     _plannedStartDate =
-        initialGroup?.plannedStartDate ??
+        initialGroup.plannedStartDate ??
         DateTime.now().add(const Duration(days: 7));
     _plannedStartDateController = TextEditingController(
       text: _formatDate(_plannedStartDate!),
@@ -81,7 +76,8 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
     final viewInsets = MediaQuery.of(context).viewInsets;
 
     return SafeArea(
-      child: AnimatedPadding(
+      child: AnimatedBottomSheet(
+        child: AnimatedPadding(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(bottom: viewInsets.bottom),
@@ -102,14 +98,14 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          _isEditing ? 'Modifier le groupe' : 'Nouveau groupe',
+                          'Modifier le groupe',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
                       IconButton(
                         onPressed: _submitting
                             ? null
-                            : () => Navigator.of(context).pop(),
+                            : () => AnimatedBottomSheet.closeOf(context),
                         icon: const Icon(Icons.close_rounded),
                       ),
                     ],
@@ -294,12 +290,8 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Icon(
-                              _isEditing
-                                  ? Icons.save_outlined
-                                  : Icons.add_circle_outline_rounded,
-                            ),
-                      label: Text(_isEditing ? 'Enregistrer' : 'Creer le groupe'),
+                          : const Icon(Icons.save_outlined),
+                      label: const Text('Enregistrer'),
                     ),
                   ),
                 ],
@@ -308,6 +300,7 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -333,33 +326,22 @@ class _AgentGroupFormSheetState extends State<AgentGroupFormSheet> {
         _commissionAmountController.text.trim(),
       );
 
-      final result = _isEditing
-          ? await _service.updateGroup(
-              groupId: widget.initialGroup!.id,
-              name: name,
-              participantCount: participantCount,
-              turnIntervalValue: turnIntervalValue,
-              turnIntervalUnit: _turnIntervalUnit,
-              contributionAmount: contributionAmount,
-              commissionAmount: commissionAmount,
-              plannedStartDate: _plannedStartDate!.toIso8601String(),
-              description: description.isEmpty ? null : description,
-            )
-          : await _service.createGroup(
-              name: name,
-              participantCount: participantCount,
-              turnIntervalValue: turnIntervalValue,
-              turnIntervalUnit: _turnIntervalUnit,
-              contributionAmount: contributionAmount,
-              commissionAmount: commissionAmount,
-              plannedStartDate: _plannedStartDate!.toIso8601String(),
-              description: description.isEmpty ? null : description,
-            );
+      final result = await _service.updateGroup(
+        groupId: widget.initialGroup.id,
+        name: name,
+        participantCount: participantCount,
+        turnIntervalValue: turnIntervalValue,
+        turnIntervalUnit: _turnIntervalUnit,
+        contributionAmount: contributionAmount,
+        commissionAmount: commissionAmount,
+        plannedStartDate: _plannedStartDate!.toIso8601String(),
+        description: description.isEmpty ? null : description,
+      );
 
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(result);
+      AnimatedBottomSheet.closeOf(context, result);
     } on ApiException catch (error) {
       if (!mounted) {
         return;

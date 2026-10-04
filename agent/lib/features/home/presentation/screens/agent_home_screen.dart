@@ -1,16 +1,21 @@
 import 'dart:async';
+import 'package:intl/intl.dart';
 
 import 'package:agent/core/network/api_client.dart';
+import 'package:agent/core/security/privacy_provider.dart';
 import 'package:agent/core/services/realtime_notification_service.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/core/utils/currency_formatter.dart';
+import 'package:agent/core/utils/mask_utils.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
-import 'package:agent/features/auth/presentation/widgets/agent_logout_action.dart';
+import 'package:agent/features/home/domain/entities/agent_overview.dart';
 import 'package:agent/features/home/data/services/agent_dashboard_service.dart';
 import 'package:agent/features/home/domain/entities/agent_overview.dart';
 import 'package:agent/features/home/presentation/widgets/agent_overview_tile.dart';
 import 'package:agent/features/home/presentation/widgets/agent_quick_action_card.dart';
+import 'package:agent/features/provisioning/domain/entities/agent_provisioning.dart';
+import 'package:agent/features/provisioning/presentation/widgets/agent_provisioning_list_tile.dart';
 import 'package:agent/features/notifications/presentation/screens/agent_notifications_screen.dart';
 import 'package:agent/features/withdrawals/presentation/widgets/agent_withdrawal_payment_sheet.dart';
 import 'package:flutter/material.dart';
@@ -32,25 +37,39 @@ class AgentHomeScreen extends StatefulWidget {
   State<AgentHomeScreen> createState() => _AgentHomeScreenState();
 }
 
-class _AgentHomeScreenState extends State<AgentHomeScreen> {
+class _AgentHomeScreenState extends State<AgentHomeScreen>
+    with SingleTickerProviderStateMixin {
   final _service = AgentDashboardService();
   final _realtimeService = RealtimeNotificationService();
   StreamSubscription<RealtimeNotificationEvent>? _realtimeSubscription;
   Timer? _realtimeRefreshTimer;
   bool _disposed = false;
   late Future<AgentOverview> _overviewFuture;
+  late AnimationController _heroAnimController;
+  late Animation<double> _heroFadeAnim;
 
   @override
   void initState() {
     super.initState();
     _overviewFuture = _service.fetchOverview();
     _ensureRealtimeSubscription();
+
+    _heroAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _heroFadeAnim = CurvedAnimation(
+      parent: _heroAnimController,
+      curve: Curves.easeOut,
+    );
+    _heroAnimController.forward();
   }
 
   void _reload() {
     setState(() {
       _overviewFuture = _service.fetchOverview();
     });
+    _heroAnimController.forward(from: 0);
   }
 
   Future<void> _openNotificationsCenter() async {
@@ -112,100 +131,53 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('Retrait client paye avec succes.')),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Retrait client payé avec succès.',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          backgroundColor: AgentAppTheme.successColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       );
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _heroAnimController.dispose();
     _realtimeRefreshTimer?.cancel();
     unawaited(_realtimeSubscription?.cancel());
     unawaited(_realtimeService.dispose());
     super.dispose();
   }
 
+  /// Retourne "Bonjour", "Bon après-midi" ou "Bonsoir" selon l'heure.
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Bonjour';
+    if (hour < 18) return 'Bon après-midi';
+    return 'Bonsoir';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AgentAppTheme.backgroundColor,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AgentAppTheme.primaryColor.withValues(alpha: 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Image.asset(AgentAppTheme.brandIconAsset),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'VizioBox Agent',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AgentAppTheme.primaryColor,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          FutureBuilder<AgentOverview>(
-            future: _overviewFuture,
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.data?.unreadNotificationsCount ?? 0;
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      onPressed: _openNotificationsCenter,
-                      icon: const Icon(Icons.notifications_none_rounded),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 10,
-                        top: 10,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: AgentAppTheme.errorColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const AgentLogoutAction(),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: FutureBuilder<AgentOverview>(
         future: _overviewFuture,
         builder: (context, snapshot) {
@@ -219,7 +191,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
             final error = snapshot.error;
             final message = error is ApiException
                 ? error.message
-                : "Impossible de charger les donnees agent.";
+                : "Impossible de charger les données agent.";
             return AgentErrorView(
               title: 'Tableau de bord indisponible',
               message: message,
@@ -242,229 +214,29 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
 
           return RefreshIndicator(
             onRefresh: () async => _reload(),
+            color: AgentAppTheme.primaryColor,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      gradient: AgentAppTheme.heroGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AgentAppTheme.primaryColor.withOpacity(0.16),
-                          blurRadius: 28,
-                          offset: const Offset(0, 14),
-                        ),
-                      ],
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              child: FadeTransition(
+                opacity: _heroFadeAnim,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeroCard(overview),
+                    const SizedBox(height: 16),
+                    _buildLastOperationBanner(overview),
+                    const SizedBox(height: 24),
+                    const SectionTitle(
+                      title: 'Actions rapides',
+                      subtitle:
+                          'Les opérations les plus fréquentes sur le terrain.',
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Bonjour Agent',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    "Pilotez les operations de terrain.",
-                                    style: GoogleFonts.inter(
-                                      color: Colors.white70,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Container(
-                              width: 64,
-                              height: 64,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Image.asset(AgentAppTheme.brandIconAsset),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            children: [
-                              AgentOverviewTile(
-                                label: 'Mes clients',
-                                value: '${overview.myClientsCount}',
-                                onTap: widget.onOpenClients,
-                              ),
-                              const SizedBox(width: 14),
-                              AgentOverviewTile(
-                                label: 'Caisse disponible',
-                                value: formatFcfa(overview.agentBalance),
-                                onTap: widget.onOpenProvisioning,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            children: [
-                              AgentOverviewTile(
-                                label: 'Commissions gagnees',
-                                value: formatFcfa(overview.commissionBalance),
-                              ),
-                              const SizedBox(width: 14),
-                              AgentOverviewTile(
-                                label: 'Operations en attente',
-                                value: '${overview.pendingCount}',
-                              ),
-                            ],
-                          ),
-                        ),
-                        // const SizedBox(height: 14),
-                        // Material(
-                        //   color: Colors.transparent,
-                        //   child: InkWell(
-                        //     onTap: _openNotificationsCenter,
-                        //     borderRadius: BorderRadius.circular(20),
-                        //     child: Container(
-                        //       width: double.infinity,
-                        //       padding: const EdgeInsets.all(16),
-                        //       decoration: BoxDecoration(
-                        //         color: Colors.white.withValues(alpha: 0.08),
-                        //         borderRadius: BorderRadius.circular(20),
-                        //       ),
-                        //       child: Row(
-                        //         children: [
-                        //           Container(
-                        //             width: 42,
-                        //             height: 42,
-                        //             decoration: BoxDecoration(
-                        //               color: Colors.white.withValues(
-                        //                 alpha: 0.12,
-                        //               ),
-                        //               borderRadius: BorderRadius.circular(14),
-                        //             ),
-                        //             child: const Icon(
-                        //               Icons.notifications_none_rounded,
-                        //               color: Colors.white,
-                        //               size: 22,
-                        //             ),
-                        //           ),
-                        //           const SizedBox(width: 12),
-                        //           Expanded(
-                        //             child: Column(
-                        //               crossAxisAlignment:
-                        //                   CrossAxisAlignment.start,
-                        //               children: [
-                        //                 Text(
-                        //                   'Notifications',
-                        //                   style: GoogleFonts.poppins(
-                        //                     fontSize: 14,
-                        //                     fontWeight: FontWeight.w700,
-                        //                     color: Colors.white,
-                        //                   ),
-                        //                 ),
-                        //                 const SizedBox(height: 3),
-                        //                 Text(
-                        //                   overview.unreadNotificationsCount > 0
-                        //                       ? '${overview.unreadNotificationsCount} alerte(s) non lue(s)'
-                        //                       : 'Aucune alerte en attente',
-                        //                   style: GoogleFonts.inter(
-                        //                     fontSize: 12,
-                        //                     color: Colors.white70,
-                        //                     height: 1.35,
-                        //                   ),
-                        //                 ),
-                        //               ],
-                        //             ),
-                        //           ),
-                        //           const Icon(
-                        //             Icons.chevron_right_rounded,
-                        //             color: Colors.white70,
-                        //           ),
-                        //         ],
-                        //       ),
-                        //     ),
-                        //   ),
-                        // ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  const SectionTitle(
-                    title: 'Actions rapides',
-                    subtitle:
-                        "Les operations les plus frequentes sur le terrain.",
-                  ),
-                  const SizedBox(height: 14),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 1.12,
-                    children: [
-                      AgentQuickActionCard(
-                        icon: Icons.people_alt_outlined,
-                        title: 'Mes clients',
-                        subtitle: 'Consulter le portefeuille client',
-                        tint: AgentAppTheme.primaryColor,
-                        onTap: widget.onOpenClients,
-                      ),
-                      AgentQuickActionCard(
-                        icon: Icons.add_card_rounded,
-                        title: 'Nouveau depot',
-                        subtitle: 'Debiter la caisse pour crediter un client',
-                        tint: AgentAppTheme.secondaryColor,
-                        onTap: widget.onOpenProvisioning,
-                      ),
-                      AgentQuickActionCard(
-                        icon: Icons.receipt_long_outlined,
-                        title: 'Mon historique',
-                        subtitle: 'Verifier les operations recentes',
-                        tint: AgentAppTheme.accentColor,
-                        onTap: widget.onOpenHistory,
-                      ),
-                      AgentQuickActionCard(
-                        icon: Icons.payments_outlined,
-                        title: 'Retrait client',
-                        subtitle:
-                            'Payer un retrait par reference et code client',
-                        tint: AgentAppTheme.accentColor,
-                        onTap: _openWithdrawalPaymentSheet,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                ],
+                    const SizedBox(height: 14),
+                    _buildQuickActions(overview),
+
+                  ],
+                ),
               ),
             ),
           );
@@ -472,8 +244,399 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
       ),
     );
   }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: AgentAppTheme.primaryColor,
+      foregroundColor: Colors.white,
+      automaticallyImplyLeading: false,
+      title: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Image.asset(AgentAppTheme.brandIconAsset),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'VizioBox Agent',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        FutureBuilder<AgentOverview>(
+          future: _overviewFuture,
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data?.unreadNotificationsCount ?? 0;
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    onPressed: _openNotificationsCenter,
+                    icon: const Icon(Icons.notifications_none_rounded),
+                    tooltip: 'Notifications',
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: AgentAppTheme.errorColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────── HERO CARD ──────────────────────────────────────
+
+  Widget _buildHeroCard(AgentOverview overview) {
+    return Builder(
+      builder: (context) {
+        final isPrivate = PrivacyProvider.of(context).isPrivate;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              colors: [
+                AgentAppTheme.primaryColor,
+                Color(0xFF0F3060),
+                Color(0xFF193A72),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AgentAppTheme.primaryColor.withValues(alpha: 0.22),
+                blurRadius: 32,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── En-tête : salutation + avatar ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _greeting,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.white60,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Agent VizioBox',
+                          style: GoogleFonts.poppins(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PrivacyToggleButton(
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── KPI principal : Caisse disponible ──
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 14,
+                        color: Colors.white54,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Caisse disponible',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.white60,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isPrivate
+                        ? MaskUtils.maskBalance(
+                            formatFcfa(overview.agentBalance),
+                          )
+                        : formatFcfa(overview.agentBalance),
+                    style: GoogleFonts.poppins(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+
+              // const SizedBox(height: 20),
+
+              // // ── KPIs secondaires : 3 stats ──
+              // IntrinsicHeight(
+              //   child: Row(
+              //     children: [
+              //       AgentOverviewTile(
+              //         label: 'Mes clients',
+              //         value: '${overview.myClientsCount}',
+              //         icon: Icons.people_alt_outlined,
+              //         onTap: widget.onOpenClients,
+              //       ),
+              //       const AgentOverviewTileDivider(),
+              //       AgentOverviewTile(
+              //         label: 'En attente',
+              //         value: '${overview.pendingCount}',
+              //         icon: Icons.pending_actions_outlined,
+              //       ),
+              //     ],
+              //   ),
+              // ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────── BANDEAU DU JOUR ────────────────────────────────
+
+  Widget _buildLastOperationBanner(AgentOverview overview) {
+    return Builder(
+      builder: (context) {
+        final isPrivate = PrivacyProvider.of(context).isPrivate;
+        final hasLastOperation = overview.lastOperation != null;
+        
+        AgentProvisioning? provisioning;
+        if (hasLastOperation) {
+          provisioning = AgentProvisioning(
+            id: overview.lastOperation!['id']?.toString() ?? '',
+            reference: overview.lastOperation!['reference']?.toString() ?? '',
+            amount: double.tryParse(overview.lastOperation!['amount']?.toString() ?? '0') ?? 0,
+            status: overview.lastOperation!['status']?.toString() ?? 'validated',
+            createdAt: DateTime.tryParse(overview.lastOperation!['createdAt']?.toString() ?? ''),
+            client: AgentProvisioningClient(
+              id: '', 
+              displayName: overview.lastOperation!['clientName']?.toString() ?? 'Client inconnu',
+              phoneNumber: '',
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: SectionTitle(
+                    title: 'Dernière opération',
+                    subtitle: '',
+                  ),
+                ),
+                TextButton(
+                  onPressed: widget.onOpenHistory,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Tout l'historique",
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AgentAppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_outward_rounded,
+                        size: 14,
+                        color: AgentAppTheme.primaryColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (hasLastOperation && provisioning != null)
+              AgentProvisioningListTile(provisioning: provisioning)
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE8EDF5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AgentAppTheme.primaryColor.withValues(alpha: 0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AgentAppTheme.borderColor.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.hourglass_empty_rounded,
+                        color: AgentAppTheme.textSecondaryColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Aucune opération",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AgentAppTheme.textPrimaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            "Vous n'avez pas encore effectué d'opération.",
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: AgentAppTheme.textSecondaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────── ACTIONS RAPIDES ────────────────────────────────
+
+  Widget _buildQuickActions(AgentOverview overview) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 14,
+      crossAxisSpacing: 14,
+      childAspectRatio: 1.12,
+      children: [
+        AgentQuickActionCard(
+          icon: Icons.people_alt_outlined,
+          title: 'Mes clients',
+          subtitle: 'Consulter le portefeuille client',
+          tint: AgentAppTheme.primaryColor,
+          onTap: widget.onOpenClients,
+        ),
+        AgentQuickActionCard(
+          icon: Icons.add_card_rounded,
+          title: 'Nouveau dépôt',
+          subtitle: 'Débiter la caisse pour créditer un client',
+          tint: AgentAppTheme.secondaryColor,
+          onTap: widget.onOpenProvisioning,
+        ),
+        AgentQuickActionCard(
+          icon: Icons.receipt_long_outlined,
+          title: 'Mon historique',
+          subtitle: 'Vérifier les opérations récentes',
+          tint: AgentAppTheme.accentColor,
+          onTap: widget.onOpenHistory,
+        ),
+        AgentQuickActionCard(
+          icon: Icons.payments_outlined,
+          title: 'Retrait client',
+          subtitle: 'Payer un retrait par référence et code client',
+          tint: const Color(0xFF7C3AED),
+          badgeCount: overview.pendingCount,
+          onTap: _openWithdrawalPaymentSheet,
+        ),
+      ],
+    );
+  }
+
+
 }
 
+// ── Classe inutilisée conservée pour rétrocompatibilité éventuelle ──
 class _AgentInfoRow extends StatelessWidget {
   final IconData icon;
   final String text;

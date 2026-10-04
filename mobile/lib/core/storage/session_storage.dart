@@ -1,9 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class SessionStorage {
   static const _tokenKey = 'authToken';
   static const _loggedInKey = 'isLoggedIn';
   static const _pendingGroupInvitationTokenKey = 'pendingGroupInvitationToken';
+  static const _deviceIdKey = 'deviceId';
   static final List<Future<void> Function()> _beforeClearHooks = [];
 
   static void registerBeforeClearHook(Future<void> Function() hook) {
@@ -19,6 +21,15 @@ class SessionStorage {
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
+  }
+
+  static Future<String> getOrCreateDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_deviceIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final id = const Uuid().v4();
+    await prefs.setString(_deviceIdKey, id);
+    return id;
   }
 
   static Future<bool> hasActiveSession() async {

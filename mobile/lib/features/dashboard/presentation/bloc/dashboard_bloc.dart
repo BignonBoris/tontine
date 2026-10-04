@@ -235,6 +235,25 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     await _runMutation(emit, _remoteDashboardService.stopTontineEarly);
   }
 
+  /// Executes the early-stop operation synchronously for confirmation dialogs.
+  /// The caller can therefore keep the dialog open when the API rejects the
+  /// operation, instead of assuming that dispatching the event means success.
+  Future<void> stopTontineEarlyAndWait() async {
+    await _remoteDashboardService.stopTontineEarly();
+    add(LoadDashboardData());
+  }
+
+  Future<void> configureTontineStakeAndWait(
+    double stakeAmount, {
+    required bool termsAccepted,
+  }) async {
+    await _remoteDashboardService.configureStake(
+      stakeAmount,
+      termsAccepted: termsAccepted,
+    );
+    add(LoadDashboardData());
+  }
+
   Future<void> _onBuyMarketplaceOfferNow(
     BuyMarketplaceOfferNow event,
     Emitter<DashboardState> emit,
@@ -407,7 +426,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     try {
       await action();
       if (reload) {
-        add(LoadDashboardData());
+        // Recharge immédiatement le snapshot après la mutation. Dispatcher
+        // LoadDashboardData sans attendre laissait parfois l'écran afficher
+        // l'ancien cache jusqu'à un geste manuel de rafraîchissement.
+        final snapshot = await _remoteDashboardService.fetchDashboardSnapshot();
+        final lastSyncedAt = DateTime.now();
+        await _dashboardCacheService.saveSnapshot(
+          snapshot,
+          lastSyncedAt: lastSyncedAt,
+        );
+        emit(
+          _buildLoadedState(
+            snapshot,
+            lastSyncedAt: lastSyncedAt,
+          ),
+        );
+        _ensureRealtimeSubscription();
         return;
       }
 

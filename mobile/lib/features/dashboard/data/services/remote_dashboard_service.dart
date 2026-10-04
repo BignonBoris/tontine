@@ -597,7 +597,7 @@ class RemoteDashboardService {
           PaymentMethodOption(
             id: 'fallback-fedapay',
             code: 'fedapay',
-            label: 'FedaPay',
+            label: 'Paiement mobile',
             description: 'Paiement externe via FedaPay.',
             provider: 'fedapay',
             operation: 'tontine_deposit',

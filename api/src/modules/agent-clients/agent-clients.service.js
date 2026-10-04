@@ -376,18 +376,18 @@ async function closeClientTontine(agentProfile, clientId, payload, requestContex
       accountType: { [Op.ne]: 'Agent' },
       createdByAgentProfileId: agentProfile.id,
     },
-    include: [{ model: models.UserPreference, as: 'preference' }]
+    include: [{ model: models.UserPreference, as: 'preferences' }]
   });
 
   if (!client) {
     throw new AppError('Client introuvable dans votre portefeuille.', 404);
   }
 
-  if (!client.preference || !client.preference.pinEnabled || !client.preference.pinCode) {
+  if (!client.preferences || !client.preferences.pinEnabled || !client.preferences.pinCode) {
     throw new AppError("Le client n'a pas de code PIN configure.", 422);
   }
 
-  const pinMatches = await bcrypt.compare(pinCode, client.preference.pinCode);
+  const pinMatches = await bcrypt.compare(pinCode, client.preferences.pinCode);
   if (!pinMatches) {
     throw new AppError('Code PIN incorrect. Cloture refusee.', 401);
   }
