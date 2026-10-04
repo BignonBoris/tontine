@@ -21,6 +21,7 @@ const {
 const {
   assertPaymentMethodEnabled,
 } = require('../payment-methods/payment-methods.service');
+const bcrypt = require('bcrypt');
 
 const WITHDRAWAL_CONFIRMATION_TTL_MINUTES = 15;
 const WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS = 5;
@@ -587,15 +588,24 @@ async function payWithdrawal(
   payload = {},
   requestContext = {},
 ) {
-  const confirmationCode = String(payload?.confirmationCode || '').trim();
-  if (confirmationCode.length < 4) {
-    throw new AppError('Le code de confirmation est requis.', 422);
+  const pinCode = String(payload?.pinCode || payload?.confirmationCode || '').trim();
+  const isReferenceMode = pinCode.length === 0;
+
+  // Mode Direct uniquement : validation du code PIN
+  if (!isReferenceMode) {
+    if (pinCode.length !== 4 || !/^\d{4}$/.test(pinCode)) {
+      throw new AppError('Le code PIN du client doit comporter exactement 4 chiffres.', 422);
+    }
   }
 
   const result = await sequelize.transaction(async (transaction) => {
     const withdrawal = await models.Withdrawal.findByPk(withdrawalId, {
       include: [
-        { model: models.User, as: 'user' },
+        { 
+          model: models.User, 
+          as: 'user',
+          include: [{ model: models.UserPreference, as: 'preferences' }]
+        },
         { model: models.AgentProfile, as: 'payingAgent', required: false },
       ],
       transaction,
@@ -615,96 +625,33 @@ async function payWithdrawal(
       );
     }
 
-    if (isConfirmationCodeExpired(withdrawal)) {
-      await writeAuditLog({
-        userId: agentProfile.userId,
-        action: 'withdrawal.payment_attempt_with_expired_code',
-        entityType: 'withdrawal',
-        entityId: withdrawal.id,
-        ipAddress: requestContext.ipAddress,
-        userAgent: requestContext.userAgent,
-        metadata: {
-          reference: withdrawal.reference,
-        },
-        transaction,
-      });
-
-      throw new AppError(
-        "Le code de confirmation a expire. Demandez au client d'en generer un nouveau.",
-        409,
-      );
-    }
-
-    if (
-      Number(withdrawal.confirmationCodeAttempts || 0) >=
-      WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS
-    ) {
-      await releaseRequestedWithdrawal(
-        withdrawal,
-        {
-          reason: 'Trop de codes de confirmation invalides',
-          notificationTitle: 'Retrait annule',
-          notificationMessage:
-            'Le retrait a ete annule apres plusieurs codes invalides. Le montant est revenu dans votre solde disponible.',
-          auditAction: 'withdrawal.cancelled_after_invalid_confirmations',
-          requestContext,
-        },
-        transaction,
-      );
-
-      throw new AppError(
-        'Ce retrait a ete annule apres trop de tentatives. Le client doit refaire sa demande.',
-        422,
-      );
-    }
-
-    const receivedCodeHash = hashConfirmationCode(confirmationCode);
-    if (receivedCodeHash !== withdrawal.confirmationCodeHash) {
-      const nextAttempts = Number(withdrawal.confirmationCodeAttempts || 0) + 1;
-
-      if (nextAttempts >= WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS) {
-        await releaseRequestedWithdrawal(
-          withdrawal,
-          {
-            reason: 'Trop de codes de confirmation invalides',
-            notificationTitle: 'Retrait annule',
-            notificationMessage:
-              'Le retrait a ete annule apres plusieurs codes invalides. Le montant est revenu dans votre solde disponible.',
-            auditAction: 'withdrawal.cancelled_after_invalid_confirmations',
-            requestContext,
-          },
-          transaction,
-        );
-      } else {
-        await withdrawal.update(
-          {
-            confirmationCodeAttempts: nextAttempts,
-          },
-          { transaction },
-        );
+    // Mode Référence : le client s'est déjà authentifié sur son app,
+    // la référence unique fait office de jeton d'autorisation.
+    // Mode Direct : vérification du code PIN du client.
+    if (!isReferenceMode) {
+      const clientPreferences = withdrawal.user.preferences;
+      if (!clientPreferences || !clientPreferences.pinEnabled || !clientPreferences.pinCode) {
+        throw new AppError("Le client n'a pas de code PIN configuré pour valider ce retrait.", 422);
       }
 
-      await writeAuditLog({
-        userId: agentProfile.userId,
-        action: 'withdrawal.payment_confirmation_failed',
-        entityType: 'withdrawal',
-        entityId: withdrawal.id,
-        ipAddress: requestContext.ipAddress,
-        userAgent: requestContext.userAgent,
-        metadata: {
-          reference: withdrawal.reference,
-          attempts: nextAttempts,
-          autoCancelled: nextAttempts >= WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS,
-        },
-        transaction,
-      });
+      const pinMatches = await bcrypt.compare(pinCode, clientPreferences.pinCode);
+      if (!pinMatches) {
+        await writeAuditLog({
+          userId: agentProfile.userId,
+          action: 'withdrawal.payment_confirmation_failed',
+          entityType: 'withdrawal',
+          entityId: withdrawal.id,
+          ipAddress: requestContext.ipAddress,
+          userAgent: requestContext.userAgent,
+          metadata: {
+            reference: withdrawal.reference,
+            reason: 'Invalid PIN code',
+          },
+          transaction,
+        });
 
-      throw new AppError(
-        nextAttempts >= WITHDRAWAL_CONFIRMATION_MAX_ATTEMPTS
-          ? 'Trop de codes invalides. Le retrait a ete annule et le client doit refaire sa demande.'
-          : 'Code de confirmation invalide.',
-        422,
-      );
+        throw new AppError('Code PIN incorrect. Validation du retrait refusée.', 401);
+      }
     }
 
     const wallet = await models.Wallet.findOne({
