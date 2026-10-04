@@ -1071,7 +1071,7 @@ async function previewDirectWithdrawal(agentProfile, payload = {}) {
     );
   }
 
-  // Chercher le client par téléphone ou par ID, dans le portefeuille de l'agent
+  // Chercher le client par téléphone ou par ID (parmi tous les clients actifs)
   const { Op } = require('sequelize');
   const normalizedPhone = query.replace(/\D/g, '');
   const client = await models.User.findOne({
@@ -1084,7 +1084,6 @@ async function previewDirectWithdrawal(agentProfile, payload = {}) {
           ],
         },
         { isActive: true },
-        { createdByAgentProfileId: agentProfile.id },
       ],
     },
     include: [{ model: models.Wallet, as: 'wallet', required: false }],
@@ -1092,7 +1091,7 @@ async function previewDirectWithdrawal(agentProfile, payload = {}) {
 
   if (!client) {
     throw new AppError(
-      'Client introuvable dans votre portefeuille. Verifiez l\'identifiant ou le telephone.',
+      'Client introuvable. Vérifiez l\'identifiant ou le téléphone.',
       404,
     );
   }
