@@ -27,6 +27,17 @@ const filters = reactive({
 const currentPage = ref(1);
 const pageSize = 20;
 const mutationAgentId = ref<string | null>(null);
+
+const createDialogOpen = ref(false);
+const isCreating = ref(false);
+const createError = ref("");
+const createForm = reactive({
+  fullName: "",
+  phoneNumber: "",
+  agentCode: "",
+  pin: "",
+  maxFloatLimit: 500000,
+});
 const topUpDialogOpen = ref(false);
 const topUpAgentId = ref<string | null>(null);
 const cashHistoryDialogOpen = ref(false);
@@ -134,6 +145,39 @@ function closeTopUpDialog() {
   topUpDialogOpen.value = false;
   topUpAgentId.value = null;
   topUpError.value = "";
+}
+
+function openCreateDialog() {
+  createForm.fullName = "";
+  createForm.phoneNumber = "";
+  createForm.agentCode = "";
+  createForm.pin = "";
+  createForm.maxFloatLimit = 500000;
+  createError.value = "";
+  createDialogOpen.value = true;
+}
+
+function closeCreateDialog() {
+  createDialogOpen.value = false;
+  createError.value = "";
+}
+
+async function submitCreate() {
+  if (!createForm.fullName || !createForm.phoneNumber || !createForm.agentCode || !createForm.pin) {
+    createError.value = "Veuillez remplir tous les champs.";
+    return;
+  }
+  isCreating.value = true;
+  createError.value = "";
+  try {
+    await agentService.create(createForm);
+    await fetchAgents(1);
+    closeCreateDialog();
+  } catch (error) {
+    createError.value = getErrorMessage(error, "Création impossible.");
+  } finally {
+    isCreating.value = false;
+  }
 }
 
 const selectedProfileAgent = computed(() => agents.value.find((agent) => agent.id === profileAgentId.value) || null);
@@ -310,12 +354,20 @@ onMounted(fetchAgents);
             Filtrer
           </button>
         </div>
-        <button
-          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
-          @click="fetchAgents(currentPage)"
-        >
-          Rafraichir
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            class="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primaryemphasis"
+            @click="openCreateDialog"
+          >
+            + Nouvel Agent
+          </button>
+          <button
+            class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+            @click="fetchAgents(currentPage)"
+          >
+            Rafraichir
+          </button>
+        </div>
       </div>
 
       <div v-if="errorMessage" class="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -676,6 +728,86 @@ onMounted(fetchAgents);
           @click="closeCashHistoryDialog"
         >
           Fermer
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="createDialogOpen" @update:open="createDialogOpen = $event">
+    <DialogContent class="sm:max-w-[420px]">
+      <DialogHeader>
+        <DialogTitle>Ajouter un nouvel agent</DialogTitle>
+        <DialogDescription>
+          Créez un accès pour un nouvel agent terrain.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4">
+        <div v-if="createError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ createError }}
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Nom complet</label>
+          <input
+            v-model="createForm.fullName"
+            type="text"
+            placeholder="Ex: Jean Dupont"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Numéro de téléphone</label>
+          <input
+            v-model="createForm.phoneNumber"
+            type="tel"
+            placeholder="Ex: 90000000"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Code Agent</label>
+          <input
+            v-model="createForm.agentCode"
+            type="text"
+            placeholder="Ex: AGT-002"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Code PIN (4+ chiffres)</label>
+          <input
+            v-model="createForm.pin"
+            type="password"
+            placeholder="****"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium">Plafond de caisse (FCFA)</label>
+          <input
+            v-model="createForm.maxFloatLimit"
+            type="number"
+            class="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </div>
+      </div>
+
+      <DialogFooter class="gap-2">
+        <button
+          class="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          :disabled="isCreating"
+          @click="closeCreateDialog"
+        >
+          Annuler
+        </button>
+        <button
+          class="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primaryemphasis disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isCreating"
+          @click="submitCreate"
+        >
+          <span v-if="isCreating">Création...</span>
+          <span v-else>Créer l'agent</span>
         </button>
       </DialogFooter>
     </DialogContent>

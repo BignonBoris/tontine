@@ -37,6 +37,7 @@ router.patch('/tontines/:cycleId', asyncHandler(controller.updateTontineCycle));
 router.post('/tontines/:cycleId/close', asyncHandler(controller.closeTontineCycle));
 router.patch('/clients/:userId/status', asyncHandler(controller.updateClientStatus));
 router.get('/agents', asyncHandler(controller.agents));
+router.post('/agents', asyncHandler(controller.createAgent));
 router.patch('/agents/:agentId/status', asyncHandler(controller.updateAgentStatus));
 router.put('/agents/:agentId/profile', asyncHandler(controller.updateAgentProfile));
 router.post('/agents/:agentId/top-up', asyncHandler(controller.topUpAgentCash));

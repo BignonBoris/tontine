@@ -19,7 +19,21 @@ export interface AgentCashHistoryParams {
   pageSize?: number;
 }
 
+export interface AgentCreatePayload {
+  fullName: string;
+  phoneNumber: string;
+  agentCode: string;
+  pin: string;
+  maxFloatLimit: number;
+}
+
 export const agentService = {
+  create(payload: AgentCreatePayload) {
+    return unwrapEnvelope<AgentItem>(
+      apiClient.post("/admin/agents", payload)
+    );
+  },
+
   list(params: AgentListParams = {}) {
     return unwrapEnvelope<PaginatedResponse<AgentItem>>(
       apiClient.get("/admin/agents", { params })
