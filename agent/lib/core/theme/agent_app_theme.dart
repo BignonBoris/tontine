@@ -19,6 +19,7 @@ class AgentAppTheme {
   static const Color textPrimaryColor = Color(0xFF111827);
   static const Color textSecondaryColor = Color(0xFF667085);
   static const Color errorColor = Color(0xFFD32F2F);
+  static const Color successColor = Color(0xFF388E3C);
 
   static const LinearGradient heroGradient = LinearGradient(
     colors: [primaryColor, primaryVariantColor],
@@ -50,18 +51,9 @@ class AgentAppTheme {
         fontWeight: FontWeight.w600,
         color: textPrimaryColor,
       ),
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
-        color: textPrimaryColor,
-      ),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
-        color: textPrimaryColor,
-      ),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 12,
-        color: textSecondaryColor,
-      ),
+      bodyLarge: GoogleFonts.inter(fontSize: 16, color: textPrimaryColor),
+      bodyMedium: GoogleFonts.inter(fontSize: 14, color: textPrimaryColor),
+      bodySmall: GoogleFonts.inter(fontSize: 12, color: textSecondaryColor),
     );
 
     final outlineBorder = OutlineInputBorder(
@@ -87,15 +79,15 @@ class AgentAppTheme {
       ),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: backgroundColor,
-        foregroundColor: primaryColor,
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: primaryColor,
+          color: Colors.white,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -161,14 +153,8 @@ class AgentAppTheme {
         focusedErrorBorder: outlineBorder.copyWith(
           borderSide: const BorderSide(color: errorColor, width: 1.4),
         ),
-        hintStyle: GoogleFonts.inter(
-          fontSize: 14,
-          color: textSecondaryColor,
-        ),
-        labelStyle: GoogleFonts.inter(
-          fontSize: 14,
-          color: textSecondaryColor,
-        ),
+        hintStyle: GoogleFonts.inter(fontSize: 14, color: textSecondaryColor),
+        labelStyle: GoogleFonts.inter(fontSize: 14, color: textSecondaryColor),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: accentColor,

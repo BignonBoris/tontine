@@ -594,6 +594,16 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       return;
     }
 
+    if (result.requiresDeviceApproval && result.approvalRequestId != null) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/device-approval-pending',
+        (route) => false,
+        arguments: {'requestId': result.approvalRequestId},
+      );
+      return;
+    }
+
     setState(() {
       _isSubmitting = false;
     });
@@ -815,4 +825,3 @@ class _InlineAuthMessage extends StatelessWidget {
     );
   }
 }
-

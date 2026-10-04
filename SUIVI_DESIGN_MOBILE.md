@@ -92,6 +92,10 @@ Ce document trace l'avancement écran par écran du chantier de modernisation UI
   - **Résolution d'Identifiant Officiel (`getNumberId`)** : Interrogation des serveurs WhatsApp pour obtenir l'identifiant JID/LID exact de chaque membre.
   - **Gestion de la Réforme 10 chiffres (Bénin)** : Fallback automatique entre le format à 10 chiffres (+229 01...) et l'ancien format à 8 chiffres (+229...) pour garantir 100% de délivrabilité.
   - **Stabilisation du QR Code** : Nettoyage des processus Puppeteer et suppression du `webVersionCache` obsolète pour un affichage stable du QR code.
+  - **Résilience Déploiement Cloud (Render)** :
+    - Hook `postinstall` dans `package.json` (`npx puppeteer browsers install chrome`) pour forcer le téléchargement du binaire Chromium à chaque `npm install` en phase de build.
+    - Module d'auto-récupération à chaud (`_resolveOrInstallChrome()`) dans `whatsapp-otp.service.js` : détection d'absence du binaire au runtime et téléchargement dynamique avant initialisation de Puppeteer, évitant tout plantage en cas de rebuild sans cache.
+    - Pilotage flexible via variable d'environnement : `ENABLE_WHATSAPP_OTP=true` pour le service complet avec QR code, ou `false` pour le mode fallback console économique.
 
 ---
 
@@ -118,6 +122,11 @@ Ce document trace l'avancement écran par écran du chantier de modernisation UI
   - **Arrêt Anticipé Sécurisé** : L'icône de pause confuse a été remplacée par une icône d'interruption explicite (`Icons.stop_circle_outlined`). Une modale avec une case à cocher explicite d'acceptation de la retenue de mise a été ajoutée pour éviter les erreurs de manipulation.
   - **Reçu de Cotisation Officiel** : Intégration de la librairie `pdf` et `share_plus` pour générer un véritable reçu en PDF (téléchargeable et partageable via WhatsApp, Drive, etc.) contenant le QR Code de traçabilité certifié VizioBox.
   - **Clarté du Solde** : Ajout de la mention explicite *"Épargne bloquée jusqu'à terme"* sous le total cotisé pour éviter toute confusion avec un solde retirable immédiatement.
+  - **Compatibilité Base de Données & Synchronisation (`sync_id`)** :
+    - Résolution de l'erreur de champ manquant `Unknown column 'sync_id' in 'field list'` survenue en production lors des requêtes `GET /api/v1/tontine`.
+    - Mise à niveau du bootstrap automatique de démarrage (`tontine-history.bootstrap.js`) pour ajouter dynamiquement la colonne `sync_id` (UUID unique) ainsi que `initiated_by_user_id` et `initiator_type` sur `tontine_histories`.
+    - Création du bootstrap `provisioning.bootstrap.js` (enregistré dans `run-bootstrap.js`) pour garantir également la présence de `sync_id` sur la table `provisionings`.
+    - Création de la migration Sequelize `20260903170000-add-sync-id-to-tontine-histories-and-provisionings.js`.
 
 ---
 
@@ -127,3 +136,22 @@ Ce document trace l'avancement écran par écran du chantier de modernisation UI
   - **Selfie de Vérification** : Module de capture via la caméra frontale pour le contrôle de la vivacité (liveness).
   - **Suivi des Statuts** : Intégration complète avec les statuts du backend (`pending_review`, `verified`, `rejected`) affichés via une carte de statut (couleurs sémantiques).
   - **Réassurance (APDP)** : Mention explicite du chiffrement des données et de la conformité à la réglementation BCEAO et APDP.
+
+---
+
+### 🔟 Enrôlement KYC par l'Agent (`agent_client_enrollment_screen.dart`)
+- **Conformité LCB/FT (BCEAO)** :
+  - **Désactivation de la Galerie Publique** : L'agent est désormais dans l'obligation stricte d'utiliser l'appareil photo en direct pour capturer les pièces d'identité et les selfies. L'importation d'images préexistantes depuis la galerie est techniquement bloquée pour éviter le vol de données ou le stockage d'images sensibles sur l'appareil personnel de l'agent.
+
+---
+
+### 1️⃣1️⃣ Module Agent : Retraits & Clôtures de Tontine (`agent_withdrawal_payment_sheet.dart` & `agent_close_tontine_sheet.dart`)
+- **Apports UI/UX & Sécurité (Maker-Checker)** :
+  - **Retrait Direct en 2 étapes** : 
+    - Séparation de la saisie (recherche client + montant) et de la validation. 
+    - Le backend (`previewDirectWithdrawal`) vérifie le solde avant même d'initier la création.
+    - Création de la transaction (envoi OTP SMS au client) *avant* l'affichage du pavé numérique.
+  - **Clôture Anticipée par l'Agent** : 
+    - Nouveau flux pour les clients "offline" sans application : un bouton "Clôturer la tontine" est disponible sur la fiche client.
+    - Validation irréfutable : L'agent initie, mais **le client doit taper son code PIN secret sur l'appareil de l'agent** via le `ClientPinPad` pour valider la clôture.
+    - Intégration backend avec `closeClientTontine` qui vérifie le `bcrypt` du PIN avant d'exécuter la liquidation.

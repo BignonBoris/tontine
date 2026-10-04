@@ -1,3 +1,4 @@
+import 'package:agent/core/security/privacy_provider.dart';
 import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:agent/features/app/presentation/screens/agent_session_gate.dart';
 import 'package:agent/features/auth/presentation/screens/agent_login_screen.dart';
@@ -10,22 +11,24 @@ class AgentApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'VizioBox Agent',
-      debugShowCheckedModeBanner: false,
-      theme: AgentAppTheme.lightTheme,
-      locale: const Locale('fr', 'FR'),
-      supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: const AgentSessionGate(),
-      routes: {
-        '/login': (context) => const AgentLoginScreen(),
-        '/home': (context) => const AgentMainShell(),
-      },
+    return PrivacyProvider(
+      child: MaterialApp(
+        title: 'VizioBox Agent',
+        debugShowCheckedModeBanner: false,
+        theme: AgentAppTheme.lightTheme,
+        locale: const Locale('fr', 'FR'),
+        supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: const AgentSessionGate(),
+        routes: {
+          '/login': (context) => const AgentLoginScreen(),
+          '/home': (context) => const AgentMainShell(),
+        },
+      ),
     );
   }
 }

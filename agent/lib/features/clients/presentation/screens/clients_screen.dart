@@ -9,6 +9,7 @@ import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_detail_sheet.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_form_sheet.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_list_tile.dart';
+import 'package:agent/features/clients/presentation/screens/agent_client_enrollment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -63,81 +64,28 @@ class _ClientsScreenState extends State<ClientsScreen> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Clients'),
-        actions: [const AgentLogoutAction()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Rechercher un client',
+            onPressed: _openSearchFiltersSheet,
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => _reload(),
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            SoftSectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Recherche par téléphone',
-                    // style: GoogleFonts.poppins(
-                    //   fontSize: 16,
-                    //   fontWeight: FontWeight.w700,
-                    //   color: AgentAppTheme.textPrimaryColor,
-                    // ),
-                  ),
-                  const SizedBox(height: 8),
-                  IntlPhoneField(
-                    controller: _searchController,
-                    initialCountryCode: 'BJ',
-                    showCountryFlag: true,
-                    showDropdownIcon: false,
-                    disableLengthCheck: true,
-                    onChanged: (_) => _reload(),
-                    decoration: const InputDecoration(
-                      labelText: 'Numero de telephone',
-                      hintText: 'Ex. 01 23 45 67 89',
-                      isDense: true,
-                    ),
-                  ),
-                  // const SizedBox(height: 10),
-                  // Text(
-                  //   'Statut tontine',
-                  //   style: GoogleFonts.poppins(
-                  //     fontSize: 13,
-                  //     fontWeight: FontWeight.w700,
-                  //     color: AgentAppTheme.textPrimaryColor,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _StatusTag(
-                        label: 'Tous',
-                        selected: _filter == 'all',
-                        onTap: () => _setFilter('all'),
-                      ),
-                      _StatusTag(
-                        label: 'Tontine active',
-                        selected: _filter == 'active',
-                        onTap: () => _setFilter('active'),
-                      ),
-                      _StatusTag(
-                        label: 'Sans tontine',
-                        selected: _filter == 'inactive',
-                        onTap: () => _setFilter('inactive'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
+            // Le formulaire de recherche a été déplacé dans un bottom sheet
+            const SizedBox(height: 8),
             FutureBuilder<List<AgentClient>>(
               future: _clientsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 260,
-                    child: AgentLoadingView(
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.65,
+                    child: const AgentLoadingView(
                       message: 'Chargement de votre portefeuille client...',
                     ),
                   );
@@ -149,7 +97,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       ? error.message
                       : 'Impossible de charger vos clients.';
                   return SizedBox(
-                    height: 280,
+                    height: MediaQuery.of(context).size.height * 0.65,
                     child: AgentErrorView(
                       title: 'Clients indisponibles',
                       message: message,
@@ -160,9 +108,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
                 final clients = snapshot.data ?? const <AgentClient>[];
                 if (clients.isEmpty) {
-                  return const SizedBox(
-                    height: 260,
-                    child: AgentEmptyView(
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.65,
+                    child: const AgentEmptyView(
                       icon: Icons.people_outline_rounded,
                       title: 'Aucun client dans votre portefeuille',
                       message:
@@ -193,31 +141,26 @@ class _ClientsScreenState extends State<ClientsScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         heroTag: 'clients_add_fab',
         onPressed: _openCreateClientSheet,
-        label: const Text('Ajouter'),
-        icon: const Icon(Icons.person_add_alt_1_rounded),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.person_add_alt_1_rounded),
       ),
     );
   }
 
   Future<void> _openCreateClientSheet() async {
-    final result = await showModalBottomSheet<AgentClient>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const AgentClientFormSheet(),
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AgentClientEnrollmentScreen()),
     );
 
-    if (!mounted || result == null) {
+    if (!mounted || result != true) {
       return;
     }
 
     _reload();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Client cree avec succes.')));
   }
 
   Future<void> _openClientDetail(AgentClient client) async {
@@ -233,6 +176,106 @@ class _ClientsScreenState extends State<ClientsScreen> {
     if (mounted) {
       _reload();
     }
+  }
+
+  void _openSearchFiltersSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Rechercher et filtrer',
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _StatusTag(
+                        label: 'Tous',
+                        selected: _filter == 'all',
+                        onTap: () {
+                          _setFilter('all');
+                          setSheetState(() {});
+                        },
+                      ),
+                      _StatusTag(
+                        label: 'Tontine active',
+                        selected: _filter == 'active',
+                        onTap: () {
+                          _setFilter('active');
+                          setSheetState(() {});
+                        },
+                      ),
+                      _StatusTag(
+                        label: 'Sans tontine',
+                        selected: _filter == 'inactive',
+                        onTap: () {
+                          _setFilter('inactive');
+                          setSheetState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Recherche par téléphone',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  IntlPhoneField(
+                    controller: _searchController,
+                    initialCountryCode: 'BJ',
+                    showCountryFlag: true,
+                    showDropdownIcon: false,
+                    disableLengthCheck: true,
+                    onChanged: (_) => _reload(),
+                    decoration: const InputDecoration(
+                      labelText: 'Numéro de téléphone',
+                      hintText: 'Ex. 01 23 45 67 89',
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 

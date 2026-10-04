@@ -570,9 +570,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       builder: (modalContext) {
         return ConfigureTontineStakeModal(
           kycStatus: kycStatus,
-          onSubmit: (amount, termsAccepted) async {
-            context.read<DashboardBloc>().add(ConfigureTontineStake(amount, termsAccepted: termsAccepted));
-          },
+          onSubmit: (amount, termsAccepted) => context
+              .read<DashboardBloc>()
+              .configureTontineStakeAndWait(
+                amount,
+                termsAccepted: termsAccepted,
+              ),
         );
       },
     );

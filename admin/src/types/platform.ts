@@ -341,6 +341,7 @@ export interface AgentItem {
   phoneNumber: string | null;
   isActive: boolean;
   agentBalance: number;
+  maxFloatLimit?: number;
   createdAt: string;
   createdClientsCount: number;
 }

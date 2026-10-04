@@ -1,13 +1,15 @@
 import 'package:agent/core/network/api_client.dart';
 import 'package:agent/core/widgets/agent_state_views.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
-import 'package:agent/features/auth/presentation/widgets/agent_logout_action.dart';
 import 'package:agent/features/groups/data/services/agent_group_service.dart';
 import 'package:agent/features/groups/domain/entities/agent_group.dart';
+import 'package:agent/features/groups/presentation/screens/agent_group_enrollment_screen.dart';
 import 'package:agent/features/groups/presentation/screens/group_detail_screen.dart';
 import 'package:agent/features/groups/presentation/widgets/agent_group_form_sheet.dart';
 import 'package:agent/features/groups/presentation/widgets/agent_group_list_tile.dart';
+import 'package:agent/core/theme/agent_app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class GroupsScreen extends StatefulWidget {
   const GroupsScreen({super.key});
@@ -60,7 +62,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 ? 'Masquer la recherche'
                 : 'Rechercher un groupe',
           ),
-          const AgentLogoutAction(),
         ],
       ),
       body: RefreshIndicator(
@@ -148,6 +149,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 }
 
                 final groups = snapshot.data ?? const <AgentGroup>[];
+                final totalGroups = groups.length;
+                final activeGroups = groups.where((g) => g.isActive).length;
+
                 if (groups.isEmpty) {
                   return const SizedBox(
                     height: 260,
@@ -161,80 +165,206 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 }
 
                 return Column(
-                  children: groups
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        '$activeGroups actif${activeGroups > 1 ? 's' : ''} · $totalGroups groupe${totalGroups > 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                    ...groups
                       .map(
                         (group) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: AgentGroupListTile(
                             group: group,
-                            onTap: () => _openGroupDetail(group),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) =>
-                                  _handleGroupAction(value, group),
-                              itemBuilder: (context) => _buildActions(group),
-                            ),
+                            onTap: () => _showGroupActionsSheet(group),
+                            trailing: null,
                           ),
                         ),
                       )
                       .toList(),
+                  ],
                 );
               },
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         heroTag: 'groups_add_fab',
         onPressed: _openCreateSheet,
-        label: const Text('Ajouter'),
-        icon: const Icon(Icons.group_add_rounded),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.group_add_rounded),
       ),
     );
   }
 
-  List<PopupMenuEntry<String>> _buildActions(AgentGroup group) {
-    final items = <PopupMenuEntry<String>>[];
+  void _showGroupActionsSheet(AgentGroup group) {
+    // Construire la liste d'actions disponibles
+    final actions = <Map<String, dynamic>>[
+      {
+        'value': 'detail',
+        'label': 'Voir le détail du groupe',
+        'icon': Icons.visibility_outlined,
+        'color': AgentAppTheme.primaryColor,
+      },
+    ];
 
     if (!group.isStarted &&
         group.status == 'active' &&
         group.launchStatus != 'launch_cancelled') {
-      items.add(
-        const PopupMenuItem<String>(
-          value: 'launch',
-          child: Text('Lancer la tontine'),
-        ),
-      );
+      actions.add({
+        'value': 'launch',
+        'label': 'Lancer la tontine',
+        'icon': Icons.play_circle_outline_rounded,
+        'color': AgentAppTheme.successColor,
+      });
     }
 
     if (!group.isStarted) {
-      items.addAll(const [
-        PopupMenuItem<String>(
-          value: 'postpone',
-          child: Text('Prolonger la date'),
-        ),
-        PopupMenuItem<String>(
-          value: 'reduce_target',
-          child: Text('Reduire a l effectif actuel'),
-        ),
-        PopupMenuItem<String>(
-          value: 'cancel_launch',
-          child: Text('Annuler le lancement'),
-        ),
+      actions.addAll([
+        {
+          'value': 'edit',
+          'label': 'Modifier le groupe',
+          'icon': Icons.edit_outlined,
+          'color': AgentAppTheme.primaryColor,
+        },
+        {
+          'value': 'postpone',
+          'label': 'Prolonger la date de lancement',
+          'icon': Icons.calendar_month_outlined,
+          'color': AgentAppTheme.accentColor,
+        },
+        {
+          'value': 'reduce_target',
+          'label': 'Réduire à l\'effectif actuel',
+          'icon': Icons.group_remove_outlined,
+          'color': Colors.orange,
+        },
+        {
+          'value': 'cancel_launch',
+          'label': 'Annuler le lancement',
+          'icon': Icons.cancel_outlined,
+          'color': AgentAppTheme.errorColor,
+        },
       ]);
     }
 
-    if (!group.isStarted) {
-      items.add(
-        const PopupMenuItem<String>(value: 'edit', child: Text('Modifier')),
-      );
-    }
-    items.add(
-      PopupMenuItem<String>(
-        value: group.isActive ? 'suspend' : 'activate',
-        child: Text(group.isActive ? 'Suspendre' : 'Reactiver'),
+    actions.add({
+      'value': group.isActive ? 'suspend' : 'activate',
+      'label': group.isActive ? 'Suspendre le groupe' : 'Réactiver le groupe',
+      'icon': group.isActive ? Icons.pause_circle_outline_rounded : Icons.check_circle_outline_rounded,
+      'color': group.isActive ? Colors.orange : AgentAppTheme.successColor,
+    });
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // En-tête
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            group.name,
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AgentAppTheme.textPrimaryColor,
+                            ),
+                          ),
+                          Text(
+                            'Choisissez une action',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AgentAppTheme.textSecondaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Liste des actions scrollable
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...actions.map((action) => ListTile(
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: (action['color'] as Color).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            action['icon'] as IconData,
+                            color: action['color'] as Color,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          action['label'] as String,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AgentAppTheme.textPrimaryColor,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AgentAppTheme.textSecondaryColor,
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _handleGroupAction(action['value'] as String, group);
+                          });
+                        },
+                      )),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    return items;
   }
 
   void _toggleSearchCard() {
@@ -244,19 +374,16 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Future<void> _openCreateSheet() async {
-    final result = await showModalBottomSheet<AgentGroup>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const AgentGroupFormSheet(),
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AgentGroupEnrollmentScreen()),
     );
 
-    if (!mounted || result == null) {
+    if (!mounted || result != true) {
       return;
     }
 
     _reload();
-    _showMessage('Groupe cree avec succes.');
   }
 
   Future<void> _openEditSheet(AgentGroup group) async {
@@ -288,6 +415,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Future<void> _handleGroupAction(String action, AgentGroup group) async {
     switch (action) {
+      case 'detail':
+        await _openGroupDetail(group);
+        return;
       case 'launch':
         await _launchGroup(group);
         return;
