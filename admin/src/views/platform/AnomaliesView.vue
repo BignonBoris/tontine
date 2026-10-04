@@ -70,13 +70,15 @@ async function refresh() {
   error.value = "";
   try {
     data.value = await auditService.getAnomalies();
-    totalAnomalies.value =
-      (data.value.multipleDeviceLogins?.length ?? 0) +
-      (data.value.suspiciousProvisionings?.length ?? 0) +
-      (data.value.expiredRequestedWithdrawals?.length ?? 0) +
-      (data.value.walletReservationMismatches?.length ?? 0) +
-      (data.value.inactiveAgentsWithCash?.length ?? 0) +
-      (data.value.overdueActiveCycles?.length ?? 0);
+    if (data.value) {
+      totalAnomalies.value =
+        (data.value.multipleDeviceLogins?.length ?? 0) +
+        (data.value.suspiciousProvisionings?.length ?? 0) +
+        (data.value.expiredRequestedWithdrawals?.length ?? 0) +
+        (data.value.walletReservationMismatches?.length ?? 0) +
+        (data.value.inactiveAgentsWithCash?.length ?? 0) +
+        (data.value.overdueActiveCycles?.length ?? 0);
+    }
   } catch (e) {
     error.value = getErrorMessage(e, "Chargement des anomalies impossible.");
   } finally {
