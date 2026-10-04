@@ -392,16 +392,16 @@ async function closeClientTontine(agentProfile, clientId, payload, requestContex
     throw new AppError('Code PIN incorrect. Cloture refusee.', 401);
   }
 
-  // Find active tontine cycle
+  // Find active or pending-closure tontine cycle
   const activeCycle = await models.TontineCycle.findOne({
     where: {
       userId: client.id,
-      status: 'active',
+      status: { [Op.in]: ['active', 'enAttenteValidationFin'] },
     },
   });
 
   if (!activeCycle) {
-    throw new AppError("Le client n'a aucune tontine active a cloturer.", 422);
+    throw new AppError("Le client n'a aucune tontine active ou en attente de cloture.", 422);
   }
 
   const actorContext = {
