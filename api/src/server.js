@@ -38,7 +38,8 @@ async function start() {
 
     app.listen(env.port, () => {
       console.log(`${env.appName} demarree sur ${env.appBaseUrl}`);
-      whatsAppOtpService.initialize();
+      // Désactivé pour le déploiement Vercel :
+      // whatsAppOtpService.initialize();
     });
   } catch (error) {
     console.error('Echec de demarrage API:', error);
