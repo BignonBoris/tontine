@@ -205,6 +205,18 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
                       onPressed: () => _openStartTontine(client),
                       child: const Text('Demarrer une tontine'),
                     ),
+                  ] else if (client.cycleStatus == 'enAttenteValidationFin') ...[
+                    const SizedBox(height: 18),
+                    ElevatedButton.icon(
+                      onPressed: () => _openCloseTontine(client),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE8F5E9),
+                        foregroundColor: const Color(0xFF2E7D32),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                      label: const Text('Valider le versement final'),
+                    ),
                   ] else ...[
                     const SizedBox(height: 18),
                     ElevatedButton.icon(
@@ -218,6 +230,7 @@ class _AgentClientDetailSheetState extends State<AgentClientDetailSheet> {
                       label: const Text('Clôturer la tontine'),
                     ),
                   ],
+
                 ],
               ),
             );

@@ -4,10 +4,12 @@ import 'package:agent/core/utils/currency_formatter.dart';
 import 'package:agent/core/utils/input_rules.dart';
 import 'package:agent/core/widgets/animated_bottom_sheet.dart';
 import 'package:agent/core/widgets/client_pin_pad.dart';
+import 'package:agent/core/widgets/slide_to_pay_button.dart';
 import 'package:agent/core/widgets/soft_section_card.dart';
 import 'package:agent/features/withdrawals/data/services/agent_withdrawal_service.dart';
 import 'package:agent/features/withdrawals/domain/entities/agent_pending_withdrawal.dart';
 import 'package:agent/features/withdrawals/domain/entities/agent_withdrawal_preview.dart';
+import 'package:agent/features/withdrawals/presentation/widgets/qr_scanner_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +19,7 @@ import 'package:intl/intl.dart';
 // Étapes du formulaire en mode Direct
 // ─────────────────────────────────────────────────────────────────────────────
 enum _DirectStep { form, confirm }
+enum _PaymentMode { direct, reference, qrCode }
 
 class AgentWithdrawalPaymentSheet extends StatefulWidget {
   const AgentWithdrawalPaymentSheet({super.key});
@@ -31,7 +34,7 @@ class _AgentWithdrawalPaymentSheetState
   final _service = AgentWithdrawalService();
 
   // ── Mode sélectionné ──────────────────────────────────────────────────────
-  bool _isDirectMode = true;
+  _PaymentMode _mode = _PaymentMode.direct;
 
   // ── Mode Direct ───────────────────────────────────────────────────────────
   _DirectStep _directStep = _DirectStep.form;
@@ -102,39 +105,54 @@ class _AgentWithdrawalPaymentSheetState
               const SizedBox(height: 12),
 
               // ── Sélecteur de mode (masqué sur l'étape 2 direct) ───────
-              if (!(_isDirectMode && _directStep == _DirectStep.confirm)) ...[
+              if (!(_mode == _PaymentMode.direct && _directStep == _DirectStep.confirm)) ...[
                 Center(
-                  child: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: true,
-                        label: Text('Direct'),
-                        icon: Icon(Icons.person_outline),
-                      ),
-                      ButtonSegment<bool>(
-                        value: false,
-                        label: Text('Référence'),
-                        icon: Icon(Icons.tag),
-                      ),
-                    ],
-                    selected: {_isDirectMode},
-                    onSelectionChanged: (Set<bool> v) {
-                      setState(() {
-                        _isDirectMode = v.first;
-                        _directError = null;
-                        _refError = null;
-                        _directStep = _DirectStep.form;
-                        _preview = null;
-                        _directWithdrawal = null;
-                      });
-                    },
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<_PaymentMode>(
+                      segments: const [
+                        ButtonSegment<_PaymentMode>(
+                          value: _PaymentMode.direct,
+                          label: Text('Direct'),
+                          icon: Icon(Icons.person_outline),
+                        ),
+                        ButtonSegment<_PaymentMode>(
+                          value: _PaymentMode.reference,
+                          label: Text('Référence'),
+                          icon: Icon(Icons.tag),
+                        ),
+                        ButtonSegment<_PaymentMode>(
+                          value: _PaymentMode.qrCode,
+                          label: Text('QR Code'),
+                          icon: Icon(Icons.qr_code_scanner),
+                        ),
+                      ],
+                      selected: {_mode},
+                      onSelectionChanged: (Set<_PaymentMode> v) {
+                        setState(() {
+                          _mode = v.first;
+                          _directError = null;
+                          _refError = null;
+                          _directStep = _DirectStep.form;
+                          _preview = null;
+                          _directWithdrawal = null;
+                          _withdrawal = null; // Réinitialiser le retrait pour la référence ou QR
+                          _referenceController.clear();
+                        });
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
               ],
 
               // ── Contenu selon le mode ──────────────────────────────────
-              if (_isDirectMode) _buildDirectContent() else _buildRefContent(),
+              if (_mode == _PaymentMode.direct)
+                _buildDirectContent()
+              else if (_mode == _PaymentMode.reference)
+                _buildRefContent()
+              else
+                _buildQrContent(),
             ],
           ),
         ),
@@ -279,7 +297,7 @@ class _AgentWithdrawalPaymentSheetState
         ),
         const SizedBox(height: 4),
         Text(
-          'Le client a reçu un SMS avec un code à 6 chiffres.',
+          'Faites saisir le code PIN personnel du client (4 chiffres) sur ce clavier sécurisé.',
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
             fontSize: 13,
@@ -291,7 +309,8 @@ class _AgentWithdrawalPaymentSheetState
         // PIN pad
         if (w != null)
           ClientPinPad(
-            pinLength: 6,
+            pinLength: 4,
+            scrambleKeypad: true,
             isError: _directError != null,
             errorMessage: _directError,
             isLoading: _isPaying,
@@ -347,28 +366,154 @@ class _AgentWithdrawalPaymentSheetState
         if (_withdrawal != null) ...[
           const SizedBox(height: 18),
           _WithdrawalSummaryCard(withdrawal: _withdrawal!),
-          const SizedBox(height: 24),
-          Text(
-            'Code de confirmation client',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AgentAppTheme.textPrimaryColor,
+          const SizedBox(height: 20),
+
+          // Rappel de sécurité
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFA5D6A7)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.verified_user_rounded,
+                    color: Color(0xFF2E7D32), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Identité vérifiée via l\'application client. Glissez pour confirmer le paiement.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF1B5E20),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          ClientPinPad(
-            pinLength: 6,
-            isError: _refError != null,
-            errorMessage: _refError,
+
+          const SizedBox(height: 20),
+
+          if (_refError != null) ...[
+            _ErrorBanner(message: _refError!),
+            const SizedBox(height: 12),
+          ],
+
+          // Slider de confirmation
+          SlideToPayButton(
             isLoading: _isPaying,
-            onPinEntered: (pin) => _payRef(_withdrawal!.id, pin),
+            label: 'Glisser pour payer',
+            onConfirmed: () => _payRef(_withdrawal!.id),
           ),
         ],
 
         if (_refError != null && _withdrawal == null) ...[
           const SizedBox(height: 14),
           _ErrorBanner(message: _refError!),
+        ],
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MODE QR CODE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildQrContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (_withdrawal == null && _refError == null && !_isSearching)
+          QrScannerView(
+            onDetect: (code) {
+              _referenceController.text = code;
+              _searchByRef();
+            },
+          ),
+
+        if (_isSearching)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: CircularProgressIndicator(),
+          ),
+
+        if (_withdrawal != null) ...[
+          const SizedBox(height: 8),
+          _WithdrawalSummaryCard(withdrawal: _withdrawal!),
+          const SizedBox(height: 20),
+
+          // Rappel de sécurité
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFA5D6A7)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.verified_user_rounded,
+                    color: Color(0xFF2E7D32), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Identité vérifiée via QR Code. Glissez pour confirmer le paiement.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF1B5E20),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          if (_refError != null) ...[
+            _ErrorBanner(message: _refError!),
+            const SizedBox(height: 12),
+          ],
+
+          // Slider de confirmation
+          SlideToPayButton(
+            isLoading: _isPaying,
+            label: 'Glisser pour payer',
+            onConfirmed: () => _payRef(_withdrawal!.id),
+          ),
+          
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _withdrawal = null;
+                _refError = null;
+                _referenceController.clear();
+              });
+            },
+            icon: const Icon(Icons.qr_code_scanner, size: 16),
+            label: const Text('Scanner un autre code'),
+          ),
+        ],
+
+        if (_refError != null && _withdrawal == null) ...[
+          const SizedBox(height: 14),
+          _ErrorBanner(message: _refError!),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _refError = null;
+                _referenceController.clear();
+              });
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Réessayer'),
+          ),
         ],
       ],
     );
@@ -431,7 +576,7 @@ class _AgentWithdrawalPaymentSheetState
     try {
       await _service.payWithdrawal(
         withdrawalId: withdrawalId,
-        confirmationCode: otp,
+        pinCode: otp,
       );
       if (!mounted) return;
       AnimatedBottomSheet.closeOf(context, true);
@@ -489,7 +634,7 @@ class _AgentWithdrawalPaymentSheetState
     }
   }
 
-  Future<void> _payRef(String withdrawalId, String otp) async {
+  Future<void> _payRef(String withdrawalId) async {
     setState(() {
       _isPaying = true;
       _refError = null;
@@ -497,7 +642,6 @@ class _AgentWithdrawalPaymentSheetState
     try {
       await _service.payWithdrawal(
         withdrawalId: withdrawalId,
-        confirmationCode: otp,
       );
       if (!mounted) return;
       AnimatedBottomSheet.closeOf(context, true);
@@ -629,7 +773,7 @@ class _WithdrawalCreatedCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Un SMS avec le code a été envoyé au client (réf. ${withdrawal.reference})',
+              'Faites saisir le code PIN (4 chiffres) au client pour valider ce retrait (réf. ${withdrawal.reference})',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: const Color(0xFF7B3F00),
@@ -679,11 +823,6 @@ class _WithdrawalSummaryCard extends StatelessWidget {
             label: 'Demandé le',
             value: DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(withdrawal.requestedAt),
           ),
-          if (expiresAt != null)
-            _InfoRow(
-              label: 'Code valable jusqu\'au',
-              value: DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(expiresAt),
-            ),
         ],
       ),
     );
