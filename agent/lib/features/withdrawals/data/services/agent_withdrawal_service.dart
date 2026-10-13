@@ -52,16 +52,21 @@ class AgentWithdrawalService {
     return AgentPendingWithdrawal.fromMap(Map<dynamic, dynamic>.from(data));
   }
 
-  /// Mode Direct — Étape 2b : payer le retrait avec le code OTP du client
+  /// Payer un retrait :
+  /// - Mode Direct : avec pinCode (PIN du client)
+  /// - Mode Référence : sans pinCode (client déjà authentifié sur son app)
   Future<Map<String, dynamic>> payWithdrawal({
     required String withdrawalId,
-    required String confirmationCode,
+    String? pinCode,
   }) async {
+    final body = <String, dynamic>{};
+    if (pinCode != null && pinCode.isNotEmpty) {
+      body['pinCode'] = pinCode.trim();
+    }
+
     final data = await _apiClient.post(
       '/agent/withdrawals/$withdrawalId/pay',
-      body: {
-        'confirmationCode': confirmationCode.trim(),
-      },
+      body: body,
     ) as Map<dynamic, dynamic>;
 
     return Map<String, dynamic>.from(data);

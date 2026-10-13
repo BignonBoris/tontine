@@ -20,6 +20,7 @@ import 'package:mobile/features/dashboard/presentation/widgets/available_balance
 import 'package:mobile/features/dashboard/presentation/widgets/dashboard_state_views.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/finance_hero_header.dart';
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_action_button.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/withdrawal_qr_modal.dart';
 
 class AvailableBalanceDetailScreen extends StatelessWidget {
   const AvailableBalanceDetailScreen({super.key});
@@ -729,9 +730,9 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
               ),
               _InfoLine(label: 'Reference', value: result.reference),
               if (result.requiresConfirmationCode) ...[
-                _InfoLine(
+                if (result.confirmationCode != null) _InfoLine(
                   label: 'Code client',
-                  value: result.confirmationCode ?? '',
+                  value: result.confirmationCode!,
                   isHighlighted: true,
                 ),
                 if (result.confirmationCodeExpiresAt != null)
@@ -740,8 +741,33 @@ class AvailableBalanceDetailScreen extends StatelessWidget {
                     value: _formatDate(result.confirmationCodeExpiresAt!),
                   ),
                 const SizedBox(height: 12),
+                // ── Bouton QR Code ─────────────────────────────────────
+                if (result.channel == 'agent_cash') ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => WithdrawalQrModal.show(
+                        dialogContext,
+                        result,
+                      ),
+                      icon: const Icon(Icons.qr_code_rounded, size: 18),
+                      label: const Text('Voir mon QR Code'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Text(
-                  "Communiquez la reference a l'agent, puis gardez ce code pour confirmer le paiement.",
+                  result.channel == 'agent_cash'
+                      ? "Montrez le QR code à votre agent pour valider le retrait."
+                      : "Communiquez la reference a l'agent, puis gardez ce code pour confirmer le paiement.",
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     height: 1.4,

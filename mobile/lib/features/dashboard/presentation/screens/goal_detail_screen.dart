@@ -526,87 +526,522 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   void _confirmClose(BuildContext context, TontineGoal goal) async {
     final bool isEarlyClosure = goal.remainingDays > 0;
     num penaltyPercent = 0.0;
-    
+
+    // Chargement de la config de pénalité si clôture anticipée
     if (isEarlyClosure) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (_) => const Center(child: CircularProgressIndicator()),
       );
       try {
         final config = await RemoteDashboardService().getGoalConfig();
         penaltyPercent = config['earlyClosurePenaltyPercent'] ?? 5.0;
-        if (context.mounted) Navigator.pop(context); // close loader
-      } catch (e) {
-        if (context.mounted) Navigator.pop(context); // close loader
-        penaltyPercent = 5.0; // fallback
+        if (context.mounted) Navigator.pop(context);
+      } catch (_) {
+        if (context.mounted) Navigator.pop(context);
+        penaltyPercent = 5.0;
       }
     }
-    
+
     if (!context.mounted) return;
 
-    final penaltyAmount = isEarlyClosure ? (goal.currentAmount * penaltyPercent / 100) : 0.0;
-    final returnedAmount = goal.currentAmount - penaltyAmount;
-
-    showDialog(
+    // Lancement du dialog stepper unique (3 étapes, zéro chevauchement)
+    await showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(isEarlyClosure ? "Cloture anticipee" : "Cloturer le coffre ?"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isEarlyClosure)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBEE),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE57373)),
-                ),
-                child: Text(
-                  "Attention : Cloturer ce coffre avant son echeance entrainera une penalite de $penaltyPercent% sur votre solde actuel.",
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFB71C1C),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+      barrierDismissible: false,
+      builder: (_) => _CloseGoalDialog(
+        goal: goal,
+        isEarlyClosure: isEarlyClosure,
+        penaltyPercent: penaltyPercent,
+        onSuccess: _confettiController.play,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog de clôture avec stepper à 3 étapes (sans chevauchement de modaux)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum _CloseGoalStep { summary, pin, done }
+
+class _CloseGoalDialog extends StatefulWidget {
+  final TontineGoal goal;
+  final bool isEarlyClosure;
+  final num penaltyPercent;
+  final VoidCallback onSuccess;
+
+  const _CloseGoalDialog({
+    required this.goal,
+    required this.isEarlyClosure,
+    required this.penaltyPercent,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CloseGoalDialog> createState() => _CloseGoalDialogState();
+}
+
+class _CloseGoalDialogState extends State<_CloseGoalDialog>
+    with SingleTickerProviderStateMixin {
+  _CloseGoalStep _step = _CloseGoalStep.summary;
+  String _pin = '';
+  bool _isSubmitting = false;
+  bool _isPinError = false;
+  String? _apiError;
+
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+
+  double get _penaltyAmount => widget.isEarlyClosure
+      ? (widget.goal.currentAmount * widget.penaltyPercent / 100)
+      : 0.0;
+
+  double get _returnedAmount => widget.goal.currentAmount - _penaltyAmount;
+
+  @override
+  void initState() {
+    super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -8.0), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -8.0, end: 0.0), weight: 1),
+    ]).animate(_shakeController);
+  }
+
+  @override
+  void dispose() {
+    _shakeController.dispose();
+    super.dispose();
+  }
+
+  // ── Logique PIN ───────────────────────────────────────────────────────────
+
+  void _onKey(String digit) {
+    if (_isSubmitting || _pin.length >= 4) return;
+    setState(() {
+      _isPinError = false;
+      _pin += digit;
+    });
+    if (_pin.length == 4) _submitClose();
+  }
+
+  void _onBackspace() {
+    if (_pin.isEmpty) return;
+    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  }
+
+  Future<void> _submitClose() async {
+    final isValid = await LocalSecurityService.verifyPin(_pin);
+    if (!mounted) return;
+
+    if (!isValid) {
+      setState(() {
+        _isPinError = true;
+        _pin = '';
+      });
+      _shakeController.forward(from: 0);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      context.read<DashboardBloc>().add(CloseGoal(widget.goal.id));
+      await context.read<DashboardBloc>().stream.firstWhere(
+            (s) => s is DashboardLoaded || s is DashboardError,
+          );
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _step = _CloseGoalStep.done;
+      });
+      widget.onSuccess();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _apiError = 'Impossible de clôturer le coffre. Veuillez réessayer.';
+        _step = _CloseGoalStep.done;
+      });
+    }
+  }
+
+  // ── Widgets helpers ───────────────────────────────────────────────────────
+
+  Widget _buildKey(String label, {Widget? icon, VoidCallback? onTap}) {
+    final isEmpty = label.isEmpty && icon == null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isEmpty ? null : (onTap ?? () => _onKey(label)),
+        customBorder: const CircleBorder(),
+        splashColor: AppTheme.primaryColor.withOpacity(0.12),
+        child: Container(
+          width: 68,
+          height: 68,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isEmpty
+                  ? Colors.transparent
+                  : AppTheme.primaryColor.withOpacity(0.18),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: icon ??
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w400,
+                  color: AppTheme.primaryColor,
                 ),
               ),
-            Text(
-              isEarlyClosure
-                  ? "Vous recupererez ${returnedAmount.toInt()} F (Penalite de ${penaltyAmount.toInt()} F)."
-                  : "Le solde de ${goal.currentAmount.toInt()} F sera reverse sur votre compte disponible.",
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinDots() {
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (_, __) => Transform.translate(
+        offset: Offset(_shakeAnimation.value, 0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(4, (i) {
+            final filled = i < _pin.length;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isPinError
+                    ? AppTheme.errorColor
+                    : filled
+                        ? AppTheme.primaryColor
+                        : AppTheme.primaryColor.withOpacity(0.15),
+                border: Border.all(
+                  color: _isPinError
+                      ? AppTheme.errorColor
+                      : AppTheme.primaryColor.withOpacity(0.3),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _step != _CloseGoalStep.pin || !_isSubmitting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _step == _CloseGoalStep.pin && !_isSubmitting) {
+          setState(() {
+            _step = _CloseGoalStep.summary;
+            _pin = '';
+            _isPinError = false;
+          });
+        }
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeInOut,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+            child: switch (_step) {
+              _CloseGoalStep.summary => _buildSummaryStep(),
+              _CloseGoalStep.pin     => _buildPinStep(),
+              _CloseGoalStep.done    => _buildDoneStep(),
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Étape 1 : Résumé ──────────────────────────────────────────────────────
+  Widget _buildSummaryStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.isEarlyClosure ? 'Clôture anticipée' : 'Clôturer le coffre ?',
+          style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor),
+        ),
+        const SizedBox(height: 16),
+        if (widget.isEarlyClosure)
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE57373)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    color: Color(0xFFD32F2F), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Clôturer avant l\'échéance entraîne une pénalité '
+                    'de ${widget.penaltyPercent}% (${_penaltyAmount.toInt()} F).',
+                    style: GoogleFonts.inter(
+                        color: const Color(0xFFB71C1C),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SummaryRow(
+                label: 'Solde actuel',
+                value: '${widget.goal.currentAmount.toInt()} F',
+              ),
+              if (widget.isEarlyClosure) ...[
+                const SizedBox(height: 6),
+                _SummaryRow(
+                  label: 'Pénalité',
+                  value: '- ${_penaltyAmount.toInt()} F',
+                  valueColor: AppTheme.errorColor,
+                ),
+              ],
+              const Divider(height: 18),
+              _SummaryRow(
+                label: 'Vous recevrez',
+                value: '${_returnedAmount.toInt()} F',
+                bold: true,
+                valueColor: AppTheme.primaryColor,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor),
+                onPressed: () => setState(() => _step = _CloseGoalStep.pin),
+                child: const Text('Continuer →',
+                    style: TextStyle(color: Colors.white)),
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Annuler"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
+      ],
+    );
+  }
+
+  // ── Étape 2 : Clavier PIN ─────────────────────────────────────────────────
+  Widget _buildPinStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+              color: _isSubmitting ? Colors.grey : AppTheme.primaryColor,
+              onPressed: _isSubmitting
+                  ? null
+                  : () => setState(() {
+                        _step = _CloseGoalStep.summary;
+                        _pin = '';
+                        _isPinError = false;
+                      }),
             ),
-            onPressed: () async {
-              final authorized = await LocalSecurityService.authorizeIfEnabled(
-                context,
-                title: 'Cloturer le coffre',
-                message:
-                    "Entrez votre PIN pour confirmer la cloture de ce coffre.",
-              );
-              if (!context.mounted || !authorized) {
-                return;
-              }
-              context.read<DashboardBloc>().add(CloseGoal(goal.id));
-              Navigator.pop(dialogContext);
-            },
-            child: const Text("Confirmer"),
+            Expanded(
+              child: Text(
+                'Code de sécurité',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryColor),
+              ),
+            ),
+            const SizedBox(width: 40),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Entrez votre code PIN pour confirmer la clôture.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+              fontSize: 13, color: AppTheme.textSecondaryColor),
+        ),
+        const SizedBox(height: 20),
+        _buildPinDots(),
+        if (_isPinError) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Code PIN incorrect',
+            style: GoogleFonts.inter(
+                color: AppTheme.errorColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
           ),
         ],
-      ),
+        const SizedBox(height: 24),
+        if (_isSubmitting)
+          Column(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 10),
+              Text('Clôture en cours...',
+                  style: GoogleFonts.inter(
+                      color: AppTheme.textSecondaryColor, fontSize: 13)),
+              const SizedBox(height: 16),
+            ],
+          )
+        else
+          Column(
+            children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: ['1', '2', '3'].map(_buildKey).toList()),
+              const SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: ['4', '5', '6'].map(_buildKey).toList()),
+              const SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: ['7', '8', '9'].map(_buildKey).toList()),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildKey('', icon: const SizedBox()),
+                  _buildKey('0'),
+                  _buildKey('',
+                      icon: Icon(Icons.backspace_outlined,
+                          color: AppTheme.primaryColor.withOpacity(0.7),
+                          size: 24),
+                      onTap: _onBackspace),
+                ],
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  // ── Étape 3 : Résultat ────────────────────────────────────────────────────
+  Widget _buildDoneStep() {
+    final isError = _apiError != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 8),
+        Icon(
+          isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+          size: 60,
+          color: isError ? AppTheme.errorColor : AppTheme.successColor,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          isError ? 'Échec de la clôture' : 'Coffre clôturé !',
+          style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isError ? AppTheme.errorColor : AppTheme.successColor),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          isError
+              ? _apiError!
+              : '${_returnedAmount.toInt()} F ont été reversés\nsur votre solde disponible.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+              fontSize: 14, color: AppTheme.textSecondaryColor, height: 1.5),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  isError ? AppTheme.errorColor : AppTheme.successColor,
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: Text(isError ? 'Fermer' : 'Parfait !',
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+}
+
+// Ligne de résumé label / valeur
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+  final Color? valueColor;
+
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: GoogleFonts.inter(
+                fontSize: 13, color: AppTheme.textSecondaryColor)),
+        Text(value,
+            style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                color: valueColor ?? AppTheme.textPrimaryColor)),
+      ],
     );
   }
 }

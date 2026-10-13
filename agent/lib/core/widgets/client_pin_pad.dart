@@ -7,6 +7,7 @@ class ClientPinPad extends StatefulWidget {
   final bool isError;
   final String? errorMessage;
   final bool isLoading;
+  final bool scrambleKeypad;
 
   const ClientPinPad({
     super.key,
@@ -15,6 +16,7 @@ class ClientPinPad extends StatefulWidget {
     this.isError = false,
     this.errorMessage,
     this.isLoading = false,
+    this.scrambleKeypad = false,
   });
 
   @override
@@ -23,6 +25,20 @@ class ClientPinPad extends StatefulWidget {
 
 class _ClientPinPadState extends State<ClientPinPad> {
   String _pin = '';
+  late List<String> _keys;
+
+  @override
+  void initState() {
+    super.initState();
+    _initKeys();
+  }
+
+  void _initKeys() {
+    _keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+    if (widget.scrambleKeypad) {
+      _keys.shuffle();
+    }
+  }
 
   void _onKeyPressed(String key) {
     if (widget.isLoading) return;
@@ -51,6 +67,9 @@ class _ClientPinPadState extends State<ClientPinPad> {
     if (widget.isError && !oldWidget.isError) {
       setState(() {
         _pin = '';
+        if (widget.scrambleKeypad) {
+          _keys.shuffle();
+        }
       });
     }
   }
@@ -100,17 +119,17 @@ class _ClientPinPadState extends State<ClientPinPad> {
             ignoring: widget.isLoading,
             child: Column(
               children: [
-                _buildRow(['1', '2', '3']),
+                _buildRow([_keys[0], _keys[1], _keys[2]]),
                 const SizedBox(height: 16),
-                _buildRow(['4', '5', '6']),
+                _buildRow([_keys[3], _keys[4], _keys[5]]),
                 const SizedBox(height: 16),
-                _buildRow(['7', '8', '9']),
+                _buildRow([_keys[6], _keys[7], _keys[8]]),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     const SizedBox(width: 72, height: 72),
-                    _buildKey('0'),
+                    _buildKey(_keys[9]),
                     _buildBackspace(),
                   ],
                 ),
