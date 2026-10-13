@@ -8,9 +8,10 @@ const {
 function renderHome(req, res) {
   return res.status(200).send(
     renderLandingLayout({
-      title: 'maTontine | Epargne, tontine et collecte terrain',
+      title: 'VizioBox — Votre épargne. Vos projets. Votre avenir.',
       description:
-        "maTontine simplifie la gestion de la tontine, des coffres projets et de la collecte terrain pour les clients et les agents.",
+        "VizioBox transforme votre discipline d'épargne en avancées concrètes vers les projets qui comptent pour vous. Tontine digitale, coffres projets et collecte terrain.",
+      isHome: true,
       content: renderHomePage({
         docsUrl: `${env.appBaseUrl}/docs`,
       }),
@@ -21,28 +22,30 @@ function renderHome(req, res) {
 function renderPrivacy(req, res) {
   return res.status(200).send(
     renderLandingLayout({
-      title: 'Politique de confidentialite | maTontine',
+      title: 'Politique de confidentialité | VizioBox',
       description:
-        "Informations sur la collecte, l'utilisation et la protection des donnees dans maTontine.",
+        "Informations sur la collecte, l'utilisation et la protection des données dans VizioBox.",
+      isHome: false,
       content: renderPolicyPage({
-        heading: 'Politique de confidentialite',
+        heading: 'Politique de confidentialité',
         intro:
-          "Cette version MVP de maTontine collecte uniquement les donnees necessaires au fonctionnement de la plateforme, a la securite des operations et a la tracabilite des actions.",
+          "VizioBox collecte uniquement les données nécessaires au bon fonctionnement de la plateforme, à la sécurité des opérations financières et à la traçabilité des opérations de tontine et d'épargne.",
+        docsUrl: `${env.appBaseUrl}/docs`,
         sections: [
           {
-            title: 'Donnees collectees',
+            title: 'Données collectées',
             body:
-              "Nous pouvons traiter votre nom, numero de telephone, informations de profil, historique des operations et journaux techniques de connexion.",
+              "Nous pouvons traiter votre nom, prénom, numéro de téléphone, pièces d'identité (KYC), historique des transactions de tontine, approvisionnements et journaux techniques de connexion.",
           },
           {
-            title: 'Finalites',
+            title: 'Finalités des traitements',
             body:
-              "Ces donnees servent a gerer vos comptes tontine, vos soldes, vos interactions avec les agents et la securite generale du service.",
+              "Ces données servent à gérer vos comptes tontine, vos coffres projets, votre solde disponible, vos opérations avec les agents terrain et la sécurité générale de la plateforme.",
           },
           {
-            title: 'Protection',
+            title: 'Protection et sécurité financière',
             body:
-              "Les acces sont controles, les actions sensibles sont tracees et les traitements financiers restent journalises pour audit.",
+              "Les accès sont strictement contrôlés par chiffrement. Conformément aux standards fintech, toutes les opérations sensibles sont journalisées de manière immuable pour audit et conformité.",
           },
         ],
       }),
@@ -53,28 +56,30 @@ function renderPrivacy(req, res) {
 function renderTerms(req, res) {
   return res.status(200).send(
     renderLandingLayout({
-      title: "Conditions d'utilisation | maTontine",
+      title: "Conditions d'utilisation | VizioBox",
       description:
-        "Conditions generales d'utilisation de maTontine pour les clients, agents et administrateurs.",
+        "Conditions générales d'utilisation de VizioBox pour les clients, agents terrain et administrateurs.",
+      isHome: false,
       content: renderPolicyPage({
         heading: "Conditions d'utilisation",
         intro:
-          "L'utilisation de maTontine implique l'acceptation des regles de fonctionnement de la plateforme, de la tracabilite des operations et des controles de securite associes.",
+          "L'utilisation de la plateforme VizioBox implique l'acceptation pleine et entière des règles de fonctionnement, de la discipline d'épargne et des contrôles de sécurité associés.",
+        docsUrl: `${env.appBaseUrl}/docs`,
         sections: [
           {
-            title: 'Utilisation autorisee',
+            title: 'Utilisation autorisée',
             body:
-              "La plateforme est reservee aux utilisateurs, agents et administrateurs autorises. Toute tentative de fraude, de contournement ou d'usage abusif peut entrainer une suspension.",
+              "La plateforme est réservée aux utilisateurs, agents terrain et superviseurs autorisés. Toute tentative de fraude, de contournement ou d'usage abusif entraîne la suspension immédiate du compte.",
           },
           {
-            title: 'Operations financieres',
+            title: 'Opérations financières et immuabilité',
             body:
-              "Les operations sont enregistrees avec references uniques et ne peuvent pas etre supprimees. Toute correction passe par annulation ou contrepassation.",
+              "Toutes les opérations sont enregistrées avec une référence unique et ne peuvent pas faire l'objet d'une suppression physique. Toute régularisation s'effectue par annulation ou contrepassation tracée.",
           },
           {
-            title: 'Evolution du service',
+            title: 'Tontines et coffres projets',
             body:
-              "Le produit est en evolution. Certaines fonctionnalites peuvent etre ameliorees, restreintes ou etendues sans remise en cause des obligations de securite et de conformite.",
+              "L'adhésion à un cycle de tontine ou l'ouverture d'un coffre projet engage l'utilisateur au respect de l'échéancier et des règles de déblocage convenues lors de la souscription.",
           },
         ],
       }),

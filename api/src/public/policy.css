@@ -1,0 +1,158 @@
+/* Styles for Policy & Terms pages with VizioBox visual identity */
+.policy-shell {
+  min-height: 100vh;
+  background-color: #082040;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.policy-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(8, 32, 64, 0.92);
+  border-bottom: 1px solid rgba(200, 152, 24, 0.2);
+  padding: 16px 24px;
+}
+
+.policy-nav-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.policy-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #ffffff;
+}
+
+.policy-brand-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #C89818;
+  color: #082040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.policy-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.policy-nav-links a {
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.policy-nav-links a:hover {
+  color: #C89818;
+}
+
+.policy-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+  flex: 1;
+  width: 100%;
+}
+
+.policy-hero {
+  margin-bottom: 40px;
+  text-align: left;
+}
+
+.policy-eyebrow {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #C89818;
+  margin-bottom: 12px;
+}
+
+.policy-hero h1 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 16px;
+  line-height: 1.25;
+}
+
+.policy-hero p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.policy-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.policy-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px;
+  transition: border-color 0.2s;
+}
+
+.policy-card:hover {
+  border-color: rgba(200, 152, 24, 0.3);
+}
+
+.policy-card h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.policy-card p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.policy-footer {
+  background: #061a33;
+  border-top: 1px solid rgba(200, 152, 24, 0.15);
+  padding: 30px 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+}
+
+.policy-footer a {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  margin: 0 10px;
+}
+
+.policy-footer a:hover {
+  color: #C89818;
+}
