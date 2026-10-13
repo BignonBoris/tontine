@@ -1,0 +1,9 @@
+# Ne jamais envoyer de secrets ni de caches locaux à Vercel
+.env
+.env.*
+service-account.json
+.cache/
+.wwebjs_auth/
+.wwebjs_cache/
+node_modules/
+src/public/uploads/

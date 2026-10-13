@@ -4,9 +4,9 @@
   "description": "API MVP maTontine basee sur Express, Sequelize, MySQL et Swagger",
   "main": "app.js",
   "scripts": {
-    "postinstall": "npx puppeteer browsers install chrome",
+    "postinstall": "node scripts/install-chrome.js",
     "render-build": "npm install && npx puppeteer browsers install chrome",
-    "build": "npx puppeteer browsers install chrome",
+    "build": "node scripts/install-chrome.js",
     "start": "npx sequelize-cli db:migrate && node app.js",
     "dev": "nodemon app.js",
     "lint": "node -e \"console.log('No lint configured yet')\"",
