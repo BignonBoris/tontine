@@ -6,7 +6,9 @@ import 'package:mobile/core/security/local_security_service.dart';
 import 'package:mobile/core/services/push_notification_service.dart';
 import 'package:mobile/core/services/read_model_bootstrap_service.dart';
 import 'package:mobile/core/services/realtime_notification_service.dart';
+import 'package:mobile/core/services/update_service.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/update_dialog.dart';
 import 'package:mobile/core/storage/session_storage.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:mobile/features/dashboard/presentation/bloc/dashboard_event.dart';
@@ -19,6 +21,7 @@ import 'package:mobile/features/dashboard/presentation/screens/profile_screen.da
 import 'package:mobile/features/dashboard/presentation/screens/tontine_detail_screen.dart';
 import 'package:mobile/features/security/presentation/screens/app_unlock_screen.dart';
 import 'package:mobile/features/auth/data/services/device_approval_service.dart';
+import 'package:mobile/features/auth/data/services/biometric_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final bool skipOnboarding;
@@ -54,6 +57,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingInvitationIfNeeded();
       _pollDeviceApprovalRequests();
+      _checkForUpdate();
     });
     _deviceApprovalTimer = Timer.periodic(
       const Duration(seconds: 10),
@@ -87,6 +91,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     });
   }
 
+  /// Propose la nouvelle version de l'APK (hors Play Store) si l'API en annonce une.
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService.instance.checkOncePerSession();
+    if (result == null || !result.updateAvailable || !mounted) return;
+
+    await showDialog<bool>(
+      context: context,
+      // Obligatoire = non dismissable par tap en dehors
+      barrierDismissible: !result.isMandatory,
+      builder: (_) => UpdateDialog(result: result),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -97,9 +114,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.paused) {
+    // Seul « paused » signifie que l'utilisateur a quitté l'app. « inactive »
+    // arrive aussi pour le volet de notifications ou une fenêtre de permission.
+    if (state == AppLifecycleState.paused) {
+      // Ignorer la pause provoquée par l'écran de verrouillage lui-même
+      // (fenêtre système empreinte / code du téléphone).
+      if (_unlockRouteOpen || BiometricService.isAuthenticationInProgress) {
+        return;
+      }
       _requiresUnlockOnResume = true;
       return;
     }

@@ -22,9 +22,9 @@ class AvailableBalanceHistoryList extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Text(
-            "Aucune operation sur le solde disponible.",
+            "Aucune opération pour le moment.",
             style: GoogleFonts.inter(
-              color: Colors.grey.shade500,
+              color: AppTheme.textSecondaryColor,
               fontSize: 13,
             ),
           ),
@@ -36,22 +36,29 @@ class AvailableBalanceHistoryList extends StatelessWidget {
       itemCount: history.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (context, index) =>
+          const Divider(height: 1, color: Color(0xFFEEF1F5)),
       itemBuilder: (context, index) {
         final entry = history[index];
+        // Entrées en vert (succès), sorties dans la couleur de marque.
         final color = entry.isCredit
-            ? const Color(0xFF00897B)
-            : AppTheme.errorColor;
+            ? AppTheme.successColor
+            : AppTheme.primaryColor;
 
         return ListTile(
           onTap: onTap == null ? null : () => onTap!(entry),
           contentPadding: const EdgeInsets.symmetric(vertical: 6),
-          leading: CircleAvatar(
-            backgroundColor: color.withOpacity(0.12),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Icon(
               entry.isCredit
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
+                  ? Icons.south_west_rounded
+                  : Icons.north_east_rounded,
               color: color,
               size: 18,
             ),
@@ -60,7 +67,8 @@ class AvailableBalanceHistoryList extends StatelessWidget {
             entry.label,
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.w600,
-              fontSize: 14,
+              fontSize: 13,
+              color: AppTheme.textPrimaryColor,
             ),
           ),
           subtitle: Text(
@@ -71,7 +79,7 @@ class AvailableBalanceHistoryList extends StatelessWidget {
             ),
           ),
           trailing: Text(
-            "${entry.isCredit ? '+' : '-'} ${formatFCFA(entry.amount)} F",
+            "${entry.isCredit ? '+' : '−'} ${formatFCFA(entry.amount)} F",
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
