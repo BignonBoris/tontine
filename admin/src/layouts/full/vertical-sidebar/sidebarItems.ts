@@ -122,6 +122,12 @@ const sidebarItem: menu[] = [
     subCaption: "Trace des actions",
   },
   {
+    title: "Versions des apps",
+    icon: "smartphone-linear",
+    to: "/app-versions",
+    subCaption: "Mises a jour APK",
+  },
+  {
     title: "Configuration WhatsApp",
     icon: "settings-linear",
     to: "/whatsapp",

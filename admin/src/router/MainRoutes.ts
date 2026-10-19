@@ -84,6 +84,11 @@ const MainRoutes = [
         component: () => import('../views/platform/KycView.vue'),
       },
       {
+        path: '/app-versions',
+        name: 'AppVersions',
+        component: () => import('../views/platform/AppVersionsView.vue'),
+      },
+      {
         path: '/whatsapp',
         name: 'WhatsApp',
         component: () => import('../views/platform/WhatsAppView.vue'),
