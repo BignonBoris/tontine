@@ -29,12 +29,18 @@ const kycRoutes = require('../../modules/kyc/kyc.routes');
 const kycAdminRoutes = require('../../modules/kyc/kyc.admin.routes');
 const adminReconciliationRoutes = require('../../modules/admin/admin-reconciliation.routes');
 const deviceApprovalRoutes = require('../../modules/device-approval/device-approval.routes');
+const {
+  router: appVersionRoutes,
+  agentAliasRouter: agentAppVersionRoutes,
+} = require('../../modules/app-version/app-version.routes');
+const appVersionAdminRoutes = require('../../modules/app-version/app-version.admin.routes');
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
 router.use('/auth/device-approval', deviceApprovalRoutes);
 router.use('/admin/auth', adminAuthRoutes);
+router.use('/admin/app-versions', appVersionAdminRoutes);
 router.use('/admin', adminRoutes);
 router.use('/admin', adminReconciliationRoutes);
 router.use('/agent/auth', agentAuthRoutes);
@@ -62,5 +68,7 @@ router.use('/goal-templates', goalTemplatesRoutes);
 router.use('/admin/goal-templates', goalTemplatesAdminRoutes);
 router.use('/kyc', kycRoutes);
 router.use('/admin/kyc', kycAdminRoutes);
+router.use('/app-version', appVersionRoutes);
+router.use('/agent/app-version', agentAppVersionRoutes);
 
 module.exports = router;

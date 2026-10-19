@@ -24,25 +24,22 @@ function renderLandingLayout({ title, description, content, isHome = true }) {
 </html>`;
 }
 
-function renderHomePage({ docsUrl = '/docs' }) {
+function renderHomePage() {
   return `
     <div id="root"></div>
     <script type="module" src="/viziobox.js"></script>
     <noscript>
       <div style="padding: 40px; text-align: center; color: #fff; background: #082040; min-height: 100vh;">
         <h1 style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2rem; margin-bottom: 16px;">VizioBox</h1>
-        <p style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto 24px; color: rgba(255,255,255,0.7);">
+        <p style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; color: rgba(255,255,255,0.7);">
           Votre partenaire d'épargne digitale, tontine et réalisation de projets.
         </p>
-        <a href="${docsUrl}" style="display: inline-block; padding: 12px 24px; background: #C89818; color: #082040; border-radius: 9999px; text-decoration: none; font-weight: 600;">
-          Consulter la documentation API
-        </a>
       </div>
     </noscript>
   `;
 }
 
-function renderPolicyPage({ heading, intro, sections, docsUrl = '/docs' }) {
+function renderPolicyPage({ heading, intro, sections }) {
   const sectionsHtml = sections
     .map(
       (section) => `
@@ -65,7 +62,6 @@ function renderPolicyPage({ heading, intro, sections, docsUrl = '/docs' }) {
           <a href="/">Accueil</a>
           <a href="/privacy">Confidentialité</a>
           <a href="/terms">Conditions</a>
-          <a href="${docsUrl}">Documentation API</a>
         </nav>
       </div>
     </header>
@@ -89,8 +85,7 @@ function renderPolicyPage({ heading, intro, sections, docsUrl = '/docs' }) {
       <div style="margin-top: 10px;">
         <a href="/">Accueil</a> •
         <a href="/privacy">Confidentialité</a> •
-        <a href="/terms">Conditions</a> •
-        <a href="${docsUrl}">API Swagger</a>
+        <a href="/terms">Conditions</a>
       </div>
     </footer>
   </main>`;

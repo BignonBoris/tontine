@@ -8,6 +8,20 @@ class BiometricService {
   static final LocalAuthentication _auth = LocalAuthentication();
 
   static const _biometricEnabledKey = 'biometric_enabled';
+
+  /// La fenêtre système (empreinte / code du téléphone) met l'app en pause
+  /// pendant qu'elle est affichée. Ces champs permettent à l'écran principal
+  /// de ne pas prendre cette pause pour une sortie de l'app (sinon l'écran de
+  /// verrouillage se rouvre en boucle après une authentification réussie).
+  static bool _authInProgress = false;
+  static DateTime? _authGraceUntil;
+  static const _authGracePeriod = Duration(seconds: 2);
+
+  static bool get isAuthenticationInProgress {
+    if (_authInProgress) return true;
+    final graceUntil = _authGraceUntil;
+    return graceUntil != null && DateTime.now().isBefore(graceUntil);
+  }
   static const _biometricSavedPinKey = 'biometric_saved_pin';
 
   static Future<bool> isBiometricAvailable() async {
@@ -22,6 +36,7 @@ class BiometricService {
   }
 
   static Future<bool> authenticate() async {
+    _authInProgress = true;
     try {
       final authenticated = await _auth.authenticate(
         localizedReason:
@@ -40,6 +55,10 @@ class BiometricService {
       return false;
     } catch (_) {
       return false;
+    } finally {
+      _authInProgress = false;
+      // L'événement « resumed » peut arriver juste après la fin de l'authentification.
+      _authGraceUntil = DateTime.now().add(_authGracePeriod);
     }
   }
 

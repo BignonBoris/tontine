@@ -8,13 +8,11 @@ const {
 function renderHome(req, res) {
   return res.status(200).send(
     renderLandingLayout({
-      title: 'VizioBox — Votre épargne. Vos projets. Votre avenir.',
+      title: 'VizioBox — L’épargne qui donne vie à tes projets',
       description:
-        "VizioBox transforme votre discipline d'épargne en avancées concrètes vers les projets qui comptent pour vous. Tontine digitale, coffres projets et collecte terrain.",
+        "Choisis ton projet. Construis ton objectif. Fais-le avancer avec VizioBox. Tontine digitale, coffres projets et discipline d'épargne.",
       isHome: true,
-      content: renderHomePage({
-        docsUrl: `${env.appBaseUrl}/docs`,
-      }),
+      content: renderHomePage(),
     }),
   );
 }
@@ -30,7 +28,6 @@ function renderPrivacy(req, res) {
         heading: 'Politique de confidentialité',
         intro:
           "VizioBox collecte uniquement les données nécessaires au bon fonctionnement de la plateforme, à la sécurité des opérations financières et à la traçabilité des opérations de tontine et d'épargne.",
-        docsUrl: `${env.appBaseUrl}/docs`,
         sections: [
           {
             title: 'Données collectées',
@@ -64,7 +61,6 @@ function renderTerms(req, res) {
         heading: "Conditions d'utilisation",
         intro:
           "L'utilisation de la plateforme VizioBox implique l'acceptation pleine et entière des règles de fonctionnement, de la discipline d'épargne et des contrôles de sécurité associés.",
-        docsUrl: `${env.appBaseUrl}/docs`,
         sections: [
           {
             title: 'Utilisation autorisée',
