@@ -926,6 +926,7 @@ module.exports = {
   initializeMtnMomoTontineDeposit,
   getMtnMomoTontineDepositIntent,
   processMtnMomoWebhook,
+  reconcileMtnMomoIntent,
   // exported for tests / future reuse
   normalizeMsisdn,
   serializeIntent,

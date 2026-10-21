@@ -7,6 +7,7 @@ import 'package:agent/features/clients/domain/entities/agent_client.dart';
 import 'package:agent/features/clients/presentation/widgets/agent_client_list_tile.dart';
 import 'package:agent/features/provisioning/data/services/agent_provisioning_service.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 class AgentDepositSheet extends StatefulWidget {
   final AgentClient client;
@@ -171,12 +172,14 @@ class _AgentDepositSheetState extends State<AgentDepositSheet> {
       _errorMessage = null;
     });
     try {
+      final syncId = const Uuid().v4();
       await _service.createProvisioning(
         clientUserId: widget.client.id,
         amount: amount,
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        syncId: syncId,
       );
       if (!mounted) {
         return;

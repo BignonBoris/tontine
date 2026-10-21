@@ -4,6 +4,7 @@ const { sequelize, models } = require('./database/models');
 const runBootstrap = require('./database/bootstrap/run-bootstrap');
 const runSeeds = require('./database/seeds/run-seeds');
 const whatsAppOtpService = require('./common/services/whatsapp-otp.service');
+const { startReconciliationCron } = require('./common/services/reconciliation-cron.service');
 
 async function start() {
   try {
@@ -31,13 +32,18 @@ async function start() {
     const defaultAgent = await runSeeds(models);
 
     if (env.nodeEnv !== 'production') {
+      // Masquer partiellement le PIN pour éviter les fuites dans les journaux d'infra
+      const maskedPin = defaultAgent.pin
+        ? `${defaultAgent.pin.slice(0, 2)}**`
+        : '****';
       console.log(
-        `Agent par defaut disponible: ${defaultAgent.phoneNumber} / PIN ${defaultAgent.pin} (${defaultAgent.agentCode})`,
+        `Agent par defaut disponible: ${defaultAgent.phoneNumber} / PIN ${maskedPin} (${defaultAgent.agentCode})`,
       );
     }
 
     app.listen(env.port, () => {
       console.log(`${env.appName} demarree sur ${env.appBaseUrl}`);
+      startReconciliationCron();
       // Désactivé pour le déploiement Vercel :
       // whatsAppOtpService.initialize();
     });

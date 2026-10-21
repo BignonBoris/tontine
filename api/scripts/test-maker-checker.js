@@ -26,7 +26,7 @@ const env = {
 
 // Override require cache for the modules
 require.cache[require.resolve('../src/database/models')] = {
-  exports: { models },
+  exports: { models, sequelize },
 };
 require.cache[require.resolve('../src/config/database')] = {
   exports: sequelize,

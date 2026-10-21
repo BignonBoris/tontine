@@ -25,8 +25,6 @@ const env = {
   ),
   otpEnabled: process.env.ENABLE_OTP !== 'false',
   deviceApprovalEnabled: process.env.ENABLE_DEVICE_APPROVAL === 'true',
-  deviceApprovalTtlSeconds: Number(process.env.DEVICE_APPROVAL_TTL_SECONDS || 120),
-  deviceApprovalEnabled: process.env.ENABLE_DEVICE_APPROVAL === 'true',
   deviceApprovalTtlSeconds: Number(
     process.env.DEVICE_APPROVAL_TTL_SECONDS || 120,
   ),
@@ -83,5 +81,27 @@ const env = {
     password: process.env.DB_PASSWORD || '',
   },
 };
+
+// ⚠️  Garde de sécurité : interdit tout déploiement avec des secrets par défaut dangereux.
+if (env.nodeEnv === 'production') {
+  const INSECURE_DEFAULTS = {
+    JWT_SECRET: ['change-me', 'secret', 'jwt_secret', 'mysecret'],
+    ADMIN_PASSWORD: ['admin123', 'admin', 'password', '123456'],
+  };
+
+  if (!process.env.JWT_SECRET || INSECURE_DEFAULTS.JWT_SECRET.includes(process.env.JWT_SECRET)) {
+    throw new Error(
+      '[SECURITY] JWT_SECRET non configuré ou valeur par défaut dangereuse détectée en production. '
+      + 'Définissez une valeur forte dans votre fichier .env ou vos variables d’environnement.',
+    );
+  }
+
+  if (!process.env.ADMIN_PASSWORD || INSECURE_DEFAULTS.ADMIN_PASSWORD.includes(process.env.ADMIN_PASSWORD)) {
+    throw new Error(
+      '[SECURITY] ADMIN_PASSWORD non configuré ou valeur par défaut dangereuse détectée en production. '
+      + 'Définissez un mot de passe fort dans votre fichier .env ou vos variables d’environnement.',
+    );
+  }
+}
 
 module.exports = env;

@@ -964,4 +964,5 @@ module.exports = {
   initializeAfrikmoneyTontineDeposit,
   getAfrikmoneyTontineDepositIntent,
   processAfrikmoneyWebhook,
+  reconcileAfrikmoneyIntent,
 };
