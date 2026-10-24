@@ -8,6 +8,7 @@ import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 import 'package:mobile/features/auth/data/services/biometric_service.dart';
+import 'package:mobile/features/auth/data/services/firebase_auth_service.dart';
 import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 
 class AuthOtpScreen extends StatefulWidget {
@@ -19,10 +20,10 @@ class AuthOtpScreen extends StatefulWidget {
 
 class _AuthOtpScreenState extends State<AuthOtpScreen> {
   final List<TextEditingController> _controllers = List.generate(
-    4,
+    6,
     (_) => TextEditingController(),
   );
-  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   String _phoneNumber = '+229 XX XX XX XX XX';
   String _normalizedPhoneNumber = '';
@@ -31,6 +32,9 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
   String? _firstName;
   String? _lastName;
   String? _birthDate;
+  String? _verificationId;
+  int? _resendToken;
+  int _otpLength = 4;
   bool _argumentsLoaded = false;
   bool _isSubmitting = false;
   String? _feedbackMessage;
@@ -70,6 +74,17 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       if (args['birthDate'] is String) {
         _birthDate = args['birthDate'] as String;
       }
+      if (args['verificationId'] is String) {
+        _verificationId = args['verificationId'] as String;
+        _otpLength = 6;
+      }
+      if (args['resendToken'] is int) {
+        _resendToken = args['resendToken'] as int;
+      }
+      if (args['fallbackNotice'] is String) {
+        _feedbackMessage = args['fallbackNotice'] as String;
+        _feedbackIsError = false;
+      }
     }
     _argumentsLoaded = true;
     _startTimer(120);
@@ -89,7 +104,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _controllers.every(
+    final canSubmit = _controllers.take(_otpLength).every(
       (controller) => controller.text.isNotEmpty,
     );
 
@@ -160,7 +175,9 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Saisissez le code de sécurité à 4 chiffres envoyé sur votre compte WhatsApp.',
+                          _verificationId != null
+                              ? 'Saisissez le code de sécurité à 6 chiffres envoyé par SMS.'
+                              : 'Saisissez le code de sécurité à 4 chiffres envoyé sur votre compte WhatsApp.',
                           style: GoogleFonts.inter(
                             fontSize: compact ? 13.5 : 14.5,
                             color: Colors.white.withValues(alpha: 0.82),
@@ -222,10 +239,10 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                 child: AutofillGroup(
                                   child: Wrap(
                                     alignment: WrapAlignment.center,
-                                    spacing: compact ? 10 : 12,
+                                    spacing: compact ? (_otpLength == 6 ? 6 : 10) : (_otpLength == 6 ? 8 : 12),
                                     runSpacing: compact ? 10 : 12,
                                     children: List.generate(
-                                      4,
+                                      _otpLength,
                                       (index) => _buildOtpBox(
                                         index,
                                         AppTheme.primaryColor,
@@ -296,29 +313,61 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
                                   .toString()
                                   .padLeft(2, '0');
 
-                              return TextButton.icon(
-                                onPressed: _secondsRemaining == 0 && !_isSubmitting
-                                    ? _handleResendCode
-                                    : null,
-                                icon: Icon(
-                                  Icons.refresh_rounded,
-                                  size: 18,
-                                  color: _secondsRemaining == 0
-                                      ? AppTheme.accentColor
-                                      : Colors.white.withValues(alpha: 0.4),
-                                ),
-                                label: Text(
-                                  _secondsRemaining == 0
-                                      ? 'Renvoyer le code'
-                                      : 'Renvoyer le code ($minutes:$seconds)',
-                                  style: GoogleFonts.inter(
-                                    color: _secondsRemaining == 0
-                                        ? Colors.white
-                                        : Colors.white.withValues(alpha: 0.6),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _secondsRemaining == 0 && !_isSubmitting
+                                        ? _handleResendCode
+                                        : null,
+                                    icon: Icon(
+                                      Icons.refresh_rounded,
+                                      size: 18,
+                                      color: _secondsRemaining == 0
+                                          ? AppTheme.accentColor
+                                          : Colors.white.withValues(alpha: 0.4),
+                                    ),
+                                    label: Text(
+                                      _secondsRemaining == 0
+                                          ? 'Renvoyer le code'
+                                          : 'Renvoyer le code ($minutes:$seconds)',
+                                      style: GoogleFonts.inter(
+                                        color: _secondsRemaining == 0
+                                            ? Colors.white
+                                            : Colors.white.withValues(alpha: 0.6),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (_secondsRemaining == 0) ...[
+                                    const SizedBox(height: 2),
+                                    TextButton.icon(
+                                      onPressed: !_isSubmitting
+                                          ? _handleSwitchOtpChannel
+                                          : null,
+                                      icon: Icon(
+                                        _verificationId != null
+                                            ? Icons.chat_bubble_outline_rounded
+                                            : Icons.sms_outlined,
+                                        size: 16,
+                                        color: AppTheme.accentColor,
+                                      ),
+                                      label: Text(
+                                        _verificationId != null
+                                            ? 'Recevoir le code par WhatsApp'
+                                            : 'Recevoir le code par SMS',
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white.withValues(alpha: 0.95),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: AppTheme.accentColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               );
                             },
                           ),
@@ -469,8 +518,8 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
         return KeyEventResult.ignored;
       },
       child: SizedBox(
-        width: 60,
-        height: 64,
+        width: _otpLength == 6 ? 44 : 60,
+        height: _otpLength == 6 ? 56 : 64,
         child: TextFormField(
           controller: _controllers[index],
           focusNode: _focusNodes[index],
@@ -482,13 +531,13 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
               _feedbackMessage = null;
             });
 
-            // Support du Coller Rapide (Paste de 4 chiffres ex: "4829")
+            // Support du Coller Rapide (Paste de 4 ou 6 chiffres)
             final cleanDigits = value.replaceAll(RegExp(r'\D'), '');
-            if (cleanDigits.length == 4) {
-              for (int i = 0; i < 4; i++) {
+            if (cleanDigits.length == _otpLength) {
+              for (int i = 0; i < _otpLength; i++) {
                 _controllers[i].text = cleanDigits[i];
               }
-              _focusNodes.last.unfocus();
+              _focusNodes[_otpLength - 1].unfocus();
               HapticFeedback.mediumImpact();
               if (!_isSubmitting) {
                 _handleVerification();
@@ -505,7 +554,7 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
 
             if (value.isNotEmpty) {
               HapticFeedback.selectionClick();
-              if (index < _focusNodes.length - 1) {
+              if (index < _otpLength - 1) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
                     _focusNodes[index + 1].requestFocus();
@@ -522,8 +571,8 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
               });
             }
 
-            // Soumission automatique si les 4 cases sont remplies
-            if (_controllers.every((c) => c.text.isNotEmpty) && !_isSubmitting) {
+            // Soumission automatique si toutes les cases requises sont remplies
+            if (_controllers.take(_otpLength).every((c) => c.text.isNotEmpty) && !_isSubmitting) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted && !_isSubmitting) {
                   _handleVerification();
@@ -581,6 +630,57 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     });
 
     final code = _controllers.map((controller) => controller.text).join();
+
+    // Mode Firebase SMS OTP (6 chiffres) : vérification via Firebase Auth
+    if (_verificationId != null) {
+      final result = await FirebaseAuthService.instance.confirmSmsOtp(
+        verificationId: _verificationId!,
+        smsCode: code,
+        pinCode: _pinCode,
+        firstName: _isRegistration ? _firstName : null,
+        lastName: _isRegistration ? _lastName : null,
+        birthDate: _isRegistration ? _birthDate : null,
+        purpose: _isRegistration ? 'register' : 'login',
+      );
+
+      if (!mounted) return;
+
+      if (result.requiresDeviceApproval && result.approvalRequestId != null) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/device-approval-pending',
+          (route) => false,
+          arguments: {'requestId': result.approvalRequestId},
+        );
+        return;
+      }
+
+      setState(() => _isSubmitting = false);
+
+      if (!result.isSuccess) {
+        HapticFeedback.vibrate();
+        setState(() {
+          _feedbackMessage = result.message;
+          _feedbackIsError = true;
+          for (final controller in _controllers) {
+            controller.clear();
+          }
+        });
+        _focusNodes.first.requestFocus();
+        return;
+      }
+
+      HapticFeedback.mediumImpact();
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        _isRegistration ? '/auth_pin_setup' : '/dashboard',
+        (route) => false,
+      );
+      return;
+    }
+
+    // Mode WhatsApp OTP classique (4 chiffres)
     final result = await LocalAuthService.verifyOtp(
       rawPhoneNumber: _normalizedPhoneNumber,
       otpCode: code,
@@ -695,6 +795,68 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
       _isSubmitting = true;
     });
 
+    // Mode Firebase SMS OTP : renvoi via Firebase
+    if (_verificationId != null) {
+      String? newVerificationId;
+      int? newResendToken;
+      String? errorMsg;
+
+      await FirebaseAuthService.instance.sendFirebaseSmsOtp(
+        phoneNumber: _normalizedPhoneNumber,
+        resendToken: _resendToken,
+        onCodeSent: (vId, rToken) {
+          newVerificationId = vId;
+          newResendToken = rToken;
+        },
+        onError: (msg) {
+          errorMsg = msg;
+        },
+        onAutoVerified: (idToken) async {
+          if (!mounted) return;
+          final verifyResult =
+              await FirebaseAuthService.instance.verifyFirebaseTokenOnBackend(
+            idToken: idToken,
+            pinCode: _pinCode,
+            firstName: _isRegistration ? _firstName : null,
+            lastName: _isRegistration ? _lastName : null,
+            birthDate: _isRegistration ? _birthDate : null,
+            purpose: _isRegistration ? 'register' : 'login',
+          );
+          if (!mounted) return;
+          if (verifyResult.isSuccess) {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              _isRegistration ? '/auth_pin_setup' : '/dashboard',
+              (route) => false,
+            );
+          }
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        if (errorMsg != null) {
+          _feedbackMessage = errorMsg;
+          _feedbackIsError = true;
+        } else {
+          _verificationId = newVerificationId ?? _verificationId;
+          _resendToken = newResendToken;
+          _feedbackMessage = 'Un nouveau code SMS a été envoyé.';
+          _feedbackIsError = false;
+          for (final controller in _controllers) {
+            controller.clear();
+          }
+        }
+      });
+      if (errorMsg == null) {
+        _focusNodes.first.requestFocus();
+        _startTimer(120);
+      }
+      return;
+    }
+
+    // Mode WhatsApp OTP classique
     final result = await LocalAuthService.resendOtp(
       rawPhoneNumber: _normalizedPhoneNumber,
       isRegistration: _isRegistration,
@@ -726,6 +888,114 @@ class _AuthOtpScreenState extends State<AuthOtpScreen> {
     });
     _focusNodes.first.requestFocus();
     _startTimer(120);
+  }
+
+  Future<void> _handleSwitchOtpChannel() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _feedbackMessage = null;
+      _isSubmitting = true;
+    });
+
+    // Basculer de SMS Firebase vers WhatsApp
+    if (_verificationId != null) {
+      final result = await LocalAuthService.requestOtp(
+        rawPhoneNumber: _normalizedPhoneNumber,
+        isRegistration: _isRegistration,
+        pinCode: _pinCode,
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      if (!result.isSuccess) {
+        HapticFeedback.vibrate();
+        setState(() {
+          _feedbackMessage = result.message;
+          _feedbackIsError = true;
+        });
+        return;
+      }
+
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _verificationId = null;
+        _otpLength = 4;
+        _feedbackMessage = 'Code envoyé sur WhatsApp avec succès.';
+        _feedbackIsError = false;
+        for (final c in _controllers) {
+          c.clear();
+        }
+      });
+      _focusNodes.first.requestFocus();
+      _startTimer(120);
+      return;
+    }
+
+    // Basculer de WhatsApp vers SMS Firebase
+    String? newVerificationId;
+    int? newResendToken;
+    String? errorMsg;
+
+    await FirebaseAuthService.instance.sendFirebaseSmsOtp(
+      phoneNumber: _normalizedPhoneNumber,
+      onCodeSent: (vId, rToken) {
+        newVerificationId = vId;
+        newResendToken = rToken;
+      },
+      onError: (msg) {
+        errorMsg = msg;
+      },
+      onAutoVerified: (idToken) async {
+        if (!mounted) return;
+        final verifyResult =
+            await FirebaseAuthService.instance.verifyFirebaseTokenOnBackend(
+          idToken: idToken,
+          pinCode: _pinCode,
+          firstName: _isRegistration ? _firstName : null,
+          lastName: _isRegistration ? _lastName : null,
+          birthDate: _isRegistration ? _birthDate : null,
+          purpose: _isRegistration ? 'register' : 'login',
+        );
+        if (!mounted) return;
+        if (verifyResult.isSuccess) {
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            _isRegistration ? '/auth_pin_setup' : '/dashboard',
+            (route) => false,
+          );
+        }
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (errorMsg != null) {
+      HapticFeedback.vibrate();
+      setState(() {
+        _feedbackMessage = errorMsg;
+        _feedbackIsError = true;
+      });
+      return;
+    }
+
+    if (newVerificationId != null) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _verificationId = newVerificationId;
+        _resendToken = newResendToken;
+        _otpLength = 6;
+        _feedbackMessage = 'Code SMS envoyé avec succès.';
+        _feedbackIsError = false;
+        for (final c in _controllers) {
+          c.clear();
+        }
+      });
+      _focusNodes.first.requestFocus();
+      _startTimer(120);
+    }
   }
 
   void _startTimer([int seconds = 120]) {

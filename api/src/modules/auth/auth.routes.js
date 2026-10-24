@@ -58,6 +58,7 @@ router.post('/resend-otp', asyncHandler(controller.resendOtp));
  *         description: Session ouverte
  */
 router.post('/verify-otp', asyncHandler(controller.verifyOtp));
+router.post('/firebase-verify', asyncHandler(controller.verifyFirebase));
 
 /**
  * @swagger
