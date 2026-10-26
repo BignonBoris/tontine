@@ -63,6 +63,11 @@ const env = {
     'http://localhost:3000',
   mtnMomoMsisdnCountryCode: process.env.MTN_MOMO_MSISDN_COUNTRY_CODE || '',
   sentryDsn: process.env.SENTRY_DSN || '',
+  // Coordonnées affichées dans le pied de page de la landing (masquées si vides)
+  support: {
+    whatsapp: process.env.SUPPORT_WHATSAPP || '',
+    email: process.env.SUPPORT_EMAIL || '',
+  },
   makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
   whatsapp: {
     provider: (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase(),
