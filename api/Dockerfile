@@ -1,5 +1,5 @@
 # Image Node.js officielle optimisée
-FROM node:20-slim
+FROM node:22-slim
 
 # Installation de Chromium et des bibliothèques système requises par Puppeteer / WhatsApp Web
 RUN apt-get update && apt-get install -y \
