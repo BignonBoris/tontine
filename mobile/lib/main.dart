@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:mobile/firebase_options.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:flutter/material.dart';
@@ -33,6 +35,16 @@ import 'package:mobile/features/splashscreen/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (error) {
+    debugPrint('[Firebase] Erreur initialisation dans main: $error');
+  }
 
   await initializeDateFormatting('fr_FR', null);
   await NotificationService.init();

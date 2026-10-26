@@ -23,9 +23,14 @@ async function verifyOtp(req, res) {
   return ok(res, data, 'Verification reussie.');
 }
 
+async function verifyFirebase(req, res) {
+  const data = await authService.verifyFirebaseToken(req.body, getRequestContext(req));
+  return ok(res, data, 'Authentification Firebase reussie.');
+}
+
 async function me(req, res) {
   const data = await authService.getCurrentUserProfile(req.auth.userId);
   return ok(res, data, 'Profil courant charge.');
 }
 
-module.exports = { requestOtp, resendOtp, verifyOtp, me };
+module.exports = { requestOtp, resendOtp, verifyOtp, verifyFirebase, me };

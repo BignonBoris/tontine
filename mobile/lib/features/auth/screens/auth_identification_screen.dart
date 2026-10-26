@@ -7,6 +7,7 @@ import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/core/utils/input_rules.dart';
 import 'package:mobile/features/auth/data/services/local_auth_service.dart';
 import 'package:mobile/features/auth/data/services/biometric_service.dart';
+import 'package:mobile/features/auth/data/services/firebase_auth_service.dart';
 import 'package:mobile/features/auth/widgets/auth_help_bottom_sheet.dart';
 import 'package:mobile/features/auth/widgets/legal_terms_bottom_sheet.dart';
 
@@ -66,7 +67,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       });
       // Automatically submit if everything is valid
       if (_isValid) {
-        _handleContinue(context);
+        _handleContinue();
       }
     }
   }
@@ -506,7 +507,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
                               onTap: _isValid && !_isSubmitting
-                                  ? () => _handleContinue(context)
+                                  ? _handleContinue
                                   : null,
                               child: Center(
                                 child: _isSubmitting
@@ -608,7 +609,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
-                            "Code de sécurité transmis par WhatsApp",
+                            "Code de sécurité transmis par SMS ou WhatsApp",
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.72),
@@ -704,7 +705,7 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
     AuthHelpBottomSheet.show(context);
   }
 
-  Future<void> _handleContinue(BuildContext context) async {
+  Future<void> _handleContinue() async {
     FocusScope.of(context).unfocus();
     TextInput.finishAutofillContext();
     setState(() {
@@ -712,52 +713,115 @@ class _AuthIdentificationScreenState extends State<AuthIdentificationScreen> {
       _errorMessage = null;
     });
 
-    final result = await LocalAuthService.requestOtp(
-      rawPhoneNumber: _normalizedPhone,
-      isRegistration: _isRegistrationMode,
-      pinCode: _isRegistrationMode || _pinController.text.trim().isEmpty
-          ? null
-          : _pinController.text.trim(),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = false;
-    });
-
-    if (!result.isSuccess) {
-      setState(() {
-        _errorMessage = result.message;
-      });
-      return;
-    }
-
-    if (!context.mounted) {
-      return;
-    }
-
     final formattedFirstName = _isRegistrationMode
         ? AppInputRules.capitalizePersonName(_firstNameController.text)
         : null;
     final formattedLastName = _isRegistrationMode
         ? AppInputRules.capitalizePersonName(_lastNameController.text)
         : null;
+    final pinCode = _isRegistrationMode || _pinController.text.trim().isEmpty
+        ? null
+        : _pinController.text.trim();
 
-    Navigator.pushNamed(
-      context,
-      '/auth_otp',
-      arguments: {
-        'phoneNumber': result.phoneNumber,
-        'normalizedPhoneNumber': _normalizedPhone,
-        'isRegistration': _isRegistrationMode,
-        'pinCode': _isRegistrationMode || _pinController.text.trim().isEmpty
-            ? null
-            : _pinController.text.trim(),
-        'firstName': formattedFirstName,
-        'lastName': formattedLastName,
+    bool firebaseHandled = false;
+
+    // 1. Tenter la vérification du numéro par Firebase Phone Auth
+    await FirebaseAuthService.instance.sendFirebaseSmsOtp(
+      phoneNumber: _normalizedPhone,
+      onAutoVerified: (idToken) async {
+        if (!mounted || firebaseHandled) return;
+        firebaseHandled = true;
+        debugPrint('[AUTH] Auto-vérification Firebase réussie (Play Services)');
+        final verifyResult =
+            await FirebaseAuthService.instance.verifyFirebaseTokenOnBackend(
+          idToken: idToken,
+          pinCode: pinCode,
+          firstName: formattedFirstName,
+          lastName: formattedLastName,
+          purpose: _isRegistrationMode ? 'register' : 'login',
+        );
+
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+
+        if (verifyResult.requiresDeviceApproval &&
+            verifyResult.approvalRequestId != null) {
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/device-approval-pending',
+            (route) => false,
+            arguments: {'requestId': verifyResult.approvalRequestId},
+          );
+          return;
+        }
+
+        if (!verifyResult.isSuccess) {
+          setState(() => _errorMessage = verifyResult.message);
+          return;
+        }
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          _isRegistrationMode ? '/auth_pin_setup' : '/dashboard',
+          (route) => false,
+        );
+      },
+      onCodeSent: (verificationId, resendToken) {
+        if (!mounted || firebaseHandled) return;
+        firebaseHandled = true;
+        setState(() => _isSubmitting = false);
+
+        Navigator.pushNamed(
+          context,
+          '/auth_otp',
+          arguments: {
+            'phoneNumber': FirebaseAuthService.formatToE164(_normalizedPhone),
+            'normalizedPhoneNumber': _normalizedPhone,
+            'isRegistration': _isRegistrationMode,
+            'pinCode': pinCode,
+            'firstName': formattedFirstName,
+            'lastName': formattedLastName,
+            'verificationId': verificationId,
+            'resendToken': resendToken,
+          },
+        );
+      },
+      onError: (firebaseError) async {
+        if (!mounted || firebaseHandled) return;
+        firebaseHandled = true;
+        debugPrint('[AUTH] Échec Firebase ($firebaseError) -> Bascule vers OTP WhatsApp...');
+
+        // 2. FALLBACK : Envoi d'OTP WhatsApp en cas d'échec de Firebase
+        final fallbackResult = await LocalAuthService.requestOtp(
+          rawPhoneNumber: _normalizedPhone,
+          isRegistration: _isRegistrationMode,
+          pinCode: pinCode,
+        );
+
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+
+        if (!fallbackResult.isSuccess) {
+          setState(() {
+            _errorMessage = fallbackResult.message;
+          });
+          return;
+        }
+
+        Navigator.pushNamed(
+          context,
+          '/auth_otp',
+          arguments: {
+            'phoneNumber': fallbackResult.phoneNumber,
+            'normalizedPhoneNumber': _normalizedPhone,
+            'isRegistration': _isRegistrationMode,
+            'pinCode': pinCode,
+            'firstName': formattedFirstName,
+            'lastName': formattedLastName,
+            'fallbackNotice':
+                'Vérification SMS indisponible. Un code a été envoyé sur WhatsApp.',
+          },
+        );
       },
     );
   }

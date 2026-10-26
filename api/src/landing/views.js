@@ -1,4 +1,10 @@
+const { renderHomePage } = require('./home.view');
+
 function renderLandingLayout({ title, description, content, isHome = true }) {
+  // L'accueil a sa propre feuille de style ; les pages légales gardent l'ancienne.
+  const stylesheets = isHome
+    ? '<link rel="stylesheet" href="/home.css" />'
+    : '<link rel="stylesheet" href="/viziobox.css" />\n    <link rel="stylesheet" href="/policy.css" />';
   return `<!DOCTYPE html>
 <html lang="fr" class="scroll-smooth">
   <head>
@@ -15,28 +21,13 @@ function renderLandingLayout({ title, description, content, isHome = true }) {
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/viziobox.css" />
-    ${!isHome ? '<link rel="stylesheet" href="/policy.css" />' : ''}
+    <meta name="theme-color" content="#061a35" />
+    ${stylesheets}
   </head>
-  <body class="antialiased selection:bg-[#c89818]/20 selection:text-[#082040]">
+  <body>
     ${content}
   </body>
 </html>`;
-}
-
-function renderHomePage() {
-  return `
-    <div id="root"></div>
-    <script type="module" src="/viziobox.js"></script>
-    <noscript>
-      <div style="padding: 40px; text-align: center; color: #fff; background: #082040; min-height: 100vh;">
-        <h1 style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2rem; margin-bottom: 16px;">VizioBox</h1>
-        <p style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; color: rgba(255,255,255,0.7);">
-          Votre partenaire d'épargne digitale, tontine et réalisation de projets.
-        </p>
-      </div>
-    </noscript>
-  `;
 }
 
 function renderPolicyPage({ heading, intro, sections }) {

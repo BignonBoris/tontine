@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -6,6 +7,7 @@ import 'dart:convert';
 class BiometricService {
   BiometricService._();
   static final LocalAuthentication _auth = LocalAuthentication();
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static const _biometricEnabledKey = 'biometric_enabled';
 
@@ -66,12 +68,11 @@ class BiometricService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_biometricEnabledKey, enabled);
     if (enabled && pinCode != null) {
-      // In a real app, you'd encrypt this PIN before saving it.
-      // For this demo, we'll store it as is (Base64 encoded) so it's not plain text, 
-      // but ideally use flutter_secure_storage.
-      final encodedPin = base64Encode(utf8.encode(pinCode));
-      await prefs.setString(_biometricSavedPinKey, encodedPin);
+      await _secureStorage.write(key: _biometricSavedPinKey, value: pinCode);
+      // Nettoyer l'ancien format SharedPreferences non sécurisé
+      await prefs.remove(_biometricSavedPinKey);
     } else {
+      await _secureStorage.delete(key: _biometricSavedPinKey);
       await prefs.remove(_biometricSavedPinKey);
     }
   }
@@ -82,11 +83,22 @@ class BiometricService {
   }
 
   static Future<String?> getSavedPin() async {
+    // 1. Lire depuis le stockage matériel sécurisé (Keychain / Keystore)
+    final securePin = await _secureStorage.read(key: _biometricSavedPinKey);
+    if (securePin != null && securePin.isNotEmpty) {
+      return securePin;
+    }
+
+    // 2. Fallback de migration transparente si un ancien PIN Base64 existe dans SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final encodedPin = prefs.getString(_biometricSavedPinKey);
     if (encodedPin != null) {
       try {
-        return utf8.decode(base64Decode(encodedPin));
+        final decoded = utf8.decode(base64Decode(encodedPin));
+        // Migrer immédiatement vers le stockage sécurisé et supprimer l'ancien
+        await _secureStorage.write(key: _biometricSavedPinKey, value: decoded);
+        await prefs.remove(_biometricSavedPinKey);
+        return decoded;
       } catch (_) {
         return null;
       }

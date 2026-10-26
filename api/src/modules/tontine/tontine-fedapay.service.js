@@ -988,4 +988,5 @@ module.exports = {
   getFedapayTontineDepositIntent,
   processFedapayWebhook,
   renderFedapayReturnPage,
+  reconcileFedapayIntent,
 };
