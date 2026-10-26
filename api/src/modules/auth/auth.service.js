@@ -9,6 +9,7 @@ const { writeAuditLog } = require('../../common/services/audit-log.service');
 const whatsAppOtpService = require('../../common/services/whatsapp-otp.service');
 const { models, sequelize } = require('../../database/models');
 const deviceApprovalService = require('../device-approval/device-approval.service');
+const firebaseAdmin = require('../../config/firebase');
 
 function validateAndNormalizePhone(phoneNumber, defaultCountry = 'BJ') {
   const rawStr = String(phoneNumber || '').trim();
@@ -816,6 +817,181 @@ async function getCurrentUserProfile(userId) {
   };
 }
 
+async function verifyFirebaseToken(payload, context) {
+  const { idToken, firstName, lastName, birthDate, pinCode, deviceId, purpose } = payload;
+  const authContext = buildAuthContext(context);
+
+  if (!idToken) {
+    throw new AppError("Jeton d'authentification Firebase manquant.", 422);
+  }
+
+  let decodedToken;
+  try {
+    if (!firebaseAdmin || !firebaseAdmin.apps || !firebaseAdmin.apps.length) {
+      throw new Error('Firebase Admin non initialisé');
+    }
+    decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+  } catch (error) {
+    throw new AppError("Jeton d'authentification Firebase invalide ou expiré.", 401);
+  }
+
+  const certifiedPhoneNumber = decodedToken.phone_number;
+  if (!certifiedPhoneNumber) {
+    throw new AppError('Le jeton Firebase ne contient aucun numéro certifié.', 403);
+  }
+
+  const { normalizedPhone } = validateAndNormalizePhone(certifiedPhoneNumber);
+
+  return sequelize.transaction(async (transaction) => {
+    let user = await models.User.findOne({
+      where: { phoneNumber: normalizedPhone },
+      include: [{ model: models.UserPreference, as: 'preferences' }],
+      transaction,
+    });
+
+    assertUserIsActive(user);
+
+    if (!user && purpose === 'login') {
+      throw new AppError('Aucun compte trouvé pour ce numéro.', 404);
+    }
+
+    // Si utilisateur existant avec un PIN configuré
+    if (user && user.preferences && user.preferences.pinCode) {
+      if (pinCode && String(pinCode).trim()) {
+        const isPinValid = await verifyClientPin(String(pinCode).trim(), user.preferences.pinCode);
+        if (!isPinValid) {
+          throw new AppError('Code PIN incorrect.', 401);
+        }
+      }
+    }
+
+    if (!user) {
+      const normalizedFirstName = normalizePersonalName(firstName);
+      const normalizedLastName = normalizePersonalName(lastName);
+
+      user = await models.User.create(
+        {
+          phoneNumber: normalizedPhone,
+          displayName:
+            buildDisplayNameFromIdentity(normalizedFirstName, normalizedLastName) ||
+            'Client maTontine',
+          firstName: isValidPersonalName(normalizedFirstName) ? normalizedFirstName : 'Client',
+          lastName: isValidPersonalName(normalizedLastName) ? normalizedLastName : 'Tontine',
+          birthDate: normalizeBirthDate(birthDate),
+          accountType: 'Personnel',
+        },
+        { transaction },
+      );
+    }
+
+    await user.update({ lastLoginAt: new Date() }, { transaction });
+
+    await models.UserPreference.findOrCreate({
+      where: { userId: user.id },
+      defaults: { userId: user.id },
+      transaction,
+    });
+
+    const preferences = await models.UserPreference.findOne({
+      where: { userId: user.id },
+      transaction,
+    });
+
+    // Gestion session appareil (Device Approval)
+    let sessionId = null;
+    if (env.deviceApprovalEnabled) {
+      const normalizedDeviceId = String(deviceId || '').trim();
+      if (!normalizedDeviceId) {
+        throw new AppError('Identifiant appareil obligatoire.', 422);
+      }
+      const activeSession = await models.DeviceSession.findOne({
+        where: { userId: user.id, status: 'active' },
+        order: [['lastSeenAt', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const approvedRequest = await models.DeviceApprovalRequest.findOne({
+        where: { userId: user.id, requestingDeviceId: normalizedDeviceId, status: 'approved' },
+        order: [['createdAt', 'DESC']],
+        transaction,
+      });
+      if (activeSession && activeSession.deviceId !== normalizedDeviceId && !approvedRequest) {
+        const request = await deviceApprovalService.createRequest({
+          userId: user.id,
+          requestingDeviceId: normalizedDeviceId,
+          currentSessionId: activeSession.id,
+          transaction,
+        });
+        return { requiresDeviceApproval: true, approvalRequestId: request.id, expiresAt: request.expiresAt };
+      }
+      if (approvedRequest) {
+        await approvedRequest.update({ status: 'expired', respondedAt: new Date() }, { transaction });
+      }
+      if (activeSession) {
+        await activeSession.update({ status: 'revoked', revokedAt: new Date() }, { transaction });
+      }
+      const session = await models.DeviceSession.create(
+        {
+          userId: user.id,
+          deviceId: normalizedDeviceId,
+          status: 'active',
+          lastSeenAt: new Date(),
+        },
+        { transaction },
+      );
+      sessionId = session.id;
+    }
+
+    if (preferences && !preferences.pinCode && isValidPinCode(pinCode)) {
+      await preferences.update(
+        {
+          pinEnabled: true,
+          pinCode: await hashClientPin(pinCode),
+        },
+        { transaction },
+      );
+    }
+
+    await models.Wallet.findOrCreate({
+      where: { userId: user.id },
+      defaults: { userId: user.id },
+      transaction,
+    });
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'auth.firebase_login_success',
+      entityType: 'user',
+      entityId: user.id,
+      status: 'success',
+      ipAddress: authContext.ipAddress,
+      userAgent: authContext.userAgent,
+      metadata: {
+        phoneNumber: normalizedPhone,
+        authProvider: decodedToken.firebase?.sign_in_provider || 'firebase_phone',
+        firebaseUid: decodedToken.uid,
+      },
+      transaction,
+    });
+
+    return {
+      token: signToken(user, sessionId),
+      user: {
+        id: user.id,
+        phoneNumber: displayPhone(user.phoneNumber),
+        displayName: user.displayName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        birthDate: user.birthDate,
+        accountType: user.accountType,
+        memberSince: user.memberSince,
+        lastLoginAt: user.lastLoginAt,
+        preferences: sanitizePreferences(preferences),
+      },
+    };
+  });
+}
+
 module.exports = {
   validateAndNormalizePhone,
   normalizePhone,
@@ -829,5 +1005,6 @@ module.exports = {
   requestOtp,
   resendOtp,
   verifyOtp,
+  verifyFirebaseToken,
   getCurrentUserProfile,
 };

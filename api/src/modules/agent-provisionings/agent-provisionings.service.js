@@ -105,6 +105,33 @@ async function createProvisioning(agentProfile, payload, requestContext = {}) {
   const notes = payload?.notes ? String(payload.notes).trim() : null;
   const syncId = payload?.syncId ? String(payload.syncId).trim() : null;
 
+  // ── [R-04] Idempotence : si ce syncId a déjà été traité, retourner le provisioning existant
+  if (syncId) {
+    const existing = await models.Provisioning.findOne({
+      where: { syncId },
+      include: [{ model: models.User, as: 'client' }],
+    });
+    if (existing) {
+      const currentProfile = await models.AgentProfile.findByPk(agentProfile.id);
+      return {
+        id: existing.id,
+        reference: existing.reference,
+        cycleId: existing.cycleId,
+        amount: Number(existing.amount),
+        status: existing.status,
+        client: existing.client
+          ? {
+              id: existing.client.id,
+              displayName: existing.client.displayName,
+              phoneNumber: displayPhone(existing.client.phoneNumber),
+            }
+          : null,
+        validatedAt: existing.validatedAt,
+        agentBalance: Number(currentProfile?.agentBalance ?? agentProfile.agentBalance),
+      };
+    }
+  }
+
   // ── Offline security metadata ─────────────────────────────────────────────
   const offlineHash = payload?.offlineHash ? String(payload.offlineHash).trim() : null;
   const previousHash = payload?.previousHash ? String(payload.previousHash).trim() : null;

@@ -22,6 +22,7 @@ class AgentProvisioningService {
     required String clientUserId,
     required double amount,
     String? notes,
+    String? syncId,
     // Offline security fields — sent to backend for audit trail
     String? offlineHash,
     String? previousHash,
@@ -33,6 +34,7 @@ class AgentProvisioningService {
         'clientUserId': clientUserId,
         'amount': amount,
         'notes': notes,
+        'syncId': syncId,
         'offlineHash': offlineHash,
         'previousHash': previousHash,
         'secureTimestamp': secureTimestamp?.toUtc().toIso8601String(),

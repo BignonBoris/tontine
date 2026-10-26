@@ -94,7 +94,7 @@ class LocalAuthService {
     return normalizePhone(storedPhone);
   }
 
-  static Future<void> _saveSuggestedPhoneNumber(String rawPhoneNumber) async {
+  static Future<void> saveSuggestedPhoneNumber(String rawPhoneNumber) async {
     final normalizedPhone = normalizePhone(rawPhoneNumber);
     if (normalizedPhone.length < 8) {
       return;
@@ -123,7 +123,7 @@ class LocalAuthService {
       ) as Map<String, dynamic>;
       _logAuthApiResponse('/auth/request-otp', data);
 
-      await _saveSuggestedPhoneNumber(normalizedPhone);
+      await saveSuggestedPhoneNumber(normalizedPhone);
 
       return LocalAuthResult(
         isSuccess: true,
@@ -186,7 +186,7 @@ class LocalAuthService {
       unawaited(
         PushNotificationService.instance.syncCurrentToken(force: true),
       );
-      await _saveSuggestedPhoneNumber(normalizedPhone);
+      await saveSuggestedPhoneNumber(normalizedPhone);
       return LocalAuthResult(
         isSuccess: true,
         message: 'Verification reussie.',
@@ -215,7 +215,7 @@ class LocalAuthService {
       ) as Map<String, dynamic>;
       _logAuthApiResponse('/auth/resend-otp', data);
 
-      await _saveSuggestedPhoneNumber(normalizedPhone);
+      await saveSuggestedPhoneNumber(normalizedPhone);
 
       return LocalAuthResult(
         isSuccess: true,

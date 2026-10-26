@@ -1,6 +1,6 @@
 const marketOffersSeed = require('./market-offers.seed');
 const goalTemplatesSeed = require('./goal-templates.seed');
-const { hashAgentPin } = require('../../modules/agent-auth/agent-auth.service');
+const { hashAgentPin, verifyAgentPin } = require('../../modules/agent-auth/agent-auth.service');
 const { normalizePhone } = require('../../modules/auth/auth.service');
 
 async function runSeeds(models) {
@@ -82,9 +82,11 @@ async function runSeeds(models) {
   });
 
   if (!created) {
+    // Re-hasher uniquement si le PIN a changé, pour éviter un bcrypt inutile à chaque démarrage
+    const pinChanged = !(await verifyAgentPin(defaultAgentPin, agentProfile.pinHash));
     await agentProfile.update({
       agentCode: defaultAgentCode,
-      pinHash: await hashAgentPin(defaultAgentPin),
+      ...(pinChanged ? { pinHash: await hashAgentPin(defaultAgentPin) } : {}),
       fullName: defaultAgentName,
       isActive: true,
     });

@@ -1,18 +1,43 @@
+const QRCode = require('qrcode');
 const env = require('../config/env');
+const { getAppVersion } = require('../modules/app-version/app-version.service');
 const {
   renderLandingLayout,
   renderHomePage,
   renderPolicyPage,
 } = require('./views');
 
-function renderHome(req, res) {
+/**
+ * Lien de l'APK client publié dans l'admin (menu « Versions des apps ») et son
+ * QR code. Une erreur ne doit jamais empêcher l'affichage de la landing.
+ */
+async function getDownloadInfo() {
+  try {
+    const { download_url: downloadUrl } = await getAppVersion('client');
+    if (!downloadUrl) {
+      return { downloadUrl: '', qrDataUrl: '' };
+    }
+    const qrDataUrl = await QRCode.toDataURL(downloadUrl, {
+      margin: 0,
+      width: 280,
+      color: { dark: '#082040', light: '#FFFFFF' },
+    });
+    return { downloadUrl, qrDataUrl };
+  } catch (error) {
+    console.error('[landing] Lien de téléchargement indisponible:', error.message);
+    return { downloadUrl: '', qrDataUrl: '' };
+  }
+}
+
+async function renderHome(req, res) {
+  const { downloadUrl, qrDataUrl } = await getDownloadInfo();
   return res.status(200).send(
     renderLandingLayout({
-      title: 'VizioBox — L’épargne qui donne vie à tes projets',
+      title: 'VizioBox — La tontine qui donne vie à vos projets',
       description:
-        "Choisis ton projet. Construis ton objectif. Fais-le avancer avec VizioBox. Tontine digitale, coffres projets et discipline d'épargne.",
+        "Cotisez à votre rythme par Mobile Money ou auprès d'un agent, suivez chaque franc et transformez votre épargne en projets concrets avec VizioBox.",
       isHome: true,
-      content: renderHomePage(),
+      content: renderHomePage({ downloadUrl, qrDataUrl, contact: env.support }),
     }),
   );
 }
