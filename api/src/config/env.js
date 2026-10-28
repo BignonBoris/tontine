@@ -68,6 +68,13 @@ const env = {
     whatsapp: process.env.SUPPORT_WHATSAPP || '',
     email: process.env.SUPPORT_EMAIL || '',
   },
+  // Identité de l'éditeur affichée sur la landing (section « Qui garde votre argent ? »,
+  // FAQ, pied de page). Rien n'est affiché tant que ces valeurs sont vides.
+  legal: {
+    name: process.env.LEGAL_NAME || '',
+    registration: process.env.LEGAL_REGISTRATION || '',
+    address: process.env.LEGAL_ADDRESS || '',
+  },
   makerCheckerThreshold: Number(process.env.MAKER_CHECKER_THRESHOLD || 500000),
   whatsapp: {
     provider: (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase(),

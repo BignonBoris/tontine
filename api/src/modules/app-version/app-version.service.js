@@ -64,6 +64,38 @@ async function fromSettings(settingKey) {
 }
 
 /**
+ * Transforme un lien de partage Google Drive en lien de téléchargement direct,
+ * pour que le clic télécharge l'APK au lieu d'ouvrir la page Drive.
+ * `confirm=t` saute l'avertissement « fichier trop volumineux pour être analysé ».
+ * Les autres liens sont renvoyés tels quels.
+ */
+function toDirectDownloadUrl(rawUrl) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch (error) {
+    return value;
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (host !== 'drive.google.com' && host !== 'drive.usercontent.google.com') {
+    return value;
+  }
+
+  // /file/d/<id>/view, /file/u/0/d/<id>/view…, sinon ?id=<id> (open, uc, download)
+  const pathMatch = url.pathname.match(/\/d\/([A-Za-z0-9_-]{10,})/);
+  const fileId = pathMatch ? pathMatch[1] : url.searchParams.get('id');
+  if (!fileId || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) {
+    return value;
+  }
+
+  return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+}
+
+/**
  * Retourne les informations de version normalisées d'une application.
  * @param {'agent'|'client'} app
  */
@@ -75,7 +107,10 @@ async function getAppVersion(app) {
 
   const env = fromEnv(config.envPrefix);
   const db = await fromSettings(config.settingKey);
-  const pick = (field) => (db[field] !== undefined && db[field] !== null ? db[field] : env[field]);
+  // Une valeur vide en base (ex. lien créé vide par la migration) laisse la
+  // place à la variable d'environnement.
+  const isSet = (value) => value !== undefined && value !== null && value !== '';
+  const pick = (field) => (isSet(db[field]) ? db[field] : env[field]);
 
   const build = toInt(pick('build'));
   return {
@@ -84,7 +119,7 @@ async function getAppVersion(app) {
     build,
     min_build: Math.min(toInt(pick('min_build')), build),
     mandatory: toBool(pick('mandatory')),
-    download_url: String(pick('download_url') || ''),
+    download_url: toDirectDownloadUrl(pick('download_url')),
     release_notes: String(pick('release_notes') || ''),
     released_at: String(pick('released_at') || ''),
   };
@@ -210,4 +245,4 @@ async function updateAppVersion(app, payload, requestContext = {}) {
   return getAppVersion(app);
 }
 
-module.exports = { getAppVersion, listAppVersions, updateAppVersion, APPS };
+module.exports = { getAppVersion, listAppVersions, updateAppVersion, toDirectDownloadUrl, APPS };
