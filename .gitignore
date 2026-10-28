@@ -46,3 +46,8 @@ Podfile.lock
 **/api/node_modules/hasown/index.d.ts
 **/api/node_modules/hasown/package.json
 **/api/package-lock.json
+
+.claude
+.impeccable
+.qodo
+.vscode
