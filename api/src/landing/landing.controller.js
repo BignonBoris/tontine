@@ -13,31 +13,37 @@ const {
  */
 async function getDownloadInfo() {
   try {
-    const { download_url: downloadUrl } = await getAppVersion('client');
+    const { download_url: downloadUrl, version } = await getAppVersion('client');
     if (!downloadUrl) {
-      return { downloadUrl: '', qrDataUrl: '' };
+      return { downloadUrl: '', qrDataUrl: '', version: '' };
     }
     const qrDataUrl = await QRCode.toDataURL(downloadUrl, {
       margin: 0,
       width: 280,
       color: { dark: '#082040', light: '#FFFFFF' },
     });
-    return { downloadUrl, qrDataUrl };
+    return { downloadUrl, qrDataUrl, version };
   } catch (error) {
     console.error('[landing] Lien de téléchargement indisponible:', error.message);
-    return { downloadUrl: '', qrDataUrl: '' };
+    return { downloadUrl: '', qrDataUrl: '', version: '' };
   }
 }
 
 async function renderHome(req, res) {
-  const { downloadUrl, qrDataUrl } = await getDownloadInfo();
+  const { downloadUrl, qrDataUrl, version } = await getDownloadInfo();
   return res.status(200).send(
     renderLandingLayout({
       title: 'VizioBox — La tontine qui donne vie à vos projets',
       description:
         "Cotisez à votre rythme par Mobile Money ou auprès d'un agent, suivez chaque franc et transformez votre épargne en projets concrets avec VizioBox.",
       isHome: true,
-      content: renderHomePage({ downloadUrl, qrDataUrl, contact: env.support }),
+      content: renderHomePage({
+        downloadUrl,
+        qrDataUrl,
+        version,
+        contact: env.support,
+        legal: env.legal,
+      }),
     }),
   );
 }
