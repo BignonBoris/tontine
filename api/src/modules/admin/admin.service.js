@@ -1807,8 +1807,17 @@ async function createAgent(payload, requestContext = {}) {
   // Chercher un utilisateur existant avec ce numéro
   let existingUser = null;
   if (phoneNumber) {
+    const existingAgent = await models.User.findOne({
+      where: { phoneNumber, accountType: 'Agent' },
+      include: [{ model: models.AgentProfile, as: 'agentProfile', required: false }],
+    });
+
+    if (existingAgent) {
+      throw new AppError('Un agent existe deja avec ce numero.', 409);
+    }
+
     existingUser = await models.User.findOne({
-      where: { phoneNumber },
+      where: { phoneNumber, accountType: 'Personnel' },
       include: [{ model: models.AgentProfile, as: 'agentProfile', required: false }],
     });
 
@@ -1822,7 +1831,15 @@ async function createAgent(payload, requestContext = {}) {
   }
 
   const agentInfo = await sequelize.transaction(async (transaction) => {
-    let targetUser = existingUser;
+    let targetUser = await models.User.create(
+      {
+        phoneNumber,
+        displayName: fullName,
+        accountType: 'Agent',
+        isActive: true,
+      },
+      { transaction },
+    );
 
     if (!targetUser) {
       // Créer un nouvel utilisateur
@@ -1847,13 +1864,26 @@ async function createAgent(payload, requestContext = {}) {
         defaults: { userId: targetUser.id },
         transaction,
       });
-    } else {
+    /* legacy conversion branch intentionally disabled */
+    if (false) {
       // Mettre à jour le compte client existant pour qu'il devienne agent
       await targetUser.update(
         { accountType: 'Agent', displayName: fullName },
         { transaction },
       );
     }
+
+    await models.UserPreference.findOrCreate({
+      where: { userId: targetUser.id },
+      defaults: { userId: targetUser.id },
+      transaction,
+    });
+
+    await models.Wallet.findOrCreate({
+      where: { userId: targetUser.id },
+      defaults: { userId: targetUser.id },
+      transaction,
+    });
 
     const pinHash = await hashAgentPin(pin);
 
@@ -1882,7 +1912,7 @@ async function createAgent(payload, requestContext = {}) {
       adminUsername: requestContext.adminUsername || null,
       agentCode,
       phoneNumber,
-      upgradedFromClient: !!existingUser,
+      createdAlongsideClient: !!existingUser,
     },
   });
 

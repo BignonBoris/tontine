@@ -25,7 +25,7 @@ class QuickActionsBar extends StatelessWidget {
         // Décision design (charte VizioBox) : le texte des CTA dorés reste BLANC.
         _buildActionChip(
           label: 'Cotiser',
-          icon: Icons.savings_rounded,
+          icon: Icons.move_to_inbox_rounded,
           gradient: AppTheme.accentGradient,
           iconColor: Colors.white,
           textColor: Colors.white,
