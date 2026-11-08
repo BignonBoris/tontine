@@ -76,6 +76,15 @@ class UpdateService {
   UpdateService._();
   static final UpdateService instance = UpdateService._();
 
+  /// Numéro de build comparable à celui publié dans l'admin (= le nombre après
+  /// « + » dans pubspec.yaml). Avec `flutter build apk --split-per-abi`, Android
+  /// reçoit 1000 × code processeur + build (ex. arm64-v8a : 2000 + 3 = 2003) :
+  /// on retire ce préfixe. Sans découpage par processeur, le build reste < 1000.
+  static int _normalizeBuild(String rawBuildNumber) {
+    final value = int.tryParse(rawBuildNumber) ?? 0;
+    return value >= 1000 ? value % 1000 : value;
+  }
+
   final Dio _dio = Dio();
 
   // ── Vérification de version ──────────────────────────────────────────────────
@@ -85,7 +94,7 @@ class UpdateService {
   Future<UpdateCheckResult?> checkForUpdate() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+      final currentBuild = _normalizeBuild(packageInfo.buildNumber);
 
       final response = await _dio
           .get('${ApiConfig.baseUrl}/app-version/agent')

@@ -38,7 +38,7 @@ async function loginAgent({ phoneNumber, pin, deviceId }, context = {}) {
   }
 
   const user = await models.User.findOne({
-    where: { phoneNumber: normalizedPhone, isActive: true },
+    where: { phoneNumber: normalizedPhone, accountType: 'Agent', isActive: true },
     include: [{ model: models.AgentProfile, as: 'agentProfile' }],
   });
 
