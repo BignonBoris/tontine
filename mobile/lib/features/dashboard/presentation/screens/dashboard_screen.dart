@@ -740,7 +740,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       labelText: "Montant à verser (FCFA)",
                       hintText: "Ex: 5000",
                       prefixIcon: const Icon(
-                        Icons.savings_rounded,
+                        Icons.move_to_inbox_rounded,
                         color: AppTheme.accentColor,
                       ),
                       border: OutlineInputBorder(

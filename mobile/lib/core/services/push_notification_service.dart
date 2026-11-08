@@ -70,7 +70,6 @@ class PushNotificationService {
     }
 
     final pushToken = await FirebaseMessaging.instance.getToken();
-    print("pushToken = " + pushToken.toString());
     if (pushToken == null || pushToken.isEmpty) {
       return;
     }
@@ -103,7 +102,7 @@ class PushNotificationService {
       _lastRegisteredAppName = appName;
     } catch (error) {
       if (kDebugMode) {
-        print('Push notification registration failed: $error');
+        debugPrint('Push notification registration failed: $error');
       }
     }
   }
@@ -172,7 +171,7 @@ class PushNotificationService {
 
       if (kDebugMode &&
           settings.authorizationStatus == AuthorizationStatus.denied) {
-        print('Push notification permission denied by user.');
+        debugPrint('Push notification permission denied by user.');
       }
 
       if (defaultTargetPlatform == TargetPlatform.iOS ||
@@ -186,7 +185,7 @@ class PushNotificationService {
       }
     } catch (error) {
       if (kDebugMode) {
-        print('Push notification permission setup failed: $error');
+        debugPrint('Push notification permission setup failed: $error');
       }
     }
   }
@@ -217,7 +216,7 @@ class PushNotificationService {
         );
       } catch (error) {
         if (kDebugMode) {
-          print('Foreground push display failed: $error');
+          debugPrint('Foreground push display failed: $error');
         }
       }
     });
@@ -277,7 +276,7 @@ class PushNotificationService {
       }, authToken: authToken);
     } catch (error) {
       if (kDebugMode) {
-        print('Push notification unregister failed: $error');
+        debugPrint('Push notification unregister failed: $error');
       }
     }
   }
@@ -336,7 +335,7 @@ class PushNotificationService {
     } catch (error) {
       _firebaseDisabled = true;
       if (kDebugMode) {
-        print('Firebase initialization failed: $error');
+        debugPrint('Firebase initialization failed: $error');
       }
       return false;
     }

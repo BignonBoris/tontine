@@ -53,6 +53,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
   String? _pendingAfrikmoneyIntentId;
   String? _pendingMtnMomoIntentId;
   bool _isMonitoringMtnMomoIntent = false;
+  bool _isDepositSheetOpening = false;
 
   void _handleInvitationCountChanged(int count) {
     if (_pendingInvitationCount == count) {
@@ -1029,17 +1030,62 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     TontineCycle cycle,
     double availableBalance,
   ) async {
-    final paymentMethodsService = RemoteDashboardService();
-    final fetchedMethods = await paymentMethodsService.fetchPaymentMethods(
-      'tontine_deposit',
+    if (_isDepositSheetOpening) {
+      return;
+    }
+    _isDepositSheetOpening = true;
+
+    final loadingSheetFuture = showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => const Padding(
+        padding: EdgeInsets.fromLTRB(24, 28, 24, 34),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 14),
+            Text('Chargement des moyens de paiement...'),
+          ],
+        ),
+      ),
     );
+
+    final paymentMethodsService = RemoteDashboardService();
+    List<PaymentMethodOption> fetchedMethods;
+    try {
+      fetchedMethods = await paymentMethodsService.fetchPaymentMethods(
+        'tontine_deposit',
+      );
+    } catch (_) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de charger les moyens de paiement.')),
+        );
+      }
+      _isDepositSheetOpening = false;
+      return;
+    }
     final paymentMethods = fetchedMethods
         .where((method) => _isSupportedTontineDepositMethod(method.code))
         .toList();
 
     if (!context.mounted) {
+      _isDepositSheetOpening = false;
       return;
     }
+    Navigator.of(context).pop();
+    await loadingSheetFuture;
     if (paymentMethods.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1048,6 +1094,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
           ),
         ),
       );
+      _isDepositSheetOpening = false;
       return;
     }
 
@@ -1464,6 +1511,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       );
     } finally {
       controller.dispose();
+      _isDepositSheetOpening = false;
     }
   }
 
@@ -1869,7 +1917,7 @@ class _TontineHeroCard extends StatelessWidget {
                                 ],
                               ),
                               child: const Icon(
-                                Icons.savings_rounded,
+                                Icons.move_to_inbox_rounded,
                                 color: Colors.white,
                                 size: 20,
                               ),

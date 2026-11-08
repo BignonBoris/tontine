@@ -177,6 +177,15 @@ function assertUserIsActive(user) {
   }
 }
 
+function assertClientAccount(user) {
+  if (user && String(user.accountType || '').toLowerCase() === 'agent') {
+    throw new AppError(
+      "Ce compte est réservé à l'application agent.",
+      403,
+    );
+  }
+}
+
 function computeExpiryDate() {
   return new Date(Date.now() + env.otpExpiresInMinutes * 60 * 1000);
 }
@@ -220,7 +229,7 @@ async function getLatestOtpForVerification(phoneNumber) {
 
 async function assertPhonePurposeConsistency(normalizedPhone, purpose) {
   const user = await models.User.findOne({
-    where: { phoneNumber: normalizedPhone },
+    where: { phoneNumber: normalizedPhone, accountType: 'Personnel' },
     include: [{ model: models.UserPreference, as: 'preferences' }],
   });
 
@@ -328,6 +337,7 @@ async function requestOtp(payload, context) {
 
   if (purpose === 'login') {
     assertUserIsActive(user);
+    assertClientAccount(user);
   }
 
   if (purpose === 'login' && user?.preferences?.pinCode) {
@@ -633,11 +643,12 @@ async function verifyOtp(
 
   return sequelize.transaction(async (transaction) => {
     let user = await models.User.findOne({
-      where: { phoneNumber: normalizedPhone },
+      where: { phoneNumber: normalizedPhone, accountType: 'Personnel' },
       transaction,
     });
 
     assertUserIsActive(user);
+    assertClientAccount(user);
 
     if (!user && otp.purpose === 'login') {
       throw new AppError('Aucun compte trouve pour ce numero.', 404);
@@ -844,12 +855,13 @@ async function verifyFirebaseToken(payload, context) {
 
   return sequelize.transaction(async (transaction) => {
     let user = await models.User.findOne({
-      where: { phoneNumber: normalizedPhone },
+      where: { phoneNumber: normalizedPhone, accountType: 'Personnel' },
       include: [{ model: models.UserPreference, as: 'preferences' }],
       transaction,
     });
 
     assertUserIsActive(user);
+    assertClientAccount(user);
 
     if (!user && purpose === 'login') {
       throw new AppError('Aucun compte trouvé pour ce numéro.', 404);

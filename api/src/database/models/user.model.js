@@ -12,7 +12,6 @@ const User = sequelize.define(
     phoneNumber: {
       type: DataTypes.STRING(32),
       allowNull: true,
-      unique: true,
     },
     displayName: {
       type: DataTypes.STRING(120),
@@ -72,6 +71,7 @@ const User = sequelize.define(
     tableName: 'users',
     indexes: [
       { fields: ['account_type'] },
+      { unique: true, fields: ['phone_number', 'account_type'] },
       { fields: ['created_by_agent_profile_id'] },
       { fields: ['is_active'] },
     ],
