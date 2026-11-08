@@ -1864,6 +1864,8 @@ async function createAgent(payload, requestContext = {}) {
         defaults: { userId: targetUser.id },
         transaction,
       });
+    }
+
     /* legacy conversion branch intentionally disabled */
     if (false) {
       // Mettre à jour le compte client existant pour qu'il devienne agent
