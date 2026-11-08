@@ -42,8 +42,8 @@ const filters = reactive<{
   tontineStatus: "all" | "ongoing" | "none";
 }>({
   search: "",
-  status: "active",
-  tontineStatus: "ongoing",
+  status: "",
+  tontineStatus: "all",
 });
 const currentPage = ref(1);
 const mutationClientId = ref<string | null>(null);
