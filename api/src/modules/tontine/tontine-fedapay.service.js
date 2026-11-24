@@ -98,6 +98,21 @@ async function parseJsonResponse(response) {
   }
 }
 
+/**
+ * Vrai si FedaPay repond 404 pour cette transaction et que la demande est
+ * plus ancienne que le delai de grace (FEDAPAY_NOT_FOUND_GRACE_HOURS, 48 h).
+ * Le delai evite de clore une demande a cause d'une erreur de configuration
+ * passagere (mauvaise cle) : le paiement reste rattrapable entre-temps.
+ */
+function isStaleUnknownFedapayIntent(intent, error, now = Date.now()) {
+  if (error?.providerHttpStatus !== 404) {
+    return false;
+  }
+  const graceHours = Number(process.env.FEDAPAY_NOT_FOUND_GRACE_HOURS) || 48;
+  const createdAt = new Date(intent?.createdAt || now).getTime();
+  return now - createdAt >= graceHours * 60 * 60 * 1000;
+}
+
 function isLockWaitTimeoutError(error) {
   const message = String(error?.message || '');
   return (
@@ -140,11 +155,13 @@ async function requestFedapay(path, options = {}) {
 
     const payload = await parseJsonResponse(response);
     if (!response.ok) {
-      throw new AppError(
+      const providerError = new AppError(
         extractMessage(payload, 'FedaPay a refuse la requete.'),
         502,
         payload,
       );
+      providerError.providerHttpStatus = response.status;
+      throw providerError;
     }
 
     return unwrapFedapayResource(payload);
@@ -464,10 +481,28 @@ async function reconcileFedapayIntent(intent, requestContext = {}) {
       },
     );
   } catch (error) {
+    // Transaction inconnue de FedaPay avec la cle actuelle (ex. demande creee
+    // avec une cle sandbox avant le passage en live). Passe le delai de
+    // grace, on clot la demande pour qu'elle ne soit plus reverifiee sans fin.
+    if (isStaleUnknownFedapayIntent(intent, error)) {
+      console.warn('[FedaPay] intent expired: transaction unknown to provider', {
+        intentId: intent.id,
+        providerTransactionId,
+      });
+      await intent.update({
+        status: 'expired',
+        expiredAt: new Date(),
+        lastErrorCode: 'PROVIDER_TRANSACTION_NOT_FOUND',
+        failureReason:
+          'Transaction introuvable chez FedaPay (cle differente ou demande abandonnee).',
+      });
+      return serializeIntent(await intent.reload());
+    }
+
     console.warn('[FedaPay] reconciliation skipped', {
       intentId: intent.id,
       providerTransactionId,
-      cause: error?.details || error?.message || String(error),
+      cause: error?.details?.message || error?.message || String(error),
     });
     return serializeIntent(intent);
   }

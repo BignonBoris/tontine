@@ -290,3 +290,37 @@ test('suivi : annulation operateur remontee avec un message lisible', async () =
   assert.equal(tracked.lastErrorCode, 'INSUFFICIENT_FUND_ERROR');
   assert.match(tracked.failureMessage, /Solde Mobile Money insuffisant/);
 });
+
+test('suivi : transaction inconnue de FedaPay (404) close apres le delai de grace', async () => {
+  state.fetchHandler = () => ({ status: 404, payload: { message: 'Modele V1::Transaction non trouve' } });
+  const old = makeIntent({
+    id: 'old-1',
+    status: 'pending',
+    providerTransactionId: '468168',
+    createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
+  });
+  const result = await service.reconcileFedapayIntent(old);
+  assert.equal(result.status, 'expired');
+  assert.equal(old.lastErrorCode, 'PROVIDER_TRANSACTION_NOT_FOUND');
+  assert.ok(old.expiredAt);
+});
+
+test('suivi : 404 recent ou erreur reseau -> la demande reste en attente', async () => {
+  state.fetchHandler = () => ({ status: 404, payload: { message: 'non trouve' } });
+  const recent = makeIntent({
+    id: 'recent-1',
+    status: 'pending',
+    providerTransactionId: '468169',
+    createdAt: new Date(Date.now() - 60 * 60 * 1000),
+  });
+  assert.equal((await service.reconcileFedapayIntent(recent)).status, 'pending');
+
+  state.fetchHandler = () => ({ status: 500, payload: { message: 'panne' } });
+  const old = makeIntent({
+    id: 'old-2',
+    status: 'pending',
+    providerTransactionId: '468170',
+    createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
+  });
+  assert.equal((await service.reconcileFedapayIntent(old)).status, 'pending');
+});
