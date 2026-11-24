@@ -3,6 +3,7 @@ const PAYMENT_METHOD_OPERATIONS = ['tontine_deposit', 'withdrawal'];
 const PAYMENT_METHOD_FLOW_TYPES = [
   'internal_transfer',
   'external_checkout',
+  'push_request',
   'manual_review',
 ];
 
@@ -31,6 +32,22 @@ const DEFAULT_PAYMENT_METHODS = [
     sortOrder: 20,
     metadata: {
       target: 'fedapay',
+    },
+  },
+  {
+    // Desactive par defaut : a activer depuis l'admin une fois l'appli 1.0.3 diffusee.
+    // Les anciennes versions de l'appli ignorent ce code.
+    code: 'fedapay_push',
+    label: 'Mobile Money',
+    description: 'Paiement Mobile Money sans quitter l application (MTN, Moov, Celtiis).',
+    provider: 'fedapay',
+    operation: 'tontine_deposit',
+    flowType: 'push_request',
+    enabled: false,
+    sortOrder: 15,
+    metadata: {
+      target: 'fedapay',
+      operators: ['mtn', 'moov', 'celtiis'],
     },
   },
   {

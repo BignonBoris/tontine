@@ -104,7 +104,6 @@ async function ensureTontinePaymentIntentCompatibility(sequelize) {
         defaultValue: DataTypes.NOW,
       },
     });
-    return;
   }
 
   const columns = await queryInterface.describeTable('tontine_payment_intents');
@@ -144,6 +143,13 @@ async function ensureTontinePaymentIntentCompatibility(sequelize) {
   await ensureColumn('failed_at', '`failed_at` DATETIME NULL');
   await ensureColumn('cancelled_at', '`cancelled_at` DATETIME NULL');
   await ensureColumn('expired_at', '`expired_at` DATETIME NULL');
+  // Paiement sans redirection (push USSD FedaPay)
+  await ensureColumn('channel', "`channel` VARCHAR(16) NOT NULL DEFAULT 'redirect'");
+  await ensureColumn('push_operator', '`push_operator` VARCHAR(16) NULL');
+  await ensureColumn('push_mode', '`push_mode` VARCHAR(32) NULL');
+  await ensureColumn('push_phone_masked', '`push_phone_masked` VARCHAR(32) NULL');
+  await ensureColumn('push_sent_at', '`push_sent_at` DATETIME NULL');
+  await ensureColumn('last_error_code', '`last_error_code` VARCHAR(64) NULL');
 }
 
 module.exports = { ensureTontinePaymentIntentCompatibility };
