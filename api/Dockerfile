@@ -28,7 +28,10 @@ WORKDIR /app
 
 # Dépendances Node
 COPY package*.json ./
-RUN npm install --omit=dev
+# --ignore-scripts : le postinstall (scripts/install-chrome.js) télécharge Chrome
+# via puppeteer. Inutile ici (Chromium est installé par apt ci-dessus) et le
+# dossier scripts/ n'est pas encore copié à cette étape.
+RUN npm ci --omit=dev --ignore-scripts
 
 # Code source de l'API
 COPY . .
