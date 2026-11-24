@@ -10,6 +10,12 @@ class TontineFedapayDepositIntent {
   final String? paymentUrl;
   final String? callbackUrl;
   final String? failureReason;
+  // Paiement sans redirection (push USSD)
+  final String channel;
+  final String? pushOperator;
+  final String? pushPhoneMasked;
+  final String? lastErrorCode;
+  final String? failureMessage;
 
   const TontineFedapayDepositIntent({
     required this.id,
@@ -21,10 +27,28 @@ class TontineFedapayDepositIntent {
     this.paymentUrl,
     this.callbackUrl,
     this.failureReason,
+    this.channel = 'redirect',
+    this.pushOperator,
+    this.pushPhoneMasked,
+    this.lastErrorCode,
+    this.failureMessage,
   });
 
   bool get hasPaymentUrl =>
       paymentUrl != null && paymentUrl!.trim().isNotEmpty;
+
+  bool get isSucceeded {
+    final normalized = status.toLowerCase();
+    return normalized == 'processed' ||
+        (providerStatus?.toLowerCase() ?? '') == 'approved';
+  }
+
+  bool get isFailed {
+    final normalized = status.toLowerCase();
+    return normalized == 'failed' ||
+        normalized == 'cancelled' ||
+        normalized == 'expired';
+  }
 
   factory TontineFedapayDepositIntent.fromMap(Map<dynamic, dynamic> map) {
     return TontineFedapayDepositIntent(
@@ -37,6 +61,11 @@ class TontineFedapayDepositIntent {
       paymentUrl: _toNullableString(map['paymentUrl']),
       callbackUrl: _toNullableString(map['callbackUrl']),
       failureReason: _toNullableString(map['failureReason']),
+      channel: _toNullableString(map['channel']) ?? 'redirect',
+      pushOperator: _toNullableString(map['pushOperator']),
+      pushPhoneMasked: _toNullableString(map['pushPhoneMasked']),
+      lastErrorCode: _toNullableString(map['lastErrorCode']),
+      failureMessage: _toNullableString(map['failureMessage']),
     );
   }
 
@@ -73,6 +102,27 @@ class TontineFedapayService {
       );
     }
     return intent;
+  }
+
+  /// Paiement sans redirection : la demande s'affiche sur le telephone du
+  /// client, qui valide avec son code secret Mobile Money.
+  /// [operator] : 'mtn', 'moov' ou 'celtiis'.
+  Future<TontineFedapayDepositIntent> createPushDeposit({
+    required double amount,
+    required String syncId,
+    required String operator,
+    required String phoneNumber,
+  }) async {
+    final payload = await _apiClient.post(
+      '/tontine/fedapay/push-deposits',
+      body: {
+        'amount': amount,
+        'syncId': syncId,
+        'operator': operator,
+        'phoneNumber': phoneNumber,
+      },
+    );
+    return TontineFedapayDepositIntent.fromMap(_asMap(payload));
   }
 
   Future<TontineFedapayDepositIntent> fetchDepositIntent(
