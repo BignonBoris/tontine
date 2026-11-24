@@ -98,6 +98,33 @@ const TontinePaymentIntent = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    // 'redirect' (page de paiement FedaPay) ou 'push' (push USSD sans redirection)
+    channel: {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: 'redirect',
+    },
+    pushOperator: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+    },
+    pushMode: {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    },
+    // Seule une version masquee du numero est conservee (ex. 01••••••90)
+    pushPhoneMasked: {
+      type: DataTypes.STRING(32),
+      allowNull: true,
+    },
+    pushSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    lastErrorCode: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    },
   },
   {
     tableName: 'tontine_payment_intents',

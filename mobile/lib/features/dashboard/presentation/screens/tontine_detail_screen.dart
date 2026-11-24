@@ -29,6 +29,8 @@ import 'package:mobile/features/dashboard/presentation/widgets/tontine_carnet_gr
 import 'package:mobile/features/dashboard/presentation/widgets/tontine_history_list.dart';
 import 'package:mobile/features/groups/presentation/widgets/my_groups_section.dart';
 import 'package:mobile/features/groups/presentation/widgets/unified_adhesions_section.dart';
+import 'package:mobile/features/dashboard/presentation/widgets/fedapay_push_waiting_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
@@ -1105,6 +1107,18 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     String? errorMessage;
     bool isSubmitting = false;
     String selectedMethodCode = paymentMethods.first.code;
+    final pushPreferences = await _loadPushPreferences();
+    if (!context.mounted) {
+      controller.dispose();
+      _isDepositSheetOpening = false;
+      return;
+    }
+    String selectedPushOperator = pushPreferences.operator;
+    final pushPhoneController = TextEditingController(
+      text: pushPreferences.phone ?? _profilePhoneForPush(),
+    );
+    final hasPushMethod =
+        paymentMethods.any((method) => method.code == 'fedapay_push');
     final String depositSyncId = const Uuid().v4();
     final remaining = (cycle.targetAmount - cycle.cumulativeAmount).clamp(
       0.0,
@@ -1196,6 +1210,44 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                 });
 
                 try {
+                  if (selectedMethod.code == 'fedapay_push') {
+                    final phone = pushPhoneController.text.trim();
+                    if (phone.replaceAll(RegExp(r'\D'), '').length < 8) {
+                      setSheetState(() {
+                        isSubmitting = false;
+                        errorMessage =
+                            'Saisissez votre numéro Mobile Money (10 chiffres, ex. 01 97 00 00 00).';
+                      });
+                      return;
+                    }
+
+                    final intent = await fedapayService.createPushDeposit(
+                      amount: amount,
+                      syncId: depositSyncId,
+                      operator: selectedPushOperator,
+                      phoneNumber: phone,
+                    );
+                    unawaited(
+                      _savePushPreferences(selectedPushOperator, phone),
+                    );
+
+                    if (modalContext.mounted) {
+                      Navigator.pop(modalContext);
+                    }
+                    if (!mounted) {
+                      return;
+                    }
+                    unawaited(
+                      _followFedapayPush(
+                        intent,
+                        amount: amount,
+                        operator: selectedPushOperator,
+                        phoneNumber: phone,
+                      ),
+                    );
+                    return;
+                  }
+
                   if (selectedMethod.code == 'fedapay') {
                     final session = await fedapayService.createDeposit(amount, depositSyncId);
                     _pendingFedapayIntentId = session.id;
@@ -1220,10 +1272,7 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
 
                     await _suspendAppLockForFedapay();
                     _refreshOnResumeAfterFedapay = true;
-                    final launched = await launchUrl(
-                      paymentUri,
-                      mode: LaunchMode.externalApplication,
-                    );
+                    final launched = await _launchFedapayCheckout(paymentUri);
 
                     if (!launched) {
                       _refreshOnResumeAfterFedapay = false;
@@ -1412,7 +1461,9 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                               (method) => ChoiceChip(
                                 label: Text(
                                   method.code == 'fedapay'
-                                      ? 'Mobile money'
+                                      ? (hasPushMethod
+                                            ? 'Page FedaPay'
+                                            : 'Mobile money')
                                       : method.label,
                                   style: TextStyle(
                                     color: selectedMethod.code == method.code
@@ -1445,6 +1496,68 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                           height: 1.4,
                         ),
                       ),
+                      if (selectedMethod.code == 'fedapay_push') ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Opérateur',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _pushOperatorLabels.entries
+                              .map(
+                                (entry) => ChoiceChip(
+                                  label: Text(
+                                    entry.value,
+                                    style: TextStyle(
+                                      color: selectedPushOperator == entry.key
+                                          ? Colors.white
+                                          : null,
+                                    ),
+                                  ),
+                                  selected: selectedPushOperator == entry.key,
+                                  onSelected: (selected) {
+                                    if (!selected) {
+                                      return;
+                                    }
+                                    setSheetState(() {
+                                      selectedPushOperator = entry.key;
+                                      errorMessage = null;
+                                    });
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: pushPhoneController,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9 +]'),
+                            ),
+                            LengthLimitingTextInputFormatter(16),
+                          ],
+                          onChanged: (_) {
+                            if (errorMessage != null) {
+                              setSheetState(() => errorMessage = null);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Numéro Mobile Money',
+                            hintText: '01 97 00 00 00',
+                            helperText:
+                                'La demande de paiement sera envoyée sur ce numéro.',
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       TextField(
                         controller: controller,
@@ -1463,6 +1576,8 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
                           suffixText: 'F CFA',
                           helperText: selectedMethod.code == 'wallet'
                               ? 'Disponible : ${formatFCFA(availableBalance)} F • Reste : ${formatFCFA(remaining.toInt())} F'
+                              : selectedMethod.code == 'fedapay_push'
+                              ? 'Frais opérateur en sus • Reste à verser : ${formatFCFA(remaining.toInt())} F'
                               : 'Paiement externe • Reste à verser : ${formatFCFA(remaining.toInt())} F',
                         ),
                       ),
@@ -1511,12 +1626,182 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
       );
     } finally {
       controller.dispose();
+      pushPhoneController.dispose();
       _isDepositSheetOpening = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Paiement Mobile Money sans redirection (push USSD FedaPay)
+  // ---------------------------------------------------------------------------
+
+  static const _pushOperatorLabels = <String, String>{
+    'mtn': 'MTN MoMo',
+    'moov': 'Moov Money',
+    'celtiis': 'Celtiis Cash',
+  };
+  static const _pushOperatorPrefKey = 'fedapayPush.lastOperator';
+  static const _pushPhonePrefKey = 'fedapayPush.lastPhone';
+
+  Future<({String operator, String? phone})> _loadPushPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final operator = prefs.getString(_pushOperatorPrefKey);
+      return (
+        operator: _pushOperatorLabels.containsKey(operator) ? operator! : 'mtn',
+        phone: prefs.getString(_pushPhonePrefKey),
+      );
+    } catch (_) {
+      return (operator: 'mtn', phone: null);
+    }
+  }
+
+  Future<void> _savePushPreferences(String operator, String phone) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_pushOperatorPrefKey, operator);
+      await prefs.setString(_pushPhonePrefKey, phone);
+    } catch (_) {
+      // Simple confort : on ignore une erreur de stockage local.
+    }
+  }
+
+  /// Numero du compte au format local (01XXXXXXXX), pour preremplir le champ.
+  String _profilePhoneForPush() {
+    final state = context.read<DashboardBloc>().state;
+    if (state is! DashboardLoaded) {
+      return '';
+    }
+    var digits = state.profile.phoneNumber.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('229') && digits.length > 10) {
+      digits = digits.substring(3);
+    }
+    return digits.length == 10 ? digits : '';
+  }
+
+  /// Ouvre la page FedaPay dans l'application (onglet integre) plutot que dans
+  /// le navigateur. Repli sur le navigateur si l'onglet integre est indisponible.
+  Future<bool> _launchFedapayCheckout(Uri paymentUri) async {
+    try {
+      final launched = await launchUrl(
+        paymentUri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (launched) {
+        return true;
+      }
+    } catch (_) {
+      // On tente le navigateur externe ci-dessous.
+    }
+    return launchUrl(paymentUri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Solution de secours : paiement via la page FedaPay.
+  Future<void> _startFedapayRedirectPayment(double amount) async {
+    try {
+      final session = await TontineFedapayService().createDeposit(
+        amount,
+        const Uuid().v4(),
+      );
+      final paymentUri = Uri.tryParse(session.paymentUrl?.trim() ?? '');
+      if (paymentUri == null ||
+          !(paymentUri.scheme == 'https' || paymentUri.scheme == 'http')) {
+        throw const ApiException('Le lien de paiement est indisponible.');
+      }
+
+      _pendingFedapayIntentId = session.id;
+      await _suspendAppLockForFedapay();
+      _refreshOnResumeAfterFedapay = true;
+      final launched = await _launchFedapayCheckout(paymentUri);
+      if (!launched) {
+        _refreshOnResumeAfterFedapay = false;
+        _pendingFedapayIntentId = null;
+        await _clearFedapayAppLockBypass();
+        throw const ApiException("Impossible d'ouvrir la page de paiement.");
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error
+                .toString()
+                .replaceFirst(RegExp(r'^(Exception|Error):\s*'), ''),
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Affiche l'ecran d'attente et gere les choix du client (renvoyer, payer
+  /// autrement...). Le premier envoi a deja ete fait depuis la feuille de depot.
+  Future<void> _followFedapayPush(
+    TontineFedapayDepositIntent firstIntent, {
+    required double amount,
+    required String operator,
+    required String phoneNumber,
+  }) async {
+    final operatorLabel = _pushOperatorLabels[operator] ?? 'Mobile Money';
+    var intent = firstIntent;
+
+    while (true) {
+      if (!mounted) {
+        return;
+      }
+      final outcome = await FedapayPushWaitingScreen.show(
+        context,
+        intent: intent,
+        operatorLabel: operatorLabel,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      switch (outcome) {
+        case FedapayPushOutcome.succeeded:
+          context.read<DashboardBloc>().add(LoadDashboardData());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Versement confirmé. Mise à jour en cours.')),
+          );
+          return;
+        case FedapayPushOutcome.closed:
+          context.read<DashboardBloc>().add(LoadDashboardData());
+          return;
+        case FedapayPushOutcome.payOtherWay:
+          await _startFedapayRedirectPayment(amount);
+          return;
+        case FedapayPushOutcome.retry:
+          try {
+            intent = await TontineFedapayService().createPushDeposit(
+              amount: amount,
+              syncId: const Uuid().v4(),
+              operator: operator,
+              phoneNumber: phoneNumber,
+            );
+          } catch (error) {
+            if (!mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  error
+                      .toString()
+                      .replaceFirst(RegExp(r'^(Exception|Error):\s*'), ''),
+                ),
+              ),
+            );
+            return;
+          }
+      }
     }
   }
 
   bool _isSupportedTontineDepositMethod(String code) {
     return code == 'wallet' ||
+        code == 'fedapay_push' ||
         code == 'fedapay' ||
         code == 'afrikmoney' ||
         code == 'mtn_momo';
@@ -1526,6 +1811,8 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     switch (method.code) {
       case 'wallet':
         return 'Transfert interne depuis le solde disponible.';
+      case 'fedapay_push':
+        return 'Une demande de paiement s\'affichera sur votre téléphone : validez-la avec votre code secret Mobile Money, sans quitter l\'application.';
       case 'fedapay':
         return 'Paiement externe via FedaPay. Vous serez redirige vers la page de paiement.';
       case 'afrikmoney':
@@ -1541,6 +1828,8 @@ class _TontineDetailScreenState extends State<TontineDetailScreen>
     switch (code) {
       case 'wallet':
         return 'Confirmer le transfert';
+      case 'fedapay_push':
+        return 'Payer maintenant';
       case 'fedapay':
         return 'Ouvrir le paiement';
       case 'afrikmoney':

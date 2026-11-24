@@ -13,6 +13,12 @@ router.post(
   authenticate,
   asyncHandler(controller.initializeFedapayDeposit),
 );
+// Paiement sans redirection (push USSD). Le suivi se fait via GET /fedapay/deposits/:intentId.
+router.post(
+  '/fedapay/push-deposits',
+  authenticate,
+  asyncHandler(controller.initializeFedapayPushDeposit),
+);
 router.get(
   '/fedapay/deposits/:intentId',
   authenticate,
