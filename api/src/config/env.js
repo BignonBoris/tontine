@@ -33,6 +33,17 @@ const env = {
   fcmServerKey: process.env.FCM_SERVER_KEY || '',
   fedapaySecretKey: process.env.FEDAPAY_SECRET_KEY || '',
   fedapayWebhookSecret: process.env.FEDAPAY_WEBHOOK_SECRET || '',
+  // Operateur -> mode FedaPay pour le paiement sans redirection (push USSD).
+  // Valeurs confirmees par le support FedaPay et un test Live (24/11/2026).
+  fedapayPushModes:
+    process.env.FEDAPAY_PUSH_MODES ||
+    '{"mtn":"mtn_open","moov":"moov","celtiis":"sbin"}',
+  fedapayPushPhoneCountry: process.env.FEDAPAY_PUSH_PHONE_COUNTRY || 'bj',
+  fedapayPushMinIntervalSeconds: Number(
+    process.env.FEDAPAY_PUSH_MIN_INTERVAL_SECONDS || 30,
+  ),
+  fedapayPushMaxPerWindow: Number(process.env.FEDAPAY_PUSH_MAX_PER_WINDOW || 5),
+  fedapayPushWindowMinutes: Number(process.env.FEDAPAY_PUSH_WINDOW_MINUTES || 10),
   fedapayApiBaseUrl:
     process.env.FEDAPAY_API_BASE_URL ||
     (process.env.FEDAPAY_ENV === 'live' || process.env.NODE_ENV === 'production'

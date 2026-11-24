@@ -62,6 +62,28 @@ async function initializeFedapayDeposit(req, res) {
   return ok(res, data, 'Paiement FedaPay initialise.');
 }
 
+async function initializeFedapayPushDeposit(req, res) {
+  await assertPaymentMethodEnabled(
+    'fedapay_push',
+    'tontine_deposit',
+    'Le paiement Mobile Money direct n est pas disponible pour le moment.',
+  );
+  const data = await fedapayService.initializeFedapayTontinePushDeposit(
+    req.auth.userId,
+    Number(req.body.amount),
+    {
+      operator: req.body.operator,
+      phoneNumber: req.body.phoneNumber,
+    },
+    { ...getRequestContext(req), syncId: req.body.syncId },
+  );
+  return ok(
+    res,
+    data,
+    'Demande de paiement envoyee. Validez-la sur votre telephone.',
+  );
+}
+
 async function initializeAfrikmoneyDeposit(req, res) {
   await assertPaymentMethodEnabled(
     'afrikmoney',
@@ -161,6 +183,7 @@ module.exports = {
   configure,
   deposit,
   initializeFedapayDeposit,
+  initializeFedapayPushDeposit,
   getFedapayDepositIntent,
   initializeAfrikmoneyDeposit,
   getAfrikmoneyDepositIntent,

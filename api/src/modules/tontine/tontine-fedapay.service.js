@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { Op } = require('sequelize');
 const AppError = require('../../common/errors/app-error');
 const env = require('../../config/env');
 const { writeAuditLog } = require('../../common/services/audit-log.service');
@@ -8,6 +9,12 @@ const {
   depositToCycle,
 } = require('./tontine.service');
 const { FINANCIAL_AMOUNT_STEP } = require('../../common/constants/finance');
+const {
+  parsePushModes,
+  resolvePushTarget,
+  describePushError,
+  checkPushRateLimit,
+} = require('./fedapay-push.helpers');
 
 let Webhook;
 try {
@@ -339,14 +346,37 @@ function serializeIntent(intent) {
     failedAt: intent.failedAt,
     cancelledAt: intent.cancelledAt,
     expiredAt: intent.expiredAt,
+    channel: intent.channel || 'redirect',
+    pushOperator: intent.pushOperator || null,
+    pushPhoneMasked: intent.pushPhoneMasked || null,
+    pushSentAt: intent.pushSentAt || null,
+    lastErrorCode: intent.lastErrorCode || null,
+    // Message lisible pour le client quand l'operateur refuse le paiement
+    failureMessage:
+      describePushError(intent.lastErrorCode) ||
+      (['failed', 'cancelled', 'expired'].includes(intent.status)
+        ? intent.failureReason || null
+        : null),
     createdAt: intent.createdAt,
     updatedAt: intent.updatedAt,
   };
 }
 
-async function createFedapayTransaction(intent, cycle, requestContext = {}) {
+function extractLastErrorCode(transaction) {
+  const resource = unwrapFedapayResource(transaction);
+  const code = resource?.last_error_code || resource?.lastErrorCode || null;
+  return code ? String(code).trim().slice(0, 64) : null;
+}
+
+async function createFedapayTransaction(
+  intent,
+  cycle,
+  requestContext = {},
+  options = {},
+) {
   const callbackUrl = buildReturnUrl(intent.merchantReference);
   const payload = {
+    ...(options.customer ? { customer: options.customer } : {}),
     description: `Cotisation tontine ${formatAmount(intent.amount)} F`,
     amount: Math.round(Number(intent.amount)),
     currency: { iso: 'XOF' },
@@ -356,7 +386,7 @@ async function createFedapayTransaction(intent, cycle, requestContext = {}) {
       intentId: intent.id,
       userId: intent.userId,
       cycleId: intent.cycleId,
-      source: 'tontine_fedapay',
+      source: options.source || 'tontine_fedapay',
       initiatedByUserId: requestContext.initiatedByUserId || null,
     },
   };
@@ -391,6 +421,11 @@ async function createFedapayTransaction(intent, cycle, requestContext = {}) {
 
   return {
     transactionId,
+    token:
+      tokenPayload?.token ||
+      unwrapFedapayResource(tokenPayload)?.token ||
+      tokenPayload?.data?.token ||
+      null,
     providerStatus: extractProviderStatus(createdTransaction) || 'pending',
     paymentUrl:
       tokenPayload?.url ||
@@ -486,10 +521,17 @@ async function reconcileFedapayIntent(intent, requestContext = {}) {
           ? 'failed'
           : 'expired';
 
+    const lastErrorCode = extractLastErrorCode(providerTransaction);
     await intent.update({
       providerStatus,
       providerPayload: providerTransaction,
       status: nextStatus,
+      ...(lastErrorCode
+        ? {
+            lastErrorCode,
+            failureReason: describePushError(lastErrorCode),
+          }
+        : {}),
       ...(nextStatus === 'cancelled' ? { cancelledAt: new Date() } : {}),
       ...(nextStatus === 'failed' ? { failedAt: new Date() } : {}),
       ...(nextStatus === 'expired' ? { expiredAt: new Date() } : {}),
@@ -508,10 +550,11 @@ async function reconcileFedapayIntent(intent, requestContext = {}) {
   return serializeIntent(await intent.reload());
 }
 
-async function initializeFedapayTontineDeposit(
+async function createPendingTontineIntent(
   userId,
   amount,
   requestContext = {},
+  extraFields = {},
 ) {
   const normalizedAmount = normalizeAmount(amount);
   if (
@@ -554,6 +597,7 @@ async function initializeFedapayTontineDeposit(
         status: 'pending',
         initiatedByUserId: requestContext.initiatedByUserId || null,
         initiatorType: requestContext.initiatorType || 'client',
+        ...extraFields,
       },
       { transaction },
     );
@@ -566,7 +610,16 @@ async function initializeFedapayTontineDeposit(
     };
   });
 
-  const { intent, cycle, remainingAmount, callbackUrl } = cycleSnapshot;
+  return cycleSnapshot;
+}
+
+async function initializeFedapayTontineDeposit(
+  userId,
+  amount,
+  requestContext = {},
+) {
+  const { intent, cycle, remainingAmount, callbackUrl } =
+    await createPendingTontineIntent(userId, amount, requestContext);
 
   try {
     const fedapayTransaction = await createFedapayTransaction(
@@ -629,6 +682,184 @@ async function initializeFedapayTontineDeposit(
     });
     throw error;
   }
+}
+
+async function assertPushRateLimit(userId) {
+  const windowMinutes = Number(env.fedapayPushWindowMinutes) || 10;
+  const recentIntents = await models.TontinePaymentIntent.findAll({
+    attributes: ['createdAt'],
+    where: {
+      userId,
+      channel: 'push',
+      createdAt: { [Op.gte]: new Date(Date.now() - windowMinutes * 60 * 1000) },
+    },
+  });
+
+  const verdict = checkPushRateLimit(
+    recentIntents.map((item) => item.createdAt),
+    {
+      minIntervalSeconds: Number(env.fedapayPushMinIntervalSeconds) || 30,
+      maxPerWindow: Number(env.fedapayPushMaxPerWindow) || 5,
+      windowMinutes,
+    },
+  );
+  if (!verdict.allowed) {
+    throw new AppError(verdict.message, 429);
+  }
+}
+
+function buildPushCustomer(user, fedapayPhone) {
+  const firstname = String(user?.firstName || user?.displayName || 'Client').trim();
+  const lastname = String(user?.lastName || 'VizioBox').trim();
+  return {
+    firstname: firstname.slice(0, 60) || 'Client',
+    lastname: lastname.slice(0, 60) || 'VizioBox',
+    phone_number: fedapayPhone,
+  };
+}
+
+/**
+ * Paiement FedaPay sans redirection : la demande de paiement s'affiche
+ * directement sur le telephone du client (push USSD), qui valide avec son code
+ * secret Mobile Money. La confirmation arrive ensuite par le webhook FedaPay,
+ * ou par la reconciliation lors du suivi (GET /fedapay/deposits/:intentId).
+ */
+async function initializeFedapayTontinePushDeposit(
+  userId,
+  amount,
+  pushInput = {},
+  requestContext = {},
+) {
+  const target = resolvePushTarget(pushInput, {
+    modes: parsePushModes(env.fedapayPushModes),
+    phoneCountry: env.fedapayPushPhoneCountry,
+  });
+
+  await assertPushRateLimit(userId);
+
+  const { intent, cycle, remainingAmount } = await createPendingTontineIntent(
+    userId,
+    amount,
+    requestContext,
+    {
+      channel: 'push',
+      pushOperator: target.operator,
+      pushMode: target.mode,
+      pushPhoneMasked: target.maskedPhone,
+    },
+  );
+
+  const markFailed = async (error, lastErrorCode = null) => {
+    try {
+      await intent.update({
+        status: 'failed',
+        failedAt: new Date(),
+        lastErrorCode,
+        failureReason: String(
+          describePushError(lastErrorCode) ||
+            error?.message ||
+            'Le paiement Mobile Money n a pas pu etre envoye.',
+        ).slice(0, 255),
+      });
+    } catch (updateError) {
+      console.warn('[FedaPay push] echec non persiste', {
+        intentId: intent.id,
+        cause: updateError?.message,
+      });
+    }
+  };
+
+  let fedapayTransaction;
+  try {
+    const user = await models.User.findByPk(userId, {
+      attributes: ['id', 'firstName', 'lastName', 'displayName'],
+    });
+    fedapayTransaction = await createFedapayTransaction(intent, cycle, requestContext, {
+      customer: buildPushCustomer(user, target.fedapayPhone),
+      source: 'tontine_fedapay_push',
+    });
+  } catch (error) {
+    await markFailed(error);
+    throw error;
+  }
+
+  // On garde le lien de la page FedaPay : il sert de solution de secours
+  // ("Payer autrement") si le push n'aboutit pas.
+  await intent.update({
+    providerTransactionId: fedapayTransaction.transactionId,
+    paymentUrl: fedapayTransaction.paymentUrl,
+    providerStatus: fedapayTransaction.providerStatus,
+    providerPayload: fedapayTransaction.providerPayload,
+  });
+
+  if (!fedapayTransaction.token) {
+    const error = new AppError(
+      'FedaPay n a pas fourni de jeton de paiement. Utilisez la page de paiement.',
+      502,
+    );
+    await markFailed(error);
+    throw error;
+  }
+
+  let pushResponse;
+  try {
+    pushResponse = await requestFedapay(`/${encodeURIComponent(target.mode)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        token: fedapayTransaction.token,
+        phone_number: target.fedapayPhone,
+      }),
+    });
+  } catch (error) {
+    const lastErrorCode =
+      extractLastErrorCode(error?.details) ||
+      (error?.details?.error_code ? String(error.details.error_code) : null);
+    await markFailed(error, lastErrorCode);
+    console.warn('[FedaPay push] envoi refuse', {
+      intentId: intent.id,
+      mode: target.mode,
+      status: error?.statusCode,
+      lastErrorCode,
+    });
+    throw new AppError(
+      describePushError(lastErrorCode) ||
+        'La demande de paiement n a pas pu etre envoyee sur votre telephone. Reessayez ou payez via la page FedaPay.',
+      502,
+    );
+  }
+
+  await intent.update({
+    pushSentAt: new Date(),
+    providerPayload: {
+      ...(fedapayTransaction.providerPayload || {}),
+      pushResponse,
+    },
+  });
+
+  try {
+    await writeAuditLog({
+      userId,
+      action: 'tontine.fedapay_push_sent',
+      entityType: 'tontinePaymentIntent',
+      entityId: intent.id,
+      ipAddress: requestContext.ipAddress,
+      userAgent: requestContext.userAgent,
+      metadata: {
+        amount: Number(intent.amount),
+        merchantReference: intent.merchantReference,
+        providerTransactionId: fedapayTransaction.transactionId,
+        operator: target.operator,
+        mode: target.mode,
+        phone: target.maskedPhone,
+        cycleId: cycle.id,
+        remainingAmount,
+      },
+    });
+  } catch (auditError) {
+    console.warn('[WARN] Audit non enregistre pour le push FedaPay:', auditError);
+  }
+
+  return serializeIntent(await intent.reload());
 }
 
 async function getFedapayTontineDepositIntent(userId, intentId) {
@@ -808,10 +1039,14 @@ async function processFedapayWebhook(req, res) {
           : eventName === 'transaction.expired'
             ? 'expired'
             : intent.status;
+    const lastErrorCode = extractLastErrorCode(transaction);
     await intent.update({
       providerTransactionId: intent.providerTransactionId || providerTransactionId,
       providerStatus: providerStatus || intent.providerStatus,
       providerPayload: transaction,
+      ...(lastErrorCode
+        ? { lastErrorCode, failureReason: describePushError(lastErrorCode) }
+        : {}),
       ...(eventName === 'transaction.canceled'
         ? { status: 'cancelled', cancelledAt: new Date() }
         : {}),
@@ -985,6 +1220,7 @@ async function renderFedapayReturnPage(req, res) {
 
 module.exports = {
   initializeFedapayTontineDeposit,
+  initializeFedapayTontinePushDeposit,
   getFedapayTontineDepositIntent,
   processFedapayWebhook,
   renderFedapayReturnPage,
