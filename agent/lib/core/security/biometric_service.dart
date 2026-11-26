@@ -7,6 +7,8 @@ class BiometricService {
 
   /// Vérifie si le téléphone dispose d'un capteur biométrique configuré.
   static Future<bool> isBiometricAvailable() async {
+    if (kIsWeb) return false;
+
     try {
       final isAvailable = await _auth.canCheckBiometrics;
       final isDeviceSupported = await _auth.isDeviceSupported();
@@ -22,6 +24,8 @@ class BiometricService {
   /// `local_auth ^3.x` : l'option `biometricOnly` n'existe plus ;
   /// le fallback vers le PIN système est géré automatiquement par l'OS.
   static Future<bool> authenticate() async {
+    if (kIsWeb) return false;
+
     try {
       if (!await isBiometricAvailable()) return false;
 

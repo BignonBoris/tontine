@@ -32,7 +32,7 @@ class PinLockScreen extends StatefulWidget {
 
 class _PinLockScreenState extends State<PinLockScreen>
     with SingleTickerProviderStateMixin {
-  static const int _pinLength = 6;
+  static const int _pinLength = 4;
 
   final List<String> _entered = [];
   String? _errorMessage;
