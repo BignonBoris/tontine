@@ -89,6 +89,11 @@ const MainRoutes = [
         component: () => import('../views/platform/AppVersionsView.vue'),
       },
       {
+        path: '/community',
+        name: 'Community',
+        component: () => import('../views/platform/CommunityView.vue'),
+      },
+      {
         path: '/whatsapp',
         name: 'WhatsApp',
         component: () => import('../views/platform/WhatsAppView.vue'),

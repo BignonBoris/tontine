@@ -34,6 +34,7 @@ const {
   agentAliasRouter: agentAppVersionRoutes,
 } = require('../../modules/app-version/app-version.routes');
 const appVersionAdminRoutes = require('../../modules/app-version/app-version.admin.routes');
+const communityAdminRoutes = require('../../modules/community/community.admin.routes');
 
 const router = express.Router();
 
@@ -41,6 +42,7 @@ router.use('/auth', authRoutes);
 router.use('/auth/device-approval', deviceApprovalRoutes);
 router.use('/admin/auth', adminAuthRoutes);
 router.use('/admin/app-versions', appVersionAdminRoutes);
+router.use('/admin/community', communityAdminRoutes);
 router.use('/admin', adminRoutes);
 router.use('/admin', adminReconciliationRoutes);
 router.use('/agent/auth', agentAuthRoutes);
