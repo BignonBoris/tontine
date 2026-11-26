@@ -122,6 +122,12 @@ const sidebarItem: menu[] = [
     subCaption: "Trace des actions",
   },
   {
+    title: "Community Manager",
+    icon: "chat-round-line-linear",
+    to: "/community",
+    subCaption: "Publications et reponses IA",
+  },
+  {
     title: "Versions des apps",
     icon: "smartphone-linear",
     to: "/app-versions",
