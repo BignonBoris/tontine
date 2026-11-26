@@ -11,6 +11,7 @@ export interface CommunityOptions {
   statuses: CommunityStatus[];
   maxPostsPerGeneration: number;
   aiConfigured: boolean;
+  provider?: "gemini" | "anthropic";
   model: string;
 }
 

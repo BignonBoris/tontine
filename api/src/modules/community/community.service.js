@@ -6,7 +6,11 @@
  *   relevent du support (compte, paiement, plainte).
  * - Tout reste en brouillon : l'admin relit, valide et publie lui-meme.
  *
- * Modele : Claude via le SDK officiel. Cle : ANTHROPIC_API_KEY.
+ * Fournisseur d'IA (COMMUNITY_AI_PROVIDER) :
+ *   - "gemini"    : Google Gemini, cle GEMINI_API_KEY (offre gratuite) ;
+ *   - "anthropic" : Claude via le SDK officiel, cle ANTHROPIC_API_KEY.
+ * Sans reglage explicite : Gemini si GEMINI_API_KEY est defini, sinon Claude.
+ * COMMUNITY_AI_MODEL remplace le modele par defaut du fournisseur choisi.
  * Fiche de marque : system_settings.COMMUNITY_BRAND_PROFILE (editable).
  */
 const crypto = require('crypto');
@@ -27,7 +31,8 @@ const {
   DEFAULT_BRAND_PROFILE,
 } = require('./community.constants');
 
-const AI_MODEL = process.env.COMMUNITY_AI_MODEL || 'claude-opus-5-5';
+const DEFAULT_MODELS = { anthropic: 'claude-opus-5-5', gemini: 'gemini-3.8-flash' };
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const AI_EFFORT = process.env.COMMUNITY_AI_EFFORT || 'medium';
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
@@ -36,6 +41,27 @@ const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 // ---------------------------------------------------------------------------
 
 let claudeClient = null;
+let geminiFetch = null;
+
+// Lu a chaque appel : un changement de variable Railway suffit (apres redemarrage).
+function getProvider() {
+  const explicit = String(process.env.COMMUNITY_AI_PROVIDER || '').trim().toLowerCase();
+  if (explicit === 'gemini' || explicit === 'anthropic') {
+    return explicit;
+  }
+  return process.env.GEMINI_API_KEY ? 'gemini' : 'anthropic';
+}
+
+function getModel(provider = getProvider()) {
+  return process.env.COMMUNITY_AI_MODEL || DEFAULT_MODELS[provider];
+}
+
+function isAiConfigured(provider = getProvider()) {
+  if (provider === 'gemini') {
+    return Boolean(process.env.GEMINI_API_KEY) || Boolean(geminiFetch);
+  }
+  return Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(claudeClient);
+}
 
 function getClaudeClient() {
   if (claudeClient) {
@@ -54,6 +80,10 @@ function getClaudeClient() {
 
 function setClaudeClient(client) {
   claudeClient = client;
+}
+
+function setGeminiFetch(fetchImpl) {
+  geminiFetch = fetchImpl;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,8 +274,13 @@ const REPLY_SCHEMA = {
 // Appel Claude
 // ---------------------------------------------------------------------------
 
+function callAssistant(params) {
+  return getProvider() === 'gemini' ? callGemini(params) : callClaude(params);
+}
+
 async function callClaude({ profile, userContent, schema, maxTokens }) {
   const client = getClaudeClient();
+  const AI_MODEL = getModel('anthropic');
   let response;
   try {
     response = await client.beta.messages.create({
@@ -293,6 +328,89 @@ async function callClaude({ profile, userContent, schema, maxTokens }) {
     .join('');
   try {
     return { data: JSON.parse(text), model: response.model || AI_MODEL };
+  } catch (_) {
+    throw new AppError("Reponse de l'assistant illisible. Reessayez.", 502);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Appel Gemini (API REST generateContent, sortie JSON contrainte par schema)
+// ---------------------------------------------------------------------------
+
+const GEMINI_BLOCK_REASONS = ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII', 'RECITATION', 'IMAGE_SAFETY'];
+
+async function callGemini({ profile, userContent, schema, maxTokens }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey && !geminiFetch) {
+    throw new AppError(
+      "L'assistant n'est pas configure : ajoutez la variable GEMINI_API_KEY sur le serveur.",
+      503,
+    );
+  }
+  const model = getModel('gemini');
+  const doFetch = geminiFetch || fetch;
+  const body = {
+    systemInstruction: { parts: [{ text: buildSystemPrompt(profile) }] },
+    contents: [{ role: 'user', parts: [{ text: userContent }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseJsonSchema: schema,
+      // Les modeles Gemini recents "reflechissent" sur le meme budget de jetons.
+      maxOutputTokens: Math.min(maxTokens + 8192, 65536),
+    },
+  };
+
+  let response;
+  let payload;
+  try {
+    response = await doFetch(`${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey || 'test' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(170000),
+    });
+    payload = await response.json().catch(() => ({}));
+  } catch (error) {
+    console.error('[community] Gemini network error', { message: error.message });
+    throw new AppError("L'assistant est indisponible pour le moment. Reessayez.", 502);
+  }
+
+  if (!response.ok) {
+    const apiMessage = String(payload?.error?.message || '');
+    const apiStatus = String(payload?.error?.status || '');
+    if (response.status === 429) {
+      throw new AppError("Limite de l'offre gratuite Gemini atteinte. Reessayez dans une minute.", 429);
+    }
+    if (
+      response.status === 401 ||
+      response.status === 403 ||
+      /api key/i.test(apiMessage) ||
+      apiStatus === 'PERMISSION_DENIED'
+    ) {
+      throw new AppError('Cle GEMINI_API_KEY invalide ou sans acces au modele.', 503);
+    }
+    console.error('[community] Gemini API error', { status: response.status, apiStatus, message: apiMessage.slice(0, 300) });
+    throw new AppError("L'assistant est indisponible pour le moment. Reessayez.", 502);
+  }
+
+  if (payload?.promptFeedback?.blockReason) {
+    throw new AppError("L'assistant a refuse cette demande. Reformulez le sujet ou le commentaire.", 422);
+  }
+  const candidate = payload?.candidates?.[0];
+  const finishReason = candidate?.finishReason;
+  if (GEMINI_BLOCK_REASONS.includes(finishReason)) {
+    throw new AppError("L'assistant a refuse cette demande. Reformulez le sujet ou le commentaire.", 422);
+  }
+  if (finishReason === 'MAX_TOKENS') {
+    throw new AppError('Reponse trop longue : demandez moins de publications a la fois.', 422);
+  }
+
+  const text = (candidate?.content?.parts || [])
+    .filter((part) => typeof part.text === 'string' && !part.thought)
+    .map((part) => part.text)
+    .join('');
+  try {
+    return { data: JSON.parse(text), model: payload.modelVersion || model };
   } catch (_) {
     throw new AppError("Reponse de l'assistant illisible. Reessayez.", 502);
   }
@@ -381,7 +499,7 @@ async function generatePosts(input = {}, context = {}) {
   }
 
   const profile = await getBrandProfile();
-  const { data, model } = await callClaude({
+  const { data, model } = await callAssistant({
     profile,
     userContent: buildGenerationRequest({ networks, languages, topic, goal, count }),
     schema: POSTS_SCHEMA,
@@ -440,7 +558,7 @@ async function suggestReply(input = {}, context = {}) {
   }
 
   const profile = await getBrandProfile();
-  const { data, model } = await callClaude({
+  const { data, model } = await callAssistant({
     profile,
     userContent: buildReplyRequest({ network, comment, postContext }),
     schema: REPLY_SCHEMA,
@@ -581,8 +699,9 @@ function getOptions() {
     languages: Object.entries(LANGUAGES).map(([key, value]) => ({ key, label: value.label })),
     statuses: POST_STATUSES,
     maxPostsPerGeneration: MAX_POSTS_PER_GENERATION,
-    aiConfigured: Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(claudeClient),
-    model: AI_MODEL,
+    aiConfigured: isAiConfigured(),
+    provider: getProvider(),
+    model: getModel(),
   };
 }
 
@@ -596,4 +715,5 @@ module.exports = {
   updatePost,
   buildSystemPrompt,
   setClaudeClient,
+  setGeminiFetch,
 };

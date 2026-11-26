@@ -236,3 +236,103 @@ test('fiche de marque : valeurs par defaut puis enregistrement normalise', async
   assert.deepEqual(saved.defaultHashtags, ['#VizioBox', '#Benin']);
   assert.equal((await service.getBrandProfile()).isDefault, false);
 });
+
+// ---------------------------------------------------------------------------
+// Fournisseur Gemini
+// ---------------------------------------------------------------------------
+
+const gemini = { requests: [], reply: null, status: 200 };
+service.setGeminiFetch(async (url, init) => {
+  gemini.requests.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+  return new Response(JSON.stringify(gemini.reply), {
+    status: gemini.status,
+    headers: { 'content-type': 'application/json' },
+  });
+});
+
+function geminiReply(payload, finishReason = 'STOP') {
+  return {
+    candidates: [
+      {
+        content: { role: 'model', parts: [{ text: 'reflexion', thought: true }, { text: JSON.stringify(payload) }] },
+        finishReason,
+      },
+    ],
+    modelVersion: 'gemini-3.8-flash',
+  };
+}
+
+async function withGemini(fn) {
+  process.env.COMMUNITY_AI_PROVIDER = 'gemini';
+  gemini.requests.length = 0;
+  gemini.status = 200;
+  try {
+    await fn();
+  } finally {
+    delete process.env.COMMUNITY_AI_PROVIDER;
+  }
+}
+
+test('gemini : requete generateContent conforme et brouillons enregistres', () =>
+  withGemini(async () => {
+    gemini.reply = geminiReply({
+      posts: [
+        {
+          network: 'linkedin', language: 'fr', title: 'Digitalisation',
+          content: 'La tontine passe au numerique au Benin.', hashtags: ['Tontine'],
+          visual_idea: '', call_to_action: 'Decouvrez VizioBox',
+        },
+      ],
+    });
+
+    const posts = await service.generatePosts({ networks: ['linkedin'], languages: ['fr'], topic: 'Tontine digitale' });
+
+    const [request] = gemini.requests;
+    assert.match(request.url, /\/v1beta\/models\/gemini-3\.8-flash:generateContent$/);
+    assert.ok(request.headers['x-goog-api-key']);
+    assert.equal(request.body.generationConfig.responseMimeType, 'application/json');
+    assert.deepEqual(request.body.generationConfig.responseJsonSchema.required, ['posts']);
+    assert.match(request.body.systemInstruction.parts[0].text, /Interdits absolus/);
+    assert.equal(state.requests.length, 0, 'aucun appel Claude');
+
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].aiModel, 'gemini-3.8-flash');
+    assert.deepEqual(posts[0].hashtags, ['#Tontine']);
+    assert.equal(service.getOptions().provider, 'gemini');
+  }));
+
+test('gemini : contenu bloque -> 422, quota -> 429, cle invalide -> 503', () =>
+  withGemini(async () => {
+    gemini.reply = { promptFeedback: { blockReason: 'SAFETY' } };
+    await assert.rejects(service.suggestReply({ network: 'facebook', comment: 'texte' }), (e) => e.statusCode === 422);
+
+    gemini.reply = geminiReply({}, 'SAFETY');
+    await assert.rejects(service.suggestReply({ network: 'facebook', comment: 'texte' }), (e) => e.statusCode === 422);
+
+    gemini.status = 429;
+    gemini.reply = { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota' } };
+    await assert.rejects(service.suggestReply({ network: 'facebook', comment: 'texte' }), (e) => e.statusCode === 429);
+
+    gemini.status = 400;
+    gemini.reply = { error: { code: 400, status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' } };
+    await assert.rejects(service.suggestReply({ network: 'facebook', comment: 'texte' }), (e) => e.statusCode === 503);
+
+    gemini.status = 500;
+    gemini.reply = { error: { code: 500, status: 'INTERNAL', message: 'boom' } };
+    await assert.rejects(service.suggestReply({ network: 'facebook', comment: 'texte' }), (e) => e.statusCode === 502);
+    assert.equal(state.posts.length, 0);
+  }));
+
+test('fournisseur : Gemini par defaut des que GEMINI_API_KEY existe', () => {
+  const saved = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'cle-de-test';
+  try {
+    assert.equal(service.getOptions().provider, 'gemini');
+    process.env.COMMUNITY_AI_PROVIDER = 'anthropic';
+    assert.equal(service.getOptions().provider, 'anthropic');
+    assert.equal(service.getOptions().model, 'claude-opus-5-5');
+  } finally {
+    delete process.env.COMMUNITY_AI_PROVIDER;
+    if (saved === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = saved;
+  }
+});
