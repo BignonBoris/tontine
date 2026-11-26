@@ -34,6 +34,7 @@ const {
 const {
   ensureGoalTemplateCompatibility,
 } = require('./goal-template.bootstrap');
+const { ensureCommunityPostCompatibility } = require('./community-post.bootstrap');
 const { ensureKycCompatibility } = require('./kyc.bootstrap');
 const { models } = require('../models');
 
@@ -61,6 +62,7 @@ async function runBootstrap(sequelize) {
   await ensurePushDeviceTokenCompatibility(sequelize);
   await ensureGoalTemplateCompatibility(sequelize);
   await ensureKycCompatibility(sequelize);
+  await ensureCommunityPostCompatibility(sequelize);
 }
 
 module.exports = runBootstrap;

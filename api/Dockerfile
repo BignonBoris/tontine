@@ -24,6 +24,10 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     PORT=3000
 
+# Vercel le definissait automatiquement ; sans lui l'API passe en mode
+# developpement (code OTP renvoye dans la reponse, logs de debogage).
+ENV NODE_ENV=production
+
 WORKDIR /app
 
 # Dépendances Node

@@ -34,6 +34,7 @@ const WithdrawalCommissionReserve = require('./withdrawal-commission-reserve.mod
 const WithdrawalCommissionConsumption = require('./withdrawal-commission-consumption.model');
 const PaymentMethod = require('./payment-method.model');
 const GoalTemplate = require('./goal-template.model');
+const CommunityPost = require('./community-post.model');
 const KycCase = require('./kyc-case.model');
 const KycDocument = require('./kyc-document.model');
 const KycDecision = require('./kyc-decision.model');
@@ -422,6 +423,7 @@ const models = {
   WithdrawalCommissionConsumption,
   PaymentMethod,
   GoalTemplate,
+  CommunityPost,
   KycCase,
   KycDocument,
   KycDecision,
