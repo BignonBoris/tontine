@@ -352,6 +352,7 @@ const chipClass = (active: boolean) =>
         class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
       >
         L'assistant n'est pas encore activé : ajoutez la variable
+        <code class="rounded bg-white px-1">GEMINI_API_KEY</code> (gratuite sur aistudio.google.com) ou
         <code class="rounded bg-white px-1">ANTHROPIC_API_KEY</code> sur le serveur (Railway), puis redéployez.
       </div>
 
