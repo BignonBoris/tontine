@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:agent/core/services/update_service.dart';
 import 'package:agent/core/storage/session_storage.dart';
 import 'package:agent/core/widgets/update_dialog.dart';
 import 'package:agent/features/auth/presentation/screens/agent_login_screen.dart';
 import 'package:agent/features/navigation/presentation/screens/agent_main_shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 class AgentSessionGate extends StatefulWidget {
   const AgentSessionGate({super.key});
@@ -30,7 +29,7 @@ class _AgentSessionGateState extends State<AgentSessionGate> {
     // On attend que le widget soit monté pour pouvoir afficher un dialog
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Uniquement sur Android (les APK s'installent sur Android)
-      if (!Platform.isAndroid) return;
+      if (defaultTargetPlatform != TargetPlatform.android) return;
 
       final result = await UpdateService.instance.checkForUpdate();
       if (result == null || !result.updateAvailable) return;
